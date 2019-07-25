@@ -1,17 +1,19 @@
 imports:
   - php
 
-tools:
-  external_code_coverage:
-    timeout: 600
-
 build:
   nodes:
     analysis:
       tests:
         override:
           - php-scrutinizer-run
-
+    coverage:
+      tests:
+        override:
+          - command: ./vendor/bin/phpunit
+            coverage:
+              file: build/logs/clover.xml
+              format: clover
 build_failure_conditions:
   - 'elements.rating(<= C).new.exists'                        # No new classes/methods with a rating of C or worse allowed
   - 'issues.label("coding-style").new.exists'                 # No new coding style issues allowed
