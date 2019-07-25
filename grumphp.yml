@@ -45,7 +45,6 @@ parameters:
         - php
         - module
     securitychecker: ~
-    composer: ~
     phplint: ~
   ascii:
     failed: vendor/phpro/grumphp/resources/ascii/failed.txt
