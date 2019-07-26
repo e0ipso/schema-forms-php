@@ -61,7 +61,7 @@ class FormGeneratorDrupalTest extends TestCase {
         [
           'foo' => [
             '#title' => 'Foo',
-            '#type' => 'string',
+            '#type' => 'textfield',
             '#required' => FALSE,
           ],
         ],
