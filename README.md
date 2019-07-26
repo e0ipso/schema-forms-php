@@ -29,7 +29,7 @@ Given the following JSON Schema defining the different properties of a user obje
     "age": {
       "type": "integer",
       "title": "Age",
-      "description": "(earthian year)";
+      "description": "(earthian year)"
     },
     "bio": {
       "type": "string",
