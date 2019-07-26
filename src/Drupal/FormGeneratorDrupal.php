@@ -131,6 +131,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if ($type === 'boolean') {
       $form_element['#type'] = 'checkbox';
     }
+    if ($type === 'string') {
+      $form_element['#type'] = 'textfield';
+    }
     return $form_element;
   }
 
