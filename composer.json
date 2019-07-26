@@ -19,7 +19,7 @@
     "sebastian/phpcpd": "^4.1",
     "drupal/coder": "^8.3"
   },
-  "license": "GPL+2",
+  "license": "GPL-2.0-or-later",
   "authors": [
     {
       "name": "Mateu Aguiló Bosch",
