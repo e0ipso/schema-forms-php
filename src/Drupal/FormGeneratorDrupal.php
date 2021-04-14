@@ -22,7 +22,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * {@inheritdoc}
    */
   public function doTransform($data, Context $context = NULL) {
-    // @todo Add support for the UIContext overrides.
+    $context = $context ?: new Context();
     $storage = (new Factory(NULL, NULL, Constraint::CHECK_MODE_TYPE_CAST))->getSchemaStorage();
     $storage->addSchema('internal:/schema-with-refs', $data);
     $derefed_schema = $storage->getSchema('internal:/schema-with-refs');
@@ -30,7 +30,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $props = $derefed_schema->properties;
     $form = [];
     foreach ((array) $props as $key => $prop) {
-      $form[$key] = $this->doTransformOneField($prop, $key);
+      // If there is UI context, grab it and pass it along.
+      $ui_schema_data = $context->offsetExists($key) ? $context->offsetGet($key) : [];
+      $form[$key] = $this->doTransformOneField($prop, $key, $ui_schema_data);
     }
     foreach (array_keys($form) as $key) {
       $form[$key]['#required'] = in_array($key, $required_field_names);
@@ -60,29 +62,33 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The parsed element from the schema.
    * @param string $machine_name
    *   The machine name for the form element. Used for fallback metadata.
+   * @param array $ui_schema_data
+   *   The UI context on how to build the form element.
    *
    * @return array
    *   The form element.
    */
-  private function doTransformOneField($element, string $machine_name): array {
+  private function doTransformOneField($element, string $machine_name, array $ui_schema_data): array {
     // @todo A naive initial implementation that will only check on data type.
-    $form_element = $this->scaffoldFormElement($element, $machine_name);
+    $form_element = $this->scaffoldFormElement($element, $machine_name, $ui_schema_data);
     if (!empty($element->const)) {
       unset($form_element['#type']);
       $form_element['#markup'] = $element->const;
       // Not much more to do with constants.
       return $form_element;
     }
-    $type = $this->guessSchemaType($element);
+    $type = $this->guessSchemaType($element, $ui_schema_data);
     if ($type === 'string' && !empty($element->format) && $element->format === 'email') {
       $form_element['#type'] = 'email';
     }
+    $label_mappings = $ui_schema_data['ui:enum']['labels']['mappings'] ?? [];
+    $label_mappings = (array) $label_mappings;
     if (!empty($element->enum)) {
-      $form_element['#type'] = 'radios';
-      $form_element['#options'] = array_reduce($element->enum, function (array $carry, string $opt) {
+      $form_element['#type'] = $ui_schema_data['ui:widget'] ?? 'radios';
+      $form_element['#options'] = array_reduce($element->enum, function (array $carry, string $opt) use ($label_mappings) {
         return array_merge(
           $carry,
-          [$opt => $this->machineNameToHumanName($opt)]
+          [$opt => $label_mappings[$opt] ?? $this->machineNameToHumanName($opt)]
         );
       }, []);
     }
@@ -90,17 +96,21 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       if (empty($element->items->enum)) {
         throw new \InvalidArgumentException('Only arrays with enums are supported.');
       }
-      $form_element['#type'] = 'checkboxes';
-      $form_element['#options'] = array_reduce($element->items->enum, function (array $carry, string $opt) {
+      $form_element['#type'] = $ui_schema_data['ui:widget'] ?? 'checkboxes';
+      $form_element['#options'] = array_reduce($element->items->enum, function (array $carry, string $opt) use ($label_mappings) {
         return array_merge(
           $carry,
-          [$opt => $this->machineNameToHumanName($opt)]
+          [$opt => $label_mappings[$opt] ?? $this->machineNameToHumanName($opt)]
         );
       }, []);
     }
     if ($type === 'object') {
       throw new \InvalidArgumentException('Object types representing nested field sets are not supported yet.');
     }
+    $enabled = (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
+    $form_element['#disabled'] = !$enabled;
+    $visible = (bool) ($ui_schema_data['ui:visible'] ?? TRUE);
+    $form_element['#visible'] = $visible;
     return $form_element;
   }
 
@@ -111,21 +121,26 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The parsed element from the schema.
    * @param string $machine_name
    *   The machine name for the form element. Used for fallback metadata.
+   * @param array $ui_schema_data
+   *   The UI context on how to build the form element.
    *
    * @return array
    *   The scaffolded form element.
    */
-  private function scaffoldFormElement($element, string $machine_name): array {
-    $type = $this->guessSchemaType($element);
+  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data): array {
+    $type = $this->guessSchemaType($element, $ui_schema_data);
+    $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
     $form_element = [
-      '#title' => $this->machineNameToHumanName($machine_name),
+      '#title' => $title,
       '#type' => $type,
     ];
-    if (!empty($element->title)) {
-      $form_element['#title'] = $element->title;
+    $description = $ui_schema_data['ui:help'] ?? $element->description ?? NULL;
+    if (!empty($description)) {
+      $form_element['#description'] = $description;
     }
-    if (!empty($element->description)) {
-      $form_element['#description'] = $element->description;
+    $placeholder = $ui_schema_data['ui:placeholder'] ?? NULL;
+    if (!empty($placeholder)) {
+      $form_element['#placeholder'] = $placeholder;
     }
     // Basic transformations based on type.
     if ($type === 'boolean') {
@@ -142,11 +157,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @param mixed $element
    *   The parsed element from the schema.
+   * @param array $ui_schema_data
+   *   The UI context on how to build the form element.
    *
    * @return string
    *   The JSON property type.
    */
-  private function guessSchemaType($element): string {
+  private function guessSchemaType($element, array $ui_schema_data): string {
+    if (!empty($ui_schema_data['ui:widget'])) {
+      return $ui_schema_data['ui:widget'];
+    }
     $type = $element->type;
     if (is_array($type)) {
       // Guess the first non null type.
