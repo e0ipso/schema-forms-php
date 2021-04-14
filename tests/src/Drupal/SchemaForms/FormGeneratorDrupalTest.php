@@ -4,6 +4,7 @@ namespace SchemaForms\Tests\Drupal\FormGeneratorDrupal;
 
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use Shaper\Util\Context;
 
 /**
  * Unit tests for \SchemaForms\Drupal\FormGeneratorDrupal.
@@ -63,6 +64,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#title' => 'Foo',
             '#type' => 'textfield',
             '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
           ],
         ],
       ],
@@ -73,6 +76,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#title' => 'The Big Foo',
             '#type' => 'email',
             '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
           ],
           'bar' => [
             '#title' => 'Bar',
@@ -80,6 +85,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#description' => 'It is just a bar',
             '#type' => 'number',
             '#required' => TRUE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
           ],
         ],
       ],
@@ -100,6 +107,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#title' => 'A Foo',
             '#type' => 'checkbox',
             '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
           ],
         ],
       ],
@@ -111,6 +120,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#type' => 'checkboxes',
             '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
             '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
           ],
         ],
       ],
@@ -122,6 +133,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#type' => 'radios',
             '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
             '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
           ],
         ],
       ],
@@ -148,6 +161,92 @@ class FormGeneratorDrupalTest extends TestCase {
     return [
       ['{"type":"object","properties":{"foo":{"type":"array","items":{"type":"string"}}}}'],
       ['{"type":"object","properties":{"foo":{"type":"object","properties":{}}}}'],
+    ];
+  }
+
+  /**
+   * Tests the form generation.
+   *
+   * @param string $schema
+   *   The JSON string containing the schema for the form.
+   * @param array $ui_schema
+   *   The JSON string containing the UI schema for the form.
+   * @param array $expected_form
+   *   The expected form as in Drupal's Form API.
+   *
+   * @dataProvider dataProviderFormGenerationWithUi
+   */
+  public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form) {
+    $data = json_decode($schema);
+    $context = new Context($ui_schema);
+    $actual_form = $this->sut->transform($data, $context);
+    $this->assertEquals(
+      $expected_form,
+      $actual_form
+    );
+  }
+
+  /**
+   * Data provider for the testFormGenerationWithUI.
+   *
+   * @return array
+   *   The data.
+   */
+  public function dataProviderFormGenerationWithUi(): array {
+    return [
+      [
+        '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',
+        [
+          'foo' => [
+            'ui:title' => 'A title',
+            'ui:help' => 'Some help text',
+            'ui:placeholder' => 'This is a placeholder',
+          ],
+        ],
+        [
+          'foo' => [
+            '#title' => 'A title',
+            '#type' => 'textfield',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#description' => 'Some help text',
+            '#placeholder' => 'This is a placeholder',
+          ],
+        ],
+      ],
+      [
+        '{"type":"object","properties":{"foo":{"type":["string","null"]},"bar":{"type":"string","enum":["uuid1","uuid2"]}}}',
+        [
+          'foo' => [
+            'ui:widget' => 'hidden',
+          ],
+          'bar' => [
+            'ui:widget' => 'select',
+            'ui:enum' => ['labels' => ['mappings' => ['uuid1' => 'My Super Option #1']]],
+          ],
+        ],
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'hidden',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+          ],
+          'bar' => [
+            '#title' => 'Bar',
+            '#type' => 'select',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#options' => [
+              'uuid1' => 'My Super Option #1',
+              'uuid2' => 'Uuid2',
+            ],
+          ],
+        ],
+      ],
     ];
   }
 
