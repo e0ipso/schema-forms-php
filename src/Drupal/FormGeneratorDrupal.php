@@ -22,7 +22,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * {@inheritdoc}
    */
   public function doTransform($data, Context $context = NULL) {
-    // TODO: Add support for the UIContext overrides.
+    // @todo Add support for the UIContext overrides.
     $storage = (new Factory(NULL, NULL, Constraint::CHECK_MODE_TYPE_CAST))->getSchemaStorage();
     $storage->addSchema('internal:/schema-with-refs', $data);
     $derefed_schema = $storage->getSchema('internal:/schema-with-refs');
@@ -32,7 +32,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     foreach ((array) $props as $key => $prop) {
       $form[$key] = $this->doTransformOneField($prop, $key);
     }
-    foreach ($form as $key => $element) {
+    foreach (array_keys($form) as $key) {
       $form[$key]['#required'] = in_array($key, $required_field_names);
     }
     return $form;
@@ -65,7 +65,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form element.
    */
   private function doTransformOneField($element, string $machine_name): array {
-    // TODO: A naive initial implementation that will only check on data type.
+    // @todo A naive initial implementation that will only check on data type.
     $form_element = $this->scaffoldFormElement($element, $machine_name);
     if (!empty($element->const)) {
       unset($form_element['#type']);
