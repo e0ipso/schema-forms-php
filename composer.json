@@ -1,8 +1,8 @@
 {
   "name": "e0ipso/schema-forms",
-  "type": "library",
   "description": "Creates form definitions from JSON Schema property definitions and display configuration.",
   "license": "GPL-2.0-or-later",
+  "type": "library",
   "authors": [
     {
       "name": "Mateu Aguiló Bosch",
@@ -32,6 +32,13 @@
     "psr-4": {
       "SchemaForms\\": "src",
       "SchemaForms\\Tests\\": "tests/src"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "localheinz/composer-normalize": true,
+      "phpro/grumphp": true
     }
   }
 }

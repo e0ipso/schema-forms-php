@@ -24,6 +24,9 @@ class RenderArrayValidator extends ValidateableBase {
         }
         continue;
       }
+      if (strpos($key, '#') !== FALSE) {
+        continue;
+      }
       return $this->isValid($val);
     }
     return FALSE;

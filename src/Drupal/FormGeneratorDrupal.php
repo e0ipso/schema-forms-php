@@ -2,6 +2,8 @@
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Constraints\Factory;
 use JsonSchema\Validator;
@@ -17,6 +19,13 @@ use Shaper\Util\Context;
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {
 
   /**
+   * The schema.
+   *
+   * @var object
+   */
+  private object $schema;
+
+  /**
    * Creates the Form API element based on the JSON-Schema input.
    *
    * {@inheritdoc}
@@ -25,19 +34,17 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $context = $context ?: new Context();
     $storage = (new Factory(NULL, NULL, Constraint::CHECK_MODE_TYPE_CAST))->getSchemaStorage();
     $storage->addSchema('internal:/schema-with-refs', $data);
-    $derefed_schema = $storage->getSchema('internal:/schema-with-refs');
-    $required_field_names = $derefed_schema->required ?? [];
-    $props = $derefed_schema->properties;
-    $form = [];
+    $schema = $storage->getSchema('internal:/schema-with-refs');
+    // Store the schema for the validation callback to access.
+    $context['derefed_schema'] = $this->schema = $schema;
+    $props = $schema->properties;
+    $element = ['#type' => 'container'];
     foreach ((array) $props as $key => $prop) {
       // If there is UI context, grab it and pass it along.
       $ui_schema_data = $context->offsetExists($key) ? $context->offsetGet($key) : [];
-      $form[$key] = $this->doTransformOneField($prop, $key, $ui_schema_data);
+      $element[$key] = $this->doTransformOneField($prop, $key, $ui_schema_data);
     }
-    foreach (array_keys($form) as $key) {
-      $form[$key]['#required'] = in_array($key, $required_field_names);
-    }
-    return $form;
+    return $this->addValidationRules($element, $context);
   }
 
   /**
@@ -53,6 +60,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public function getOutputValidator() {
     return new RenderArrayValidator();
+  }
+
+  /**
+   * Validation callback against the schema.
+   */
+  public function validateWithSchema(array &$element, FormStateInterface $form_state, &$complete_form): void {
+    if (!isset($this->schema)) {
+      $form_state->setError($element, new TranslatableMarkup('Unable to find stored schema.'));
+    }
+    FormValidatorDrupal::validateWithSchema($element, $form_state, $this->schema);
   }
 
   /**
@@ -188,6 +205,30 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   private function machineNameToHumanName($machine_name) {
     return ucwords(strtr($machine_name, ['_' => ' ', '-' => ' ']));
+  }
+
+  /**
+   * Adds the necessary validation rules to the form.
+   *
+   * @param array $element
+   *   The form element to alter.
+   * @param \Shaper\Util\Context $context
+   *   The context.
+   *
+   * @return array
+   *   The modified form.
+   */
+  private function addValidationRules(array $element, Context $context): array {
+    $required_field_names = $context['derefed_schema']->required ?? [];
+    // Add the required fields.
+    foreach (array_keys($element) as $key) {
+      if (($key[0] ?? '') === '#') {
+        continue;
+      }
+      $element[$key]['#required'] = in_array($key, $required_field_names);
+    }
+    $element['#element_validate'] = [[$this, 'validateWithSchema']];
+    return $element;
   }
 
 }

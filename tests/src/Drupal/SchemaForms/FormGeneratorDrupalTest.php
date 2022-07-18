@@ -4,6 +4,7 @@ namespace SchemaForms\Tests\Drupal\FormGeneratorDrupal;
 
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\FormValidator;
 use Shaper\Util\Context;
 
 /**
@@ -41,6 +42,7 @@ class FormGeneratorDrupalTest extends TestCase {
    * @dataProvider dataProviderFormGeneration
    */
   public function testFormGeneration(string $schema, array $expected_form) {
+    $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
     $data = json_decode($schema);
     $actual_form = $this->sut->transform($data);
     $this->assertEquals(
@@ -67,6 +69,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#disabled' => FALSE,
             '#visible' => TRUE,
           ],
+          '#type' => 'container',
         ],
       ],
       [
@@ -88,6 +91,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#disabled' => FALSE,
             '#visible' => TRUE,
           ],
+          '#type' => 'container',
         ],
       ],
       [
@@ -98,6 +102,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#title' => 'Foo',
             '#required' => FALSE,
           ],
+          '#type' => 'container',
         ],
       ],
       [
@@ -110,6 +115,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#disabled' => FALSE,
             '#visible' => TRUE,
           ],
+          '#type' => 'container',
         ],
       ],
       [
@@ -123,6 +129,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#disabled' => FALSE,
             '#visible' => TRUE,
           ],
+          '#type' => 'container',
         ],
       ],
       [
@@ -136,6 +143,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#disabled' => FALSE,
             '#visible' => TRUE,
           ],
+          '#type' => 'container',
         ],
       ],
     ];
@@ -177,6 +185,7 @@ class FormGeneratorDrupalTest extends TestCase {
    * @dataProvider dataProviderFormGenerationWithUi
    */
   public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form) {
+    $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
     $data = json_decode($schema);
     $context = new Context($ui_schema);
     $actual_form = $this->sut->transform($data, $context);
@@ -202,6 +211,7 @@ class FormGeneratorDrupalTest extends TestCase {
             'ui:help' => 'Some help text',
             'ui:placeholder' => 'This is a placeholder',
           ],
+          '#type' => 'container',
         ],
         [
           'foo' => [
@@ -213,6 +223,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#description' => 'Some help text',
             '#placeholder' => 'This is a placeholder',
           ],
+          '#type' => 'container',
         ],
       ],
       [
@@ -225,6 +236,7 @@ class FormGeneratorDrupalTest extends TestCase {
             'ui:widget' => 'select',
             'ui:enum' => ['labels' => ['mappings' => ['uuid1' => 'My Super Option #1']]],
           ],
+          '#type' => 'container',
         ],
         [
           'foo' => [
@@ -245,6 +257,7 @@ class FormGeneratorDrupalTest extends TestCase {
               'uuid2' => 'Uuid2',
             ],
           ],
+          '#type' => 'container',
         ],
       ],
     ];
