@@ -10,6 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Create npm deps
+        run: yarn init --yes && yarn add --dev @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/github @semantic-release/git
+
       - name: Tag a new release
         uses: cycjimmy/semantic-release-action@v2
         env:
