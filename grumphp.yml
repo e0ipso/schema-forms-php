@@ -20,9 +20,6 @@ grumphp:
         - master
         - main
     phpunit: ~
-    clover_coverage:
-      clover_file: build/logs/clover.xml
-      level: 100
     phpcs:
       standard:
         - vendor/drupal/coder/coder_sniffer/Drupal
