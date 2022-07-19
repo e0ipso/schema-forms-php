@@ -25,7 +25,8 @@ final class FormValidatorDrupal {
    *   The form schema.
    */
   public static function validateWithSchema(array &$element, FormStateInterface $form_state, object $schema): void {
-    $submitted = $form_state->getValue($element['#parents']);
+    $parents = $element['#parents'];
+    $submitted = $form_state->getValue($parents);
     // Filter data to avoid empty string to trigger format errors.
     $data = (new ArrayToStdClass())->transform(array_filter($submitted));
     $validator = new Validator();
