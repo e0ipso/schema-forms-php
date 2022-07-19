@@ -1,4 +1,3 @@
-[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/e0ipso/schema-forms-php/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/e0ipso/schema-forms-php/?branch=master) [![Code Coverage](https://scrutinizer-ci.com/g/e0ipso/schema-forms-php/badges/coverage.png?b=master)](https://scrutinizer-ci.com/g/e0ipso/schema-forms-php/?branch=master) [![Build Status](https://scrutinizer-ci.com/g/e0ipso/schema-forms-php/badges/build.png?b=master)](https://scrutinizer-ci.com/g/e0ipso/schema-forms-php/build-status/master)
 # Schema Forms
 Schema forms is a project that aims to generate form structures for the different PHP frameworks based on the data definitions in JSON Schema.
 
