@@ -12,7 +12,8 @@ grumphp:
         - types: ['build', 'ci', 'chore', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test']
         - scopes: ['schema', 'form', 'drupal', 'api']
       max_subject_width: 50
-      allow_detached_head: true
+      enforce_no_subject_punctuations: true
+      enforce_no_subject_trailing_period: true
     git_branch_name:
       whitelist:
         - '/(build|ci|chore|docs|feat|fix|perf|refactor|revert|style|test)\/[a-z0-9-]+/'
