@@ -1,0 +1,14 @@
+{
+  "name": "schema-forms-php",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/e0ipso/schema-forms-php",
+  "license": "MIT",
+  "devDependencies": {
+    "@semantic-release/commit-analyzer": "^9.0.2",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^8.0.5",
+    "@semantic-release/release-notes-generator": "^10.0.3",
+    "conventional-changelog-conventionalcommits": "^5.0.0"
+  }
+}
