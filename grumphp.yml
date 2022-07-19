@@ -62,7 +62,3 @@ grumphp:
           blacklist: [var_dump, kint]
       metadata:
         priority: 100000
-
-  ascii:
-    failed: vendor/phpro/grumphp/resources/ascii/failed.txt
-    succeeded: vendor/phpro/grumphp/resources/ascii/succeeded.txt
