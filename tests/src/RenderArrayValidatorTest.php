@@ -1,8 +1,9 @@
 <?php
 
-namespace SchemaForms;
+namespace SchemaForms\Tests;
 
 use PHPUnit\Framework\TestCase;
+use SchemaForms\RenderArrayValidator;
 
 /**
  * Unit tests for the \SchemaForms\RenderArrayValidator class.
@@ -82,6 +83,13 @@ class RenderArrayValidatorTest extends TestCase {
         INF,
         FALSE,
       ],
+      [
+        [
+          '#va' => [['Foo\Bar', 'validateWithSchema']],
+          'fa' => ['#fa' => 'mily'],
+        ],
+        TRUE
+      ]
     ];
   }
 

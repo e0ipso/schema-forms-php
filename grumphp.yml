@@ -12,18 +12,14 @@ grumphp:
         - types: ['build', 'ci', 'chore', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test']
         - scopes: ['schema', 'form', 'drupal', 'api']
       max_subject_width: 50
-      allow_detached_head: true
+      enforce_no_subject_punctuations: true
+      enforce_no_subject_trailing_period: true
     git_branch_name:
       whitelist:
         - '/(build|ci|chore|docs|feat|fix|perf|refactor|revert|style|test)\/[a-z0-9-]+/'
         - master
         - main
-      allow_detached_head: false
-    phpunit:
-      always_execute: true
-    clover_coverage:
-      clover_file: build/logs/clover.xml
-      level: 100
+    phpunit: ~
     phpcs:
       standard:
         - vendor/drupal/coder/coder_sniffer/Drupal
@@ -61,7 +57,3 @@ grumphp:
           blacklist: [var_dump, kint]
       metadata:
         priority: 100000
-
-  ascii:
-    failed: vendor/phpro/grumphp/resources/ascii/failed.txt
-    succeeded: vendor/phpro/grumphp/resources/ascii/succeeded.txt
