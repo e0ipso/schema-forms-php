@@ -43,15 +43,16 @@ final class FormValidatorDrupal {
       if (empty($generic_errors)) {
         return;
       }
-      $full_message = array_reduce(
-        $generic_errors,
-        static fn(string $carry, array $error) => sprintf('<li>%s</li>%s', $carry, Html::escape($error['message'])),
-        '<ul>'
+      $full_message = implode(
+        ', ',
+        array_map([Html::class, 'escape'], $generic_errors)
       );
-      $full_message .= '</ul>';
       $form_state->setError(
         $element,
-        t('<p>Invalid data, please make sure all data is valid according to the schema. Schema validation returned the following errors errors:</.p>' . $full_message,)
+        new TranslatableMarkup(
+          '<p>Invalid data, please make sure all data is valid according to the schema. Schema validation returned the following errors errors: @full_message</p>',
+          ['@full_message' => $full_message]
+        )
       );
     }
   }
