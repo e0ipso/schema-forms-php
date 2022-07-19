@@ -16,6 +16,13 @@ final class FormValidatorDrupal {
 
   /**
    * Validation callback against the schema.
+   *
+   * @param array $element
+   *   The form element.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param object $schema
+   *   The form schema.
    */
   public static function validateWithSchema(array &$element, FormStateInterface $form_state, object $schema): void {
     $submitted = $form_state->getValue($element['#parents']);
@@ -50,12 +57,18 @@ final class FormValidatorDrupal {
   }
 
   /**
+   * Sets or returns the error for a prop.
    *
    * @param array $element
+   *   The form element.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
    * @param array $error
+   *   The error data from the JSON-Schema validation.
    *
    * @return string|null
+   *   String if we could not find the particular prop this error is for. NULL
+   *   if the error could be set.
    */
   private static function errorForProp(array $element, FormStateInterface $form_state, array $error): ?string {
     $message = $error['message'] . ' ' . $error['constraint'];
