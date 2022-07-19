@@ -10,7 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Tag a new release
-        if: ${{ success() }}
         uses: cycjimmy/semantic-release-action@v2
         with:
           extra_plugins: |
