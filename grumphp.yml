@@ -19,8 +19,7 @@ grumphp:
         - '/(build|ci|chore|docs|feat|fix|perf|refactor|revert|style|test)\/[a-z0-9-]+/'
         - master
         - main
-    phpunit:
-      always_execute: true
+    phpunit: ~
     clover_coverage:
       clover_file: build/logs/clover.xml
       level: 100
