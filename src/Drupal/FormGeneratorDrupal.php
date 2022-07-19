@@ -65,7 +65,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Validation callback against the schema.
    */
-  public function validateWithSchema(array &$element, FormStateInterface $form_state, &$complete_form): void {
+  public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
     if (!isset($this->schema)) {
       $form_state->setError($element, new TranslatableMarkup('Unable to find stored schema.'));
     }

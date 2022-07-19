@@ -19,7 +19,6 @@ grumphp:
         - '/(build|ci|chore|docs|feat|fix|perf|refactor|revert|style|test)\/[a-z0-9-]+/'
         - master
         - main
-      allow_detached_head: false
     phpunit:
       always_execute: true
     clover_coverage:
