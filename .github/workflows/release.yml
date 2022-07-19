@@ -1,14 +1,18 @@
-name: website
+name: Release
 
 on:
   push:
     branches: [master]
 
 jobs:
-  publish:
+  tag:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
+      - name: Create empty package.json
+        run: echo '{}' > package.json
+
       - name: Tag a new release
         uses: cycjimmy/semantic-release-action@v2
         with:
