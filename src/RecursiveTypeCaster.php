@@ -40,13 +40,13 @@ final class RecursiveTypeCaster {
     $types = $schema->type;
     $types = is_array($types) ? $types : [$types];
     array_reduce([
-      'tryCastingNumber',
-      'tryCastingBoolean',
-      'tryCastingNull',
-      'tryCastingString',
+      static fn(&$d, $t) => static::tryCastingNumber($d, $t),
+      static fn(&$d, $t) => static::tryCastingBoolean($d, $t),
+      static fn(&$d, $t) => static::tryCastingNull($d, $t),
+      static fn(&$d, $t) => static::tryCastingString($d, $t),
     ],
       static function (bool $casted, string $method) use (&$data, $types) {
-        return $casted ?: static::$method($data, $types);
+        return $casted ?: $method($data, $types);
       },
       FALSE
     );
