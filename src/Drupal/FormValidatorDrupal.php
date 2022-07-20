@@ -81,7 +81,7 @@ final class FormValidatorDrupal {
       $form_state->setError(
         $error_element,
         new TranslatableMarkup('%element: @message', [
-          '%element' => $error_element['#title'],
+          '%element' => $error_element['#title'] ?? '',
           '@message' => $message,
         ])
       );
