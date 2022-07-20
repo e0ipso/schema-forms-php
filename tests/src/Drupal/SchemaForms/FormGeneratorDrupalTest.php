@@ -44,6 +44,7 @@ class FormGeneratorDrupalTest extends TestCase {
   public function testFormGeneration(string $schema, array $expected_form) {
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
     $data = json_decode($schema);
+    $expected_form['#json_schema'] = $data;
     $actual_form = $this->sut->transform($data);
     $this->assertEquals(
       $expected_form,
@@ -187,7 +188,8 @@ class FormGeneratorDrupalTest extends TestCase {
   public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form) {
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
     $data = json_decode($schema);
-    $context = new Context($ui_schema);
+    $expected_form['#json_schema'] = $data;
+    $context = new Context(['ui_hints' => $ui_schema]);
     $actual_form = $this->sut->transform($data, $context);
     $this->assertEquals(
       $expected_form,
