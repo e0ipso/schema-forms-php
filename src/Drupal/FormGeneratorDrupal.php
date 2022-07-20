@@ -3,7 +3,6 @@
 namespace SchemaForms\Drupal;
 
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Constraints\Factory;
 use JsonSchema\Validator;
@@ -19,13 +18,6 @@ use Shaper\Util\Context;
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {
 
   /**
-   * The schema.
-   *
-   * @var object
-   */
-  private object $schema;
-
-  /**
    * Creates the Form API element based on the JSON-Schema input.
    *
    * {@inheritdoc}
@@ -35,13 +27,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $storage = (new Factory(NULL, NULL, Constraint::CHECK_MODE_TYPE_CAST))->getSchemaStorage();
     $storage->addSchema('internal:/schema-with-refs', $data);
     $schema = $storage->getSchema('internal:/schema-with-refs');
-    // Store the schema for the validation callback to access.
-    $context['derefed_schema'] = $this->schema = $schema;
     $props = $schema->properties;
-    $element = ['#type' => 'container'];
+    // Store the schema for the validation callbacks to access.
+    $element = ['#type' => 'container', '#json_schema' => $schema];
+    $ui_hints = $context['ui_hints'] ?? [];
     foreach ((array) $props as $key => $prop) {
       // If there is UI context, grab it and pass it along.
-      $ui_schema_data = $context->offsetExists($key) ? $context->offsetGet($key) : [];
+      $ui_schema_data = $ui_hints[$key] ?? [];
       $element[$key] = $this->doTransformOneField($prop, $key, $ui_schema_data);
     }
     return $this->addValidationRules($element, $context);
@@ -66,10 +58,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * Validation callback against the schema.
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
-    if (!isset($this->schema)) {
-      $form_state->setError($element, new TranslatableMarkup('Unable to find stored schema.'));
+    $schema = $element['#json_schema'] ?? [];
+    // If the schema is empty do not perform additional validation.
+    if (!empty($schema)) {
+      FormValidatorDrupal::typeCastRecursive($element, $form_state, $schema);
+      FormValidatorDrupal::validateWithSchema($element, $form_state, $schema);
     }
-    FormValidatorDrupal::validateWithSchema($element, $form_state, $this->schema);
   }
 
   /**
@@ -219,7 +213,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The modified form.
    */
   private function addValidationRules(array $element, Context $context): array {
-    $required_field_names = $context['derefed_schema']->required ?? [];
+    $required_field_names = $element['#json_schema']->required ?? [];
     // Add the required fields.
     foreach (array_keys($element) as $key) {
       if (($key[0] ?? '') === '#') {

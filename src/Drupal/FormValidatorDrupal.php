@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Validator;
 use SchemaForms\ArrayToStdClass;
+use SchemaForms\RecursiveTypeCaster;
 
 /**
  * Generates Drupal Form API forms from JSON-Schema documents.
@@ -88,6 +89,22 @@ final class FormValidatorDrupal {
       return NULL;
     }
     return $message;
+  }
+
+  /**
+   * Casts form submissions to their corresponding JSON types.
+   *
+   * @param array $element
+   *   The form element.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param object $schema
+   *   The data schema.
+   */
+  public static function typeCastRecursive(array $element, FormStateInterface $form_state, object $schema): void {
+    $data = $form_state->getValue($element['#parents']);
+    $data = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    $form_state->setValueForElement($element, $data);
   }
 
 }
