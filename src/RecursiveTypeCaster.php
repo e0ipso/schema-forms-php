@@ -2,6 +2,9 @@
 
 namespace SchemaForms;
 
+/**
+ * Casts a data structure to its JSON-Schema the best it can.
+ */
 final class RecursiveTypeCaster {
 
   /**
