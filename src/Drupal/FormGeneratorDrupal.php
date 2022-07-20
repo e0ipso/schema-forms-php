@@ -206,13 +206,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @param array $element
    *   The form element to alter.
-   * @param \Shaper\Util\Context $context
-   *   The context.
    *
    * @return array
    *   The modified form.
    */
-  private function addValidationRules(array $element, Context $context): array {
+  private function addValidationRules(array $element): array {
     $required_field_names = $element['#json_schema']->required ?? [];
     // Add the required fields.
     foreach (array_keys($element) as $key) {
