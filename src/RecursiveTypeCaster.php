@@ -45,7 +45,7 @@ final class RecursiveTypeCaster {
       static fn(&$data, $types) => static::tryCastingNull($data, $types),
       static fn(&$data, $types) => static::tryCastingString($data, $types),
     ],
-      static function (bool $casted, string $method) use (&$data, $types) {
+      static function (bool $casted, callable $method) use (&$data, $types) {
         return $casted ?: $method($data, $types);
       },
       FALSE
