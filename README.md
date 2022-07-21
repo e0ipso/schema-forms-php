@@ -81,7 +81,8 @@ Execute this PHP code:
 ```php
 use SchemaForms\Drupal\FormGeneratorDrupal;
 $generator = new FormGeneratorDrupal();
-$actual_form = $generator->transform($schema_data, $ui_schema_data);
+$context = new Context(['ui_hints => $ui_schema_data]);
+$actual_form = $generator->transform($schema_data, $context);
 // It generates the following Drupal Form API form:
 [
   'firstName' => [
