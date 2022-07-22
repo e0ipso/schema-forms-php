@@ -61,6 +61,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
   /**
    * Validation callback against the schema.
+   *
+   * @param array $element
+   *   The element.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
     $schema = $element['#json_schema'] ?? [];
@@ -75,11 +80,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * Creates a Drupal form element from a property definition.
    *
    * @param mixed $json_schema
-   *   The parsed element from the schema.
+   *   The JSON Schema for the element.
    * @param string $machine_name
    *   The machine name for the form element. Used for fallback metadata.
    * @param array $ui_schema_data
-   *   The UI context on how to build the form element.
+   *   The schema for the UI refinements.
    *
    * @return array
    *   The form element.
@@ -123,14 +128,22 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * This stores the final location of the field within the form structure so
    * that flagErrors() can assign validation errors to the right form element.
+   *
+   * @param array $element
+   *   The element.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array
+   *   The form element.
    */
   public static function afterBuild(array $element, FormStateInterface $form_state) {
     $parents = $element['#prop_parents'];
     $prop_name = $element['#prop_name'];
 
-    $prop_state = static::getWidgetState($parents, $prop_name, $form_state);
+    $prop_state = static::getPropFormState($parents, $prop_name, $form_state);
     $prop_state['array_parents'] = $element['#array_parents'];
-    static::setWidgetState($parents, $prop_name, $form_state, $prop_state);
+    static::setPropFormState($parents, $prop_name, $form_state, $prop_state);
 
     return $element;
   }
@@ -138,8 +151,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
   /**
    * Submission handler for the "Add another item" button.
+   *
+   * @param array $form
+   *   The form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
    */
-  public static function addMoreSubmit(array $form, FormStateInterface $form_state) {
+  public static function addMoreSubmit(array $form, FormStateInterface $form_state): void {
     $button = $form_state->getTriggeringElement();
 
     // Go one level up in the form, to the widgets container.
@@ -148,9 +166,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $parents = $element['#prop_parents'];
 
     // Increment the items count.
-    $prop_state = static::getWidgetState($parents, $prop_name, $form_state);
+    $prop_state = static::getPropFormState($parents, $prop_name, $form_state);
     $prop_state['items_count']++;
-    static::setWidgetState($parents, $prop_name, $form_state, $prop_state);
+    static::setPropFormState($parents, $prop_name, $form_state, $prop_state);
 
     $form_state->setRebuild();
   }
@@ -160,8 +178,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * This returns the new page content to replace the page content made obsolete
    * by the form submission.
+   *
+   * @param array $form
+   *   The form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array|mixed|void
+   *   The element.
    */
-  public static function addMoreAjax(array $form, FormStateInterface $form_state) {
+  public static function addMoreAjax(array $form, FormStateInterface $form_state): mixed {
     $button = $form_state->getTriggeringElement();
 
     // Go one level up in the form, to the widgets container.
@@ -169,7 +195,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
     // Ensure the widget allows adding additional items.
     if ($element['#cardinality'] != FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED) {
-      return;
+      return NULL;
     }
 
     // Add a DIV around the delta receiving the Ajax effect.
@@ -181,16 +207,35 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
-   * {@inheritdoc}
+   * Get the prop form state.
+   *
+   * @param array $parents
+   *   The parents.
+   * @param $prop_name
+   *   The prop name.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array|mixed|null
+   *   The state.
    */
-  public static function getWidgetState(array $parents, $prop_name, FormStateInterface $form_state) {
+  public static function getPropFormState(array $parents, $prop_name, FormStateInterface $form_state): mixed {
     return NestedArray::getValue($form_state->getStorage(), static::getWidgetStateParents($parents, $prop_name));
   }
 
   /**
-   * {@inheritdoc}
+   * Sets the prop form state.
+   *
+   * @param array $parents
+   *   The parents.
+   * @param $prop_name
+   *   The prop name.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param array $prop_state
+   *   The state to set.
    */
-  public static function setWidgetState(array $parents, $prop_name, FormStateInterface $form_state, array $prop_state) {
+  public static function setPropFormState(array $parents, $prop_name, FormStateInterface $form_state, array $prop_state): void {
     $parents_state = static::getWidgetStateParents($parents, $prop_name);
     NestedArray::setValue($form_state->getStorage(), $parents_state, $prop_state);
   }
@@ -224,7 +269,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param string $machine_name
    *   The machine name for the form element. Used for fallback metadata.
    * @param array $ui_schema_data
-   *   The UI context on how to build the form element.
+   *   The schema for the UI refinements.
    *
    * @return array
    *   The scaffolded form element.
@@ -267,7 +312,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param mixed $element
    *   The parsed element from the schema.
    * @param array $ui_schema_data
-   *   The UI context on how to build the form element.
+   *   The schema for the UI refinements.
    *
    * @return string
    *   The JSON property type.
@@ -322,9 +367,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Get the dereferenced schema.
+   *
    * @param mixed $data
+   *   The schema containing references.
    *
    * @return mixed|object
+   *   The dereferenced schema.
    */
   private function getSchema(mixed $data): mixed {
     $storage = (new Factory(NULL, NULL, Constraint::CHECK_MODE_TYPE_CAST))->getSchemaStorage();
@@ -333,9 +382,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Builds the form element for the email case.
+   *
    * @param array $form_element
+   *   The form element.
    *
    * @return array
+   *   The form element.
    */
   private function transformEmail(array $form_element): array {
     $form_element['#type'] = 'email';
@@ -343,12 +396,18 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Builds the form element for the radios case.
+   *
    * @param $uiwidget
+   *   The type of widget to use.
    * @param array $form_element
+   *   The form element.
    * @param mixed $json_schema
+   *   The JSON Schema for the element.
    * @param array $label_mappings
    *
    * @return array
+   *   The form element.
    */
   private function transformRadios($uiwidget, array $form_element, mixed $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'radios';
@@ -362,12 +421,19 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Builds the form element for the checkboxes case.
+   *
    * @param $uiwidget
+   *   The type of widget to use.
    * @param array $form_element
+   *   The form element.
    * @param mixed $json_schema
+   *   The JSON Schema for the element.
    * @param array $label_mappings
+   *   An associative array to map options to human-readable labels.
    *
    * @return array
+   *   The form element.
    */
   private function transformCheckboxes($uiwidget, array $form_element, mixed $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'checkboxes';
@@ -381,24 +447,34 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Builds the form element for the multi-value case.
+   *
    * @param array $parents
+   *   The parents.
    * @param string $machine_name
+   *   The machine name.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
-   * @param array $current_input
+   *   The form state.
+   * @param array|null $current_input
+   *   The current input.
    * @param array $form_element
+   *   The form element.
    * @param mixed $json_schema
+   *   The JSON Schema for the element.
    * @param array $ui_schema_data
+   *   The schema for the UI refinements.
    *
    * @return array
+   *   The form element.
    */
   private function transformMultivalue(array $parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, mixed $json_schema, array $ui_schema_data): array {
     // Store field information in $form_state.
-    if (!static::getWidgetState($parents, $machine_name, $form_state)) {
+    if (!static::getPropFormState($parents, $machine_name, $form_state)) {
       $prop_state = [
         'items_count' => count($current_input ?: []),
         'array_parents' => [],
       ];
-      static::setWidgetState($parents, $machine_name, $form_state, $prop_state);
+      static::setPropFormState($parents, $machine_name, $form_state, $prop_state);
     }
 
     $id_prefix = implode('-', array_merge($parents, [$machine_name]));
@@ -408,7 +484,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // Determine the number of widgets to display.
     switch ($cardinality) {
       case FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED:
-        $prop_state = static::getWidgetState($parents, $machine_name, $form_state);
+        $prop_state = static::getPropFormState($parents, $machine_name, $form_state);
         $max = $prop_state['items_count'];
         $is_multiple = TRUE;
         break;
@@ -474,14 +550,23 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Builds the form element for the nested case.
+   *
    * @param mixed $json_schema
+   *   The JSON Schema for the element.
    * @param array $form_element
+   *   The form element.
    * @param array $parents
+   *   The parents.
    * @param array $ui_schema_data
+   *   The schema for the UI refinements.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
-   * @param array $current_input
+   *   The form state.
+   * @param array|null $current_input
+   *   The current input.
    *
    * @return array
+   *   The form element.
    */
   private function transformNested(mixed $json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input): array {
     $properties = $json_schema->properties ?? [];
