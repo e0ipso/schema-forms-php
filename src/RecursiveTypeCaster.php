@@ -69,7 +69,7 @@ final class RecursiveTypeCaster {
       $input = (string) $input;
       return TRUE;
     }
-    return $input;
+    return FALSE;
   }
 
   /**
