@@ -19,7 +19,12 @@ final class RecursiveTypeCaster {
    *   The same data with refined types.
    */
   public static function recursiveTypeRefinements(mixed $data, object $schema): mixed {
-    if ($schema->type === 'object') {
+    $types = $schema->type;
+    $types = is_array($types) ? $types : [$types];
+    if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
+      return array_map(static fn(mixed $item) => static::recursiveTypeRefinements($item, $schema->items), $data);
+    }
+    if ((is_array($data) || is_object($data)) && in_array('object', $types, TRUE)) {
       // If the data is NOT an array or object, then do not do any type casting.
       if (!is_array($data) && !is_object($data)) {
         return $data;
@@ -30,15 +35,6 @@ final class RecursiveTypeCaster {
       }
       return $data;
     }
-    if ($schema->type === 'array') {
-      // If the data is NOT an array, then do not do any type casting.
-      if (!is_array($data)) {
-        return $data;
-      }
-      return array_map(static fn(mixed $item) => static::recursiveTypeRefinements($item, $schema->items), $data);
-    }
-    $types = $schema->type;
-    $types = is_array($types) ? $types : [$types];
     array_reduce([
       static fn(&$data, $types) => static::tryCastingNumber($data, $types),
       static fn(&$data, $types) => static::tryCastingBoolean($data, $types),

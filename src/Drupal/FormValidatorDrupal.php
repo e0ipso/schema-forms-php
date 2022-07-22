@@ -2,6 +2,7 @@
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Component\Render\MarkupInterface;
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Form\FormStateInterface;
@@ -103,8 +104,51 @@ final class FormValidatorDrupal {
    */
   public static function typeCastRecursive(array $element, FormStateInterface $form_state, object $schema): void {
     $data = $form_state->getValue($element['#parents']);
+    $data = static::cleanUserInput($data);
     $data = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
     $form_state->setValueForElement($element, $data);
+  }
+
+  private static function cleanUserInput($data) {
+    if (!is_array($data)) {
+      return is_null($data) ? NULL : $data;
+    }
+    if (array_is_list($data)) {
+      $data = static::arrayTrim($data);
+    }
+    else {
+      foreach ($data as $key => $datum) {
+        // If the data was left empty in a fieldset, remove it.
+        if ($datum === '') {
+          unset($data[$key]);
+          continue;
+        }
+        if ($key === 'add_more' && $datum instanceof MarkupInterface) {
+          unset($data[$key]);
+          continue;
+        }
+        $clean_datum = static::cleanUserInput($datum);
+        if (is_null($clean_datum)) {
+          unset($data[$key]);
+          continue;
+        }
+        $data[$key] = $clean_datum;
+      }
+    }
+    return empty($data) ? NULL : $data;
+  }
+
+  private static function arrayTrim(array $data): array {
+    if (!array_is_list($data)) {
+      return $data;
+    }
+    $last_non_empty = -1;
+    foreach ($data as $index => $value) {
+      if ($value !== '') {
+        $last_non_empty = $index;
+      }
+    }
+    return array_slice($data, 0, $last_non_empty + 1);
   }
 
 }
