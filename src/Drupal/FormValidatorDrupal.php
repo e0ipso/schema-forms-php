@@ -111,31 +111,29 @@ final class FormValidatorDrupal {
 
   private static function cleanUserInput($data) {
     if (!is_array($data)) {
-      return is_null($data) ? NULL : $data;
+      return $data;
     }
     if (array_is_list($data)) {
-      $data = static::arrayTrim($data);
+      return static::arrayTrim($data);
     }
-    else {
-      foreach ($data as $key => $datum) {
-        // If the data was left empty in a fieldset, remove it.
-        if ($datum === '') {
-          unset($data[$key]);
-          continue;
-        }
-        if ($key === 'add_more' && $datum instanceof MarkupInterface) {
-          unset($data[$key]);
-          continue;
-        }
-        $clean_datum = static::cleanUserInput($datum);
-        if (is_null($clean_datum)) {
-          unset($data[$key]);
-          continue;
-        }
-        $data[$key] = $clean_datum;
+    foreach ($data as $key => $datum) {
+      // If the data was left empty in a fieldset, remove it.
+      if ($datum === '') {
+        unset($data[$key]);
+        continue;
       }
+      if ($key === 'add_more' && $datum instanceof MarkupInterface) {
+        unset($data[$key]);
+        continue;
+      }
+      $clean_datum = static::cleanUserInput($datum);
+      if (is_null($clean_datum)) {
+        unset($data[$key]);
+        continue;
+      }
+      $data[$key] = $clean_datum;
     }
-    return empty($data) ? NULL : $data;
+    return $data;
   }
 
   private static function arrayTrim(array $data): array {
