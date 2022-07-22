@@ -391,11 +391,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array
    */
-  private function transformMultivalue(array $parents, string $machine_name, FormStateInterface $form_state, array $current_input, array $form_element, mixed $json_schema, array $ui_schema_data): array {
+  private function transformMultivalue(array $parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, mixed $json_schema, array $ui_schema_data): array {
     // Store field information in $form_state.
     if (!static::getWidgetState($parents, $machine_name, $form_state)) {
       $prop_state = [
-        'items_count' => count($current_input),
+        'items_count' => count($current_input ?: []),
         'array_parents' => [],
       ];
       static::setWidgetState($parents, $machine_name, $form_state, $prop_state);
@@ -483,7 +483,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array
    */
-  private function transformNested(mixed $json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, array $current_input): array {
+  private function transformNested(mixed $json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input): array {
     $properties = $json_schema->properties ?? [];
     if (!empty($properties)) {
       $form_element['#type'] = 'details';
