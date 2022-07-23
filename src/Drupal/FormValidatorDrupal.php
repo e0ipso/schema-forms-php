@@ -112,13 +112,13 @@ final class FormValidatorDrupal {
   /**
    * Cleans the input.
    *
-   * @param $data
+   * @param mixed $data
    *   The input before cleaning.
    *
    * @return array|mixed
    *   The clean input.
    */
-  private static function cleanUserInput($data) {
+  private static function cleanUserInput(mixed $data) {
     if (!is_array($data)) {
       return $data;
     }

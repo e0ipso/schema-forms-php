@@ -88,12 +88,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param array $ui_schema_data
    *   The schema for the UI refinements.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
-   * @param $current_input
+   *   The form state.
+   * @param mixed $current_input
+   *   The current input.
    *
    * @return array
    *   The form element.
    */
-  private function doTransformOneField(mixed $json_schema, string $machine_name, array $parents, array $ui_schema_data, FormStateInterface $form_state, $current_input): array {
+  private function doTransformOneField(mixed $json_schema, string $machine_name, array $parents, array $ui_schema_data, FormStateInterface $form_state, mixed $current_input): array {
     $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input);
     $form_element['#prop_parents'] = $parents;
     if (!empty($json_schema->const)) {
@@ -274,6 +276,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param array $ui_schema_data
    *   The schema for the UI refinements.
    * @param mixed $current_input
+   *   The current input.
    *
    * @return array
    *   The scaffolded form element.
