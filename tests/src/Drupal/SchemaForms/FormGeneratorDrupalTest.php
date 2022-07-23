@@ -69,6 +69,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],
@@ -82,6 +84,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => [],
           ],
           'bar' => [
             '#title' => 'Bar',
@@ -91,6 +95,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => TRUE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            '#prop_name' => 'bar',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],
@@ -102,6 +108,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#markup' => 'The Big Foo',
             '#title' => 'Foo',
             '#required' => FALSE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],
@@ -115,6 +123,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            '#prop_name' => 'a-foo',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],
@@ -129,6 +139,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],
@@ -143,33 +155,12 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],
       ],
-    ];
-  }
-
-  /**
-   * Tests invalid types.
-   *
-   * @dataProvider dataProviderInvalidTypes
-   */
-  public function testInvalidTypes(string $schema) {
-    $this->expectException(\InvalidArgumentException::class);
-    $this->sut->transform(json_decode(($schema)));
-  }
-
-  /**
-   * Data provider for the testInvalidTypes.
-   *
-   * @return array
-   *   The data.
-   */
-  public function dataProviderInvalidTypes() {
-    return [
-      ['{"type":"object","properties":{"foo":{"type":"array","items":{"type":"string"}}}}'],
-      ['{"type":"object","properties":{"foo":{"type":"object","properties":{}}}}'],
     ];
   }
 
@@ -224,6 +215,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#visible' => TRUE,
             '#description' => 'Some help text',
             '#placeholder' => 'This is a placeholder',
+            '#prop_name' => 'foo',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],
@@ -247,6 +240,8 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => [],
           ],
           'bar' => [
             '#title' => 'Bar',
@@ -258,6 +253,8 @@ class FormGeneratorDrupalTest extends TestCase {
               'uuid1' => 'My Super Option #1',
               'uuid2' => 'Uuid2',
             ],
+            '#prop_name' => 'bar',
+            '#prop_parents' => [],
           ],
           '#type' => 'container',
         ],

@@ -29,10 +29,6 @@ grumphp:
       triggered_by: ['php', 'module', 'inc', 'install', 'test', 'profile', 'theme']
     phpcpd:
       fuzzy: true
-    phpmd:
-      ruleset: [codesize, design, naming, unusedcode]
-      triggered_by: ['php', 'module']
-      exclude: ['.github', '.gitlab', 'bower_components', 'node_modules', 'vendor', '/tests/**/*']
     phpmnd:
       hint: true
       triggered_by: ['php', 'module']
