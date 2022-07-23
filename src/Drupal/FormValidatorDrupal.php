@@ -109,6 +109,15 @@ final class FormValidatorDrupal {
     $form_state->setValueForElement($element, $data);
   }
 
+  /**
+   * Cleans the input.
+   *
+   * @param $data
+   *   The input before cleaning.
+   *
+   * @return array|mixed
+   *   The clean input.
+   */
   private static function cleanUserInput($data) {
     if (!is_array($data)) {
       return $data;
@@ -136,6 +145,15 @@ final class FormValidatorDrupal {
     return $data;
   }
 
+  /**
+   * Trims an array of values with empty strings.
+   *
+   * @param array $data
+   *   The data to trim.
+   *
+   * @return array
+   *   The trimmed data.
+   */
   private static function arrayTrim(array $data): array {
     if (!array_is_list($data)) {
       return $data;
