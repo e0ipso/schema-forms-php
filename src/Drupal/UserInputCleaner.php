@@ -19,6 +19,21 @@ class UserInputCleaner {
    *   The clean input.
    */
   public static function cleanUserInput(mixed $data) {
+    return static::filterEmptyItems(
+      static::doCleanUserInput($data)
+    );
+  }
+
+  /**
+   * Cleans the input.
+   *
+   * @param mixed $data
+   *   The input before cleaning.
+   *
+   * @return array|mixed
+   *   The clean input.
+   */
+  private static function doCleanUserInput(mixed $data) {
     if (!is_array($data)) {
       return $data;
     }
@@ -37,7 +52,49 @@ class UserInputCleaner {
       }
       $data[$key] = $clean_datum;
     }
+    if (array_is_list($data)) {
+      return static::arrayTrim($data);
+    }
     return $data;
+  }
+
+  /**
+   * Remove empty items from the form recursively.
+   *
+   * @param mixed $data
+   *   The data.
+   *
+   * @return mixed
+   *   The filtered data.
+   */
+  private static function filterEmptyItems(mixed $data): mixed {
+    if (!is_array($data)) {
+      return $data;
+    }
+    return array_filter(array_map([static::class, 'filterEmptyItems'], $data));
+  }
+
+  /**
+   * Checks if a simple data structure contains any data.
+   *
+   * @param mixed $item
+   *   The data structure.
+   *
+   * @return bool
+   *   TRUE if it has data. FALSE otherwise.
+   */
+  private static function hasData(mixed $item): bool {
+    if (empty($item) && $item !== 0 && $item !== FALSE) {
+      return FALSE;
+    }
+    if (!is_array($item)) {
+      return TRUE;
+    }
+    return array_reduce(
+      $item,
+      static fn(bool $res, $el) => $res || static::hasData($el),
+      FALSE
+    );
   }
 
   /**

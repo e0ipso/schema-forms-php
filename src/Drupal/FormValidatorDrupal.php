@@ -28,8 +28,12 @@ final class FormValidatorDrupal {
   public static function validateWithSchema(array &$element, FormStateInterface $form_state, object $schema): void {
     $parents = $element['#parents'];
     $submitted = $form_state->getValue($parents);
-    // Filter data to avoid empty string to trigger format errors.
-    $data = (new ArrayToStdClass())->transform(array_filter($submitted));
+    $data = (new ArrayToStdClass())->transform($submitted);
+    if ($data === []) {
+      // If the data is an empty array we may need to cast it to empty object.
+      $types = is_array($schema->type) ? $schema->type : [$schema->type];
+      $data = in_array('array', $types, TRUE) ? [] : new \stdClass();
+    }
     $validator = new Validator();
     // Validate the massaged data against the schema.
     $num_errors = $validator->validate($data, $schema);
