@@ -143,13 +143,20 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  public static function afterBuild(array $element, FormStateInterface $form_state) {
-    $parents = $element['#prop_parents'];
+  public static function multiValueAfterBuild(array $element, FormStateInterface $form_state) {
+    if ($form_state->isProcessingInput()) {
+      $element_parents = $element['#parents'];
+      $data = $form_state->getValue($element_parents);
+      $clean_data = UserInputCleaner::cleanUserInput($data);
+      $form_state->setValue($element_parents, $clean_data);
+    }
+
+    $prop_parents = $element['#prop_parents'];
     $prop_name = $element['#prop_name'];
 
-    $prop_state = static::getPropFormState($parents, $prop_name, $form_state);
+    $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
     $prop_state['array_parents'] = $element['#array_parents'];
-    static::setPropFormState($parents, $prop_name, $form_state, $prop_state);
+    static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
 
     return $element;
   }
@@ -257,9 +264,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The location of processing information within $form_state.
    */
   protected static function getWidgetStateParents(array $parents, string $prop_name) {
-    // Field processing data is placed at
-    // $form_state->get(['field_storage', '#parents', ...$parents..., '#fields',
-    // $prop_name]), to avoid clashes between field names and $parents parts.
+    // Prop processing data is placed at
+    // $form_state->get(['prop_storage', '#parents', ...$parents..., '#fields',
+    // $prop_name]), to avoid clashes between prop names and $parents parts.
     return array_merge(['prop_storage', '#parents'], $parents, [
       '#props',
       $prop_name,
@@ -504,7 +511,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     }
     $form_element['#type'] = 'details';
     $form_element['#open'] = TRUE;
-    $form_element['#after_build'][] = [static::class, 'afterBuild'];
+    $form_element['#after_build'][] = [static::class, 'multiValueAfterBuild'];
     $form_element['#cardinality'] = $cardinality;
     $form_element['#cardinality_multiple'] = TRUE;
     $form_element['#max_delta'] = $max;
@@ -532,7 +539,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       // Add a new empty item if it doesn't exist yet at this delta.
       $element += $this->doTransformOneField(
         $json_schema->items,
-        '',
+        (string) $delta,
         [...$parents, $machine_name, $delta],
         $ui_schema_data,
         $form_state,
