@@ -4,6 +4,9 @@ namespace SchemaForms\Drupal;
 
 use Drupal\Component\Render\MarkupInterface;
 
+/**
+ * Cleans the lingering user input from the form submissions.
+ */
 class UserInputCleaner {
 
   /**
