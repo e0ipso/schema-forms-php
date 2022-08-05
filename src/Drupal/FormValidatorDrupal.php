@@ -2,7 +2,6 @@
 
 namespace SchemaForms\Drupal;
 
-use Drupal\Component\Render\MarkupInterface;
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Form\FormStateInterface;
