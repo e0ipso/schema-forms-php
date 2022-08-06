@@ -179,7 +179,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
     // Increment the items count.
     $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
-    $prop_state['items_indices'][] = end($prop_state['items_indices']) + 1;
+    $next_index = empty($prop_state['items_indices'])
+      ? 0
+      : end($prop_state['items_indices']) + 1;
+    $prop_state['items_indices'][] = $next_index;
     static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
 
     $form_state->setRebuild();
@@ -265,7 +268,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   protected static function getWidgetStateParents(array $parents, string $prop_name) {
     // Prop processing data is placed at
-    // $form_state->get(['prop_storage', '#parents', ...$parents..., '#fields',
+    // $form_state->get(['prop_storage', '#parents', ...$parents..., '#props',
     // $prop_name]), to avoid clashes between prop names and $parents parts.
     return array_merge(['prop_storage', '#parents'], $parents, [
       '#props',
@@ -482,28 +485,28 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  private function transformMultivalue(array $parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, mixed $json_schema, array $ui_schema_data): array {
+  private function transformMultivalue(array $prop_parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, mixed $json_schema, array $ui_schema_data): array {
     // Store field information in $form_state.
-    if (!static::getPropFormState($parents, $machine_name, $form_state)) {
+    if (!static::getPropFormState($prop_parents, $machine_name, $form_state)) {
       $count = count($current_input ?: []);
       $prop_state = [
-        'items_indices' => range(0, $count - 1),
+        'items_indices' => $count ? range(0, $count - 1) : [],
         'array_parents' => [],
       ];
-      static::setPropFormState($parents, $machine_name, $form_state, $prop_state);
+      static::setPropFormState($prop_parents, $machine_name, $form_state, $prop_state);
     }
 
     // @todo If we ever support non-infinite multivalues, change this.
     $cardinality = FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
     // Determine the number of widgets to display.
     $indices = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
-      ? static::getPropFormState($parents, $machine_name, $form_state)['items_indices'] ?? [0]
+      ? static::getPropFormState($prop_parents, $machine_name, $form_state)['items_indices'] ?? [0]
       : range(0, $cardinality);
     $max = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
       ? count($indices)
       : $cardinality - 1;
     $is_multiple = $cardinality !== 1;
-    $id_prefix = implode('-', array_merge($parents, [$machine_name]));
+    $id_prefix = implode('-', array_merge($prop_parents, [$machine_name]));
     $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
     $form_element['#type'] = 'details';
     $form_element['#open'] = TRUE;
@@ -532,11 +535,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           '#description' => $description,
         ];
       // Add a new empty item if it doesn't exist yet at this delta.
-      $prop_parents = [...$parents, $machine_name, $delta];
       $element += $this->doTransformOneField(
         $json_schema->items,
         (string) $delta,
-        $prop_parents,
+        [...$prop_parents, $delta],
         $ui_schema_data,
         $form_state,
         $current_input[$delta] ?? NULL
@@ -549,7 +551,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       '#name' => strtr($id_prefix, '-', '_') . '_add_more',
       '#value' => new TranslatableMarkup('Append an item'),
       '#attributes' => ['class' => ['field-add-more-submit']],
-      '#limit_validation_errors' => [array_merge($parents, [$machine_name])],
+      '#limit_validation_errors' => [array_merge($prop_parents, [$machine_name])],
       '#submit' => [[static::class, 'addMoreSubmit']],
       '#ajax' => [
         'callback' => [static::class, 'addMoreAjax'],
