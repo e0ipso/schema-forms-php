@@ -83,7 +83,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The JSON Schema for the element.
    * @param string $machine_name
    *   The machine name for the form element. Used for fallback metadata.
-   * @param array $parents
+   * @param array $prop_parents
    *   The parents.
    * @param array $ui_schema_data
    *   The schema for the UI refinements.
@@ -95,9 +95,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  private function doTransformOneField(mixed $json_schema, string $machine_name, array $parents, array $ui_schema_data, FormStateInterface $form_state, mixed $current_input): array {
+  private function doTransformOneField(mixed $json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, mixed $current_input): array {
     $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input);
-    $form_element['#prop_parents'] = $parents;
+    $form_element['#prop_parents'] = $prop_parents;
     if (!empty($json_schema->const)) {
       unset($form_element['#type']);
       $form_element['#markup'] = $json_schema->const;
@@ -115,11 +115,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     }
     if ($type === 'array') {
       $form_element = empty($json_schema->items->enum)
-        ? $this->transformMultivalue($parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data)
+        ? $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data)
         : $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
     }
     if ($type === 'object') {
-      $form_element = $this->transformNested($json_schema, $form_element, $parents, $ui_schema_data, $form_state, $current_input);
+      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input);
     }
 
     $enabled = (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
@@ -180,6 +180,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // Increment the items count.
     $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
     $prop_state['items_count']++;
+    $prop_state['items_indices'][] = end($prop_state['items_indices']) + 1;
     static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
 
     $form_state->setRebuild();
@@ -500,6 +501,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $indices = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
       ? static::getPropFormState($parents, $machine_name, $form_state)['items_indices'] ?? [0]
       : range(0, $cardinality);
+    $max = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
+      ? count($indices)
+      : $cardinality - 1;
     $is_multiple = $cardinality !== 1;
     $id_prefix = implode('-', array_merge($parents, [$machine_name]));
     $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
@@ -508,6 +512,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $form_element['#after_build'][] = [static::class, 'multiValueAfterBuild'];
     $form_element['#cardinality'] = $cardinality;
     $form_element['#cardinality_multiple'] = TRUE;
+    $form_element['#max_delta'] = $max;
     $form_element['#prefix'] = '<div id="' . $wrapper_id . '">';
     $form_element['#suffix'] = '</div>';
     $title = $form_element['#title'] ?? '';
