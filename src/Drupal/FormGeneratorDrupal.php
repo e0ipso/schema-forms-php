@@ -179,7 +179,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
     // Increment the items count.
     $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
-    $prop_state['items_count']++;
     $prop_state['items_indices'][] = end($prop_state['items_indices']) + 1;
     static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
 
@@ -488,7 +487,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if (!static::getPropFormState($parents, $machine_name, $form_state)) {
       $count = count($current_input ?: []);
       $prop_state = [
-        'items_count' => $count,
         'items_indices' => range(0, $count - 1),
         'array_parents' => [],
       ];
@@ -511,7 +509,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $form_element['#open'] = TRUE;
     $form_element['#after_build'][] = [static::class, 'multiValueAfterBuild'];
     $form_element['#cardinality'] = $cardinality;
-    $form_element['#cardinality_multiple'] = TRUE;
     $form_element['#max_delta'] = $max;
     $form_element['#prefix'] = '<div id="' . $wrapper_id . '">';
     $form_element['#suffix'] = '</div>';
