@@ -31,7 +31,7 @@ final class RecursiveTypeCaster {
       }
       // Handle each property recursively.
       foreach ((array) $data as $key => $value) {
-        $sub_schema = $schema->properties->{$key} ?? $schema->items ?? ['type' => 'null'];
+        $sub_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
         $data[$key] = static::recursiveTypeRefinements($value, $sub_schema);
       }
       return $data;

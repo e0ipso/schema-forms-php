@@ -175,12 +175,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // Go one level up in the form, to the widgets container.
     $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -1));
     $prop_name = $element['#prop_name'];
-    $parents = $element['#prop_parents'];
+    $prop_parents = $element['#prop_parents'];
 
     // Increment the items count.
-    $prop_state = static::getPropFormState($parents, $prop_name, $form_state);
+    $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
     $prop_state['items_count']++;
-    static::setPropFormState($parents, $prop_name, $form_state, $prop_state);
+    static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
 
     $form_state->setRebuild();
   }
@@ -485,41 +485,34 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   private function transformMultivalue(array $parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, mixed $json_schema, array $ui_schema_data): array {
     // Store field information in $form_state.
     if (!static::getPropFormState($parents, $machine_name, $form_state)) {
+      $count = count($current_input ?: []);
       $prop_state = [
-        'items_count' => count($current_input ?: []),
+        'items_count' => $count,
+        'items_indices' => range(0, $count - 1),
         'array_parents' => [],
       ];
       static::setPropFormState($parents, $machine_name, $form_state, $prop_state);
     }
 
-    $id_prefix = implode('-', array_merge($parents, [$machine_name]));
-    $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
     // @todo If we ever support non-infinite multivalues, change this.
     $cardinality = FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
     // Determine the number of widgets to display.
-    switch ($cardinality) {
-      case FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED:
-        $prop_state = static::getPropFormState($parents, $machine_name, $form_state);
-        $max = $prop_state['items_count'];
-        $is_multiple = TRUE;
-        break;
-
-      default:
-        $max = $cardinality - 1;
-        $is_multiple = ($cardinality > 1);
-        break;
-    }
+    $indices = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
+      ? static::getPropFormState($parents, $machine_name, $form_state)['items_indices'] ?? [0]
+      : range(0, $cardinality);
+    $is_multiple = $cardinality !== 1;
+    $id_prefix = implode('-', array_merge($parents, [$machine_name]));
+    $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
     $form_element['#type'] = 'details';
     $form_element['#open'] = TRUE;
     $form_element['#after_build'][] = [static::class, 'multiValueAfterBuild'];
     $form_element['#cardinality'] = $cardinality;
     $form_element['#cardinality_multiple'] = TRUE;
-    $form_element['#max_delta'] = $max;
     $form_element['#prefix'] = '<div id="' . $wrapper_id . '">';
     $form_element['#suffix'] = '</div>';
     $title = $form_element['#title'] ?? '';
     $description = $form_element['#description'] ?? '';
-    for ($delta = 0; $delta < $max; $delta++) {
+    foreach ($indices as $delta) {
       // For multiple fields, title and description are handled by the wrapping
       // table.
       $element = $is_multiple
@@ -537,10 +530,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           '#description' => $description,
         ];
       // Add a new empty item if it doesn't exist yet at this delta.
+      $prop_parents = [...$parents, $machine_name, $delta];
       $element += $this->doTransformOneField(
         $json_schema->items,
         (string) $delta,
-        [...$parents, $machine_name, $delta],
+        $prop_parents,
         $ui_schema_data,
         $form_state,
         $current_input[$delta] ?? NULL
