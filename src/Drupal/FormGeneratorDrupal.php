@@ -4,8 +4,6 @@ namespace SchemaForms\Drupal;
 
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Ajax\AjaxResponse;
-use Drupal\Core\Ajax\RemoveCommand;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
@@ -221,16 +219,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if (is_null($delta)) {
       return NULL;
     }
-
-    // Get the container and remove the item associated to the button being
-    // pressed.
-    $path = array_slice($button['#array_parents'], 0, -2);
-    $element_container = NestedArray::getValue($form, $path);
-    $content = $element_container[$delta]['removable_element']['#value'] ?? '';
-
     return [
-      '#prefix' => '<div class="recently-deleted-element"><em>',
-      '#markup' => new TranslatableMarkup('- Deleted -'),
+      '#prefix' => '<div class="ajax-new-content recently-deleted-element"><em>',
+      '#markup' => new translatableMarkup('- Deleted -'),
       '#suffix' => '</em></div>',
     ];
   }
@@ -541,8 +532,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Builds the form element for the multi-value case.
    *
-   * @param array $parents
-   *   The parents.
+   * @param array $prop_parents
+   *   The prop parents array.
    * @param string $machine_name
    *   The machine name.
    * @param \Drupal\Core\Form\FormStateInterface $form_state

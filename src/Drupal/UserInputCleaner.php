@@ -127,11 +127,11 @@ class UserInputCleaner {
   /**
    * Removes the cruft introduced to support the remove button.
    *
-   * @param array $data
-   *   The input data.
-   *
    * [['removable_element' => 'foo', 'remove_one' => TranslatebleMarkup], ...]
    * becomes ['foo', '...'].
+   *
+   * @param array $data
+   *   The input data.
    *
    * @return array
    *   The data without the repercussions of the remove button.
@@ -174,4 +174,5 @@ class UserInputCleaner {
     );
     return $all_keys_numeric ? array_values($data) : $data;
   }
+
 }
