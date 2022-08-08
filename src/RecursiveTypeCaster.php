@@ -31,7 +31,8 @@ final class RecursiveTypeCaster {
       }
       // Handle each property recursively.
       foreach ((array) $data as $key => $value) {
-        $data[$key] = static::recursiveTypeRefinements($value, $schema->properties->{$key});
+        $sub_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
+        $data[$key] = static::recursiveTypeRefinements($value, $sub_schema);
       }
       return $data;
     }
@@ -61,7 +62,7 @@ final class RecursiveTypeCaster {
    *   TRUE if casting was possible. FALSE otherwise.
    */
   private static function tryCastingString(mixed &$input, array $types): bool {
-    if (in_array('string', $types)) {
+    if (in_array('string', $types, TRUE)) {
       $input = (string) $input;
       return TRUE;
     }
@@ -80,7 +81,7 @@ final class RecursiveTypeCaster {
    *   TRUE if casting was possible. FALSE otherwise.
    */
   private static function tryCastingNull(mixed &$input, array $types): bool {
-    if (in_array('null', $types) && empty($input)) {
+    if (in_array('null', $types, TRUE) && empty($input)) {
       $input = NULL;
       return TRUE;
     }
@@ -118,15 +119,17 @@ final class RecursiveTypeCaster {
    *   TRUE if casting was possible. FALSE otherwise.
    */
   private static function tryCastingNumber(mixed &$input, array $types): bool {
-    if (!in_array('integer', $types) && !in_array('number', $types)) {
+    $is_not_numeric = !in_array('integer', $types, TRUE)
+      && !in_array('number', $types, TRUE);
+    if ($is_not_numeric) {
       return FALSE;
     }
-    if (intval($input) == $input) {
-      $input = intval($input);
+    if ((int) $input == $input) {
+      $input = (int) $input;
       return TRUE;
     }
-    if (floatval($input) == $input) {
-      $input = floatval($input);
+    if ((float) $input == $input) {
+      $input = (float) $input;
       return TRUE;
     }
     return FALSE;
