@@ -44,6 +44,7 @@ class UserInputCleaner {
         unset($data[$key]);
       }
     }
+    $data = static::reKey($data);
     if (array_is_list($data)) {
       $data = static::cleanRemoveButton($data);
       return static::arrayTrim($data);
@@ -156,4 +157,21 @@ class UserInputCleaner {
     return $can_undo_form_nesting($data) ? $undo_form_nesting($data) : $data;
   }
 
+  /**
+   * Re-keys the data to account for deleted indices.
+   *
+   * @param array $data
+   *   The input data.
+   *
+   * @return array
+   *   The re-keyed data.
+   */
+  private static function reKey(array $data): array {
+    $all_keys_numeric = array_reduce(
+      array_keys($data),
+      static fn (bool $carry, $key) => $carry && (int) $key == $key,
+      TRUE
+    );
+    return $all_keys_numeric ? array_values($data) : $data;
+  }
 }

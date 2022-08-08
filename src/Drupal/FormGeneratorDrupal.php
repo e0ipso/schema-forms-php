@@ -4,6 +4,8 @@ namespace SchemaForms\Drupal;
 
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Ajax\AjaxResponse;
+use Drupal\Core\Ajax\RemoveCommand;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
@@ -39,7 +41,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     foreach ((array) $props as $key => $prop) {
       // If there is UI context, grab it and pass it along.
       $ui_schema_data = $ui_hints[$key] ?? [];
-      $element[$key] = $this->doTransformOneField($prop, $key, [], $ui_schema_data, $form_state, $current_input[$key] ?? NULL);
+      $element[$key] = $this->doTransformOneField($prop, $key, [$key], $ui_schema_data, $form_state, $current_input[$key] ?? NULL);
     }
     return $this->addValidationRules($element, $context);
   }
@@ -159,6 +161,78 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
 
     return $element;
+  }
+
+  /**
+   * Submission handler for the "Add another item" button.
+   *
+   * @param array $form
+   *   The form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public static function removeOneSubmit(array $form, FormStateInterface $form_state): void {
+    $button = $form_state->getTriggeringElement();
+    $delta = $button['#delta'] ?? NULL;
+    if (is_null($delta)) {
+      return;
+    }
+
+    // Go two levels up in the form, to the container.
+    $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -2));
+    $prop_name = $element['#prop_name'];
+    $form_parents = $button['#parents'];
+    // Pop the last element 'remove_one' to address the element container.
+    array_pop($form_parents);
+
+    // Decrement the items count.
+    $prop_state = static::getPropFormState($element['#prop_parents'] ?? [], $prop_name, $form_state);
+    // If the index is set, then remove it.
+    if (isset($prop_state['items_indices'][$delta])) {
+      unset($prop_state['items_indices'][$delta]);
+      static::setPropFormState(
+        $element['#prop_parents'] ?? [],
+        $prop_name,
+        $form_state,
+        $prop_state
+      );
+    }
+
+    $form_state->setRebuild();
+  }
+
+  /**
+   * Ajax callback for the "Add another item" button.
+   *
+   * This returns the new page content to replace the page content made obsolete
+   * by the form submission.
+   *
+   * @param array $form
+   *   The form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return array|mixed|void
+   *   The element.
+   */
+  public static function removeOneAjax(array $form, FormStateInterface $form_state): mixed {
+    $button = $form_state->getTriggeringElement();
+    $delta = $button['#delta'] ?? NULL;
+    if (is_null($delta)) {
+      return NULL;
+    }
+
+    // Get the container and remove the item associated to the button being
+    // pressed.
+    $path = array_slice($button['#array_parents'], 0, -2);
+    $element_container = NestedArray::getValue($form, $path);
+    $content = $element_container[$delta]['removable_element']['#value'] ?? '';
+
+    return [
+      '#prefix' => '<div class="recently-deleted-element"><em>',
+      '#markup' => new TranslatableMarkup('- Deleted -'),
+      '#suffix' => '</em></div>',
+    ];
   }
 
   /**
@@ -506,7 +580,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       ? count($indices)
       : $cardinality - 1;
     $is_multiple = $cardinality !== 1;
-    $id_prefix = implode('-', array_merge($prop_parents, [$machine_name]));
+    $id_prefix = implode('-', $prop_parents);
     $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
     $form_element['#type'] = 'details';
     $form_element['#open'] = TRUE;
@@ -545,33 +619,37 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         $current_input[$delta] ?? NULL
       );
 
-      $container_id = sprintf('%s-%d-container', $wrapper_id, $delta);
-      $remove_name = sprintf('%s-%d-remove', $wrapper_id, $delta);
+      $container_id = sprintf('%s-%d-container', $id_prefix, $delta);
+      $remove_name = sprintf('%s-%d-remove', $id_prefix, $delta);
       $form_element[$delta] = [
         '#type' => 'container',
         '#prefix' => '<div id="' . $container_id . '">',
+        '#wrapper_id' => $container_id,
         '#suffix' => '</div>',
         '#attributes' => [
           'style' => 'position: relative;',
         ],
         'removable_element' => $element,
         'remove_one' => [
+          '#delta' => $delta,
           '#type' => 'submit',
           '#name' => $remove_name,
           '#value' => new TranslatableMarkup('‒'),
+          '#validate' => [],
           '#prop_parents' => $new_prop_parents,
           '#attributes' => [
             'class' => ['field-remove-one-submit'],
             'style' => 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;',
             'title' => new TranslatableMarkup('Remove item'),
           ],
-          '#limit_validation_errors' => [array_merge($prop_parents, [$machine_name])],
+          '#limit_validation_errors' => [],
           '#submit' => [[static::class, 'removeOneSubmit']],
           '#ajax' => [
             'callback' => [static::class, 'removeOneAjax'],
             'wrapper' => $container_id,
             'effect' => 'fade',
           ],
+          '#weight' => 101,
         ],
       ];
     }
