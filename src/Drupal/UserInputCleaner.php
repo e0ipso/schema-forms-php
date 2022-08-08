@@ -37,14 +37,18 @@ class UserInputCleaner {
     if (!is_array($data)) {
       return $data;
     }
-    if (array_is_list($data)) {
-      return static::arrayTrim($data);
-    }
+    // Get rid of the 'add_more' button. This will allow array_is_list to be
+    // more reliable.
     foreach ($data as $key => $datum) {
       if ($key === 'add_more' && $datum instanceof MarkupInterface) {
         unset($data[$key]);
-        continue;
       }
+    }
+    if (array_is_list($data)) {
+      $data = static::cleanRemoveButton($data);
+      return static::arrayTrim($data);
+    }
+    foreach ($data as $key => $datum) {
       $clean_datum = static::cleanUserInput($datum);
       if (is_null($clean_datum)) {
         unset($data[$key]);
@@ -117,6 +121,39 @@ class UserInputCleaner {
       }
     }
     return array_slice($data, 0, $last_non_empty + 1);
+  }
+
+  /**
+   * Removes the cruft introduced to support the remove button.
+   *
+   * @param array $data
+   *   The input data.
+   *
+   * [['removable_element' => 'foo', 'remove_one' => TranslatebleMarkup], ...]
+   * becomes ['foo', '...'].
+   *
+   * @return array
+   *   The data without the repercussions of the remove button.
+   */
+  public static function cleanRemoveButton(array $data): array {
+    // Make sure we can undo the remove button data structure.
+    $can_undo_form_nesting = static fn (array $items) => array_reduce(
+      $items,
+      static fn(bool $carry, mixed $item) => $carry
+        && is_array($item)
+        && count(array_intersect(array_keys($item), [
+          'removable_element',
+          'remove_one',
+        ])) === 2
+        && $item['remove_one'] instanceof MarkupInterface,
+      TRUE
+    );
+    $undo_form_nesting = static fn (array $items) => array_values(array_map(
+      static fn(array $item) => $item['removable_element'] ?? NULL,
+      $items
+    ));
+
+    return $can_undo_form_nesting($data) ? $undo_form_nesting($data) : $data;
   }
 
 }

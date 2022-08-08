@@ -535,15 +535,45 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           '#description' => $description,
         ];
       // Add a new empty item if it doesn't exist yet at this delta.
+      $new_prop_parents = [...$prop_parents, $delta];
       $element += $this->doTransformOneField(
         $json_schema->items,
         (string) $delta,
-        [...$prop_parents, $delta],
+        $new_prop_parents,
         $ui_schema_data,
         $form_state,
         $current_input[$delta] ?? NULL
       );
-      $form_element[$delta] = $element;
+
+      $container_id = sprintf('%s-%d-container', $wrapper_id, $delta);
+      $remove_name = sprintf('%s-%d-remove', $wrapper_id, $delta);
+      $form_element[$delta] = [
+        '#type' => 'container',
+        '#prefix' => '<div id="' . $container_id . '">',
+        '#suffix' => '</div>',
+        '#attributes' => [
+          'style' => 'position: relative;',
+        ],
+        'removable_element' => $element,
+        'remove_one' => [
+          '#type' => 'submit',
+          '#name' => $remove_name,
+          '#value' => new TranslatableMarkup('‒'),
+          '#prop_parents' => $new_prop_parents,
+          '#attributes' => [
+            'class' => ['field-remove-one-submit'],
+            'style' => 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;',
+            'title' => new TranslatableMarkup('Remove item'),
+          ],
+          '#limit_validation_errors' => [array_merge($prop_parents, [$machine_name])],
+          '#submit' => [[static::class, 'removeOneSubmit']],
+          '#ajax' => [
+            'callback' => [static::class, 'removeOneAjax'],
+            'wrapper' => $container_id,
+            'effect' => 'fade',
+          ],
+        ],
+      ];
     }
 
     $form_element['add_more'] = [
