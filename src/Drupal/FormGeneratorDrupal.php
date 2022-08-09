@@ -625,7 +625,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           '#delta' => $delta,
           '#type' => 'submit',
           '#name' => $remove_name,
-          '#value' => new TranslatableMarkup('‒'),
+          '#value' => new TranslatableMarkup('⨯'),
           '#validate' => [],
           '#prop_parents' => $new_prop_parents,
           '#attributes' => [
