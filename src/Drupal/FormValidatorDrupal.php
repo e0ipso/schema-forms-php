@@ -84,7 +84,7 @@ final class FormValidatorDrupal {
    */
   private static function errorForProp(array $element, FormStateInterface $form_state, array $error, array $mappings): ?string {
     $message = $error['message'] . ' [JSON Schema violation of "' . $error['constraint'] . '"]';
-    $form_error_parents = $mappings[$error['pointer'] ?? ''];
+    $form_error_parents = $mappings[$error['pointer'] ?? ''] ?? [];
     $key_exists = FALSE;
     $error_element = NestedArray::getValue(
       $element,
