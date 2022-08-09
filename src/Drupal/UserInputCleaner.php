@@ -72,7 +72,11 @@ class UserInputCleaner {
     if (!is_array($data)) {
       return $data;
     }
-    return array_filter(array_map([static::class, 'filterEmptyItems'], $data));
+    return array_filter(
+      array_map([static::class, 'filterEmptyItems'], $data),
+      // Remove only the empty arrays (list and associative).
+      static fn (mixed $item): bool => !is_array($item) || !empty($item)
+    );
   }
 
   /**
