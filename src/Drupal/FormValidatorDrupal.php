@@ -28,7 +28,8 @@ final class FormValidatorDrupal {
    */
   public static function validateWithSchema(array &$element, FormStateInterface $form_state, object $schema): void {
     $parents = $element['#parents'];
-    $submitted = $form_state->getValue($parents);
+    $raw_input = $form_state->getUserInput();
+    $submitted = $form_state->getValue($parents) ?? NestedArray::getValue($raw_input, $parents) ?? NULL;
     $data = (new ArrayToStdClass())->transform($submitted);
     if ($data === []) {
       // If the data is an empty array we may need to cast it to empty object.
