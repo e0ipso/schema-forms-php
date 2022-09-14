@@ -95,7 +95,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  private function doTransformOneField(mixed $json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, mixed $current_input): array {
+  private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, mixed $current_input): array {
     $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input);
     $form_element['#prop_parents'] = $prop_parents;
     if (!empty($json_schema->const)) {
@@ -213,7 +213,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array|mixed|void
    *   The element.
    */
-  public static function removeOneAjax(array $form, FormStateInterface $form_state): mixed {
+  public static function removeOneAjax(array $form, FormStateInterface $form_state) {
     $button = $form_state->getTriggeringElement();
     $delta = $button['#delta'] ?? NULL;
     if (is_null($delta)) {
@@ -267,7 +267,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array|mixed|void
    *   The element.
    */
-  public static function addMoreAjax(array $form, FormStateInterface $form_state): mixed {
+  public static function addMoreAjax(array $form, FormStateInterface $form_state) {
     $button = $form_state->getTriggeringElement();
 
     // Go one level up in the form, to the widgets container.
@@ -299,7 +299,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array|mixed|null
    *   The state.
    */
-  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state): mixed {
+  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state) {
     return NestedArray::getValue($form_state->getStorage(), static::getWidgetStateParents($parents, $prop_name));
   }
 
@@ -356,7 +356,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The scaffolded form element.
    */
-  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, mixed $current_input): array {
+  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, $current_input): array {
     $type = $this->guessSchemaType($element, $ui_schema_data);
     $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
     $form_element = [
@@ -457,7 +457,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return mixed|object
    *   The dereferenced schema.
    */
-  private function getSchema(mixed $data): mixed {
+  private function getSchema($data) {
     $storage = (new Factory(NULL, NULL, Constraint::CHECK_MODE_TYPE_CAST))->getSchemaStorage();
     $storage->addSchema('internal:/schema-with-refs', $data);
     return $storage->getSchema('internal:/schema-with-refs');
@@ -492,7 +492,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  private function transformRadios(?string $uiwidget, array $form_element, mixed $json_schema, array $label_mappings): array {
+  private function transformRadios(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'radios';
     $form_element['#options'] = array_reduce($json_schema->enum, function (array $carry, string $opt) use ($label_mappings) {
       return array_merge(
@@ -518,7 +518,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  private function transformCheckboxes(?string $uiwidget, array $form_element, mixed $json_schema, array $label_mappings): array {
+  private function transformCheckboxes(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'checkboxes';
     $form_element['#options'] = array_reduce($json_schema->items->enum, function (array $carry, string $opt) use ($label_mappings) {
       return array_merge(
@@ -550,7 +550,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  private function transformMultivalue(array $prop_parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, mixed $json_schema, array $ui_schema_data): array {
+  private function transformMultivalue(array $prop_parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, $json_schema, array $ui_schema_data): array {
     // Store field information in $form_state.
     if (!static::getPropFormState($prop_parents, $machine_name, $form_state)) {
       $count = count($current_input ?: []);
@@ -680,7 +680,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The form element.
    */
-  private function transformNested(mixed $json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input): array {
+  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input): array {
     $properties = $json_schema->properties ?? [];
     if (!empty($properties)) {
       $form_element['#type'] = 'details';
