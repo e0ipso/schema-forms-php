@@ -18,11 +18,11 @@ final class RecursiveTypeCaster {
    * @return mixed
    *   The same data with refined types.
    */
-  public static function recursiveTypeRefinements(mixed $data, object $schema): mixed {
+  public static function recursiveTypeRefinements($data, object $schema) {
     $types = $schema->type;
     $types = is_array($types) ? $types : [$types];
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
-      return array_map(static fn(mixed $item) => static::recursiveTypeRefinements($item, $schema->items), $data);
+      return array_map(static fn($item) => static::recursiveTypeRefinements($item, $schema->items), $data);
     }
     if ((is_array($data) || is_object($data)) && in_array('object', $types, TRUE)) {
       // If the data is NOT an array or object, then do not do any type casting.
@@ -61,7 +61,7 @@ final class RecursiveTypeCaster {
    * @return bool
    *   TRUE if casting was possible. FALSE otherwise.
    */
-  private static function tryCastingString(mixed &$input, array $types): bool {
+  private static function tryCastingString(&$input, array $types): bool {
     if (in_array('string', $types, TRUE)) {
       $input = (string) $input;
       return TRUE;
@@ -80,7 +80,7 @@ final class RecursiveTypeCaster {
    * @return bool
    *   TRUE if casting was possible. FALSE otherwise.
    */
-  private static function tryCastingNull(mixed &$input, array $types): bool {
+  private static function tryCastingNull(&$input, array $types): bool {
     if (in_array('null', $types, TRUE) && empty($input)) {
       $input = NULL;
       return TRUE;
@@ -99,7 +99,7 @@ final class RecursiveTypeCaster {
    * @return bool
    *   TRUE if casting was possible. FALSE otherwise.
    */
-  private static function tryCastingBoolean(mixed &$input, array $types): bool {
+  private static function tryCastingBoolean(&$input, array $types): bool {
     if (in_array('boolean', $types) && ($input == '0' || $input == '1')) {
       $input = (boolean) $input;
       return TRUE;
@@ -118,7 +118,7 @@ final class RecursiveTypeCaster {
    * @return bool
    *   TRUE if casting was possible. FALSE otherwise.
    */
-  private static function tryCastingNumber(mixed &$input, array $types): bool {
+  private static function tryCastingNumber(&$input, array $types): bool {
     $is_not_numeric = !in_array('integer', $types, TRUE)
       && !in_array('number', $types, TRUE);
     if ($is_not_numeric) {

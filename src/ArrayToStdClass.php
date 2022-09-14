@@ -15,7 +15,7 @@ final class ArrayToStdClass extends TransformationBase {
   /**
    * {@inheritdoc}
    */
-  protected function doTransform($data, Context $context): mixed {
+  protected function doTransform($data, Context $context) {
     try {
       $encoded = json_encode($data, JSON_THROW_ON_ERROR);
       return json_decode($encoded, FALSE, 512, JSON_THROW_ON_ERROR);

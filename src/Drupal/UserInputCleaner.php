@@ -18,7 +18,7 @@ class UserInputCleaner {
    * @return array|mixed
    *   The clean input.
    */
-  public static function cleanUserInput(mixed $data) {
+  public static function cleanUserInput($data) {
     return static::filterEmptyItems(
       static::doCleanUserInput($data)
     );
@@ -33,7 +33,7 @@ class UserInputCleaner {
    * @return array|mixed
    *   The clean input.
    */
-  private static function doCleanUserInput(mixed $data) {
+  private static function doCleanUserInput($data) {
     if (!is_array($data)) {
       return $data;
     }
@@ -68,14 +68,14 @@ class UserInputCleaner {
    * @return mixed
    *   The filtered data.
    */
-  private static function filterEmptyItems(mixed $data): mixed {
+  private static function filterEmptyItems($data) {
     if (!is_array($data)) {
       return $data;
     }
     return array_filter(
       array_map([static::class, 'filterEmptyItems'], $data),
       // Remove only the empty arrays (list and associative).
-      static fn (mixed $item): bool => !is_array($item) || !empty($item)
+      static fn ($item): bool => !is_array($item) || !empty($item)
     );
   }
 
@@ -88,7 +88,7 @@ class UserInputCleaner {
    * @return bool
    *   TRUE if it has data. FALSE otherwise.
    */
-  private static function hasData(mixed $item): bool {
+  private static function hasData($item): bool {
     if (empty($item) && $item !== 0 && $item !== FALSE) {
       return FALSE;
     }
@@ -118,7 +118,7 @@ class UserInputCleaner {
     // Make sure we can undo the remove button data structure.
     $can_undo_form_nesting = static fn (array $items) => array_reduce(
       $items,
-      static fn(bool $carry, mixed $item) => $carry
+      static fn(bool $carry, $item) => $carry
         && is_array($item)
         && count(array_intersect(array_keys($item), [
           'removable_element',
