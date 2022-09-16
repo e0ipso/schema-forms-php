@@ -147,7 +147,7 @@ class UserInputCleaner {
   private static function reKey(array $data): array {
     $all_keys_numeric = array_reduce(
       array_keys($data),
-      static fn (bool $carry, $key) => $carry && (int) $key == $key,
+      static fn (bool $carry, $key) => $carry && is_numeric($key),
       TRUE
     );
     return $all_keys_numeric ? array_values($data) : $data;

@@ -100,7 +100,8 @@ final class RecursiveTypeCaster {
    *   TRUE if casting was possible. FALSE otherwise.
    */
   private static function tryCastingBoolean(&$input, array $types): bool {
-    if (in_array('boolean', $types) && ($input == '0' || $input == '1')) {
+    $is_quasi_boolean = $input === '0' || $input === '1' || $input === 0 || $input === 1;
+    if (in_array('boolean', $types) && $is_quasi_boolean) {
       $input = (boolean) $input;
       return TRUE;
     }
@@ -119,17 +120,19 @@ final class RecursiveTypeCaster {
    *   TRUE if casting was possible. FALSE otherwise.
    */
   private static function tryCastingNumber(&$input, array $types): bool {
-    $is_not_numeric = !in_array('integer', $types, TRUE)
+    $is_not_numeric_definition = !in_array('integer', $types, TRUE)
       && !in_array('number', $types, TRUE);
-    if ($is_not_numeric) {
+    if ($is_not_numeric_definition || !is_numeric($input)) {
       return FALSE;
     }
-    if ((int) $input == $input) {
-      $input = (int) $input;
+    if (is_int($input) || is_float($input)) {
       return TRUE;
     }
-    if ((float) $input == $input) {
-      $input = (float) $input;
+    if (is_string($input)) {
+      // This conversion is guaranteed because of the is_numeric check above.
+      $input = strpos($input, '.') === FALSE
+        ? (int) $input
+        : (float) $input;
       return TRUE;
     }
     return FALSE;
