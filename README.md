@@ -80,6 +80,7 @@ And the following UI JSON Schema refining the form generation process:
 Execute this PHP code:
 ```php
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use Shaper\Util\Context;
 $generator = new FormGeneratorDrupal();
 $context = new Context(['ui_hints => $ui_schema_data]);
 $actual_form = $generator->transform($schema_data, $context);
