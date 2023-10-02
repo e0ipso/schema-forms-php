@@ -4,6 +4,16 @@ Schema forms is a project that aims to generate form structures for the differen
 Frameworks supported:
   - Drupal.
 
+# Installation
+
+Generally this should be already required by the Drupal project that needs to use it.
+
+If you need to require this library independently, you can do so with the following command:
+
+```
+composer require e0ipso/schema-forms
+```
+
 # Usage
 Given the following JSON Schema defining the different properties of a user object.
 ```json
@@ -80,6 +90,7 @@ And the following UI JSON Schema refining the form generation process:
 Execute this PHP code:
 ```php
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use Shaper\Util\Context;
 $generator = new FormGeneratorDrupal();
 $context = new Context(['ui_hints => $ui_schema_data]);
 $actual_form = $generator->transform($schema_data, $context);
