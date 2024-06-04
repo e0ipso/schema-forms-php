@@ -49,7 +49,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public function getInputValidator() {
     // Validate the JSON-Schema input.
-    return new JsonSchemaFormValidator(new Validator());
+    return new JsonSchemaFormValidator(new Validator(), Constraint::CHECK_MODE_TYPE_CAST);
   }
 
   /**
