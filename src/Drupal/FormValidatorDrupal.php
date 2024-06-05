@@ -39,10 +39,10 @@ final class FormValidatorDrupal {
     }
     $validator = new Validator();
     // Validate the massaged data against the schema.
-      if ($data === null) {
-          $data = [];
-      }
-      $num_errors = $validator->validate($data, $schema, Constraint::CHECK_MODE_TYPE_CAST);
+    if ($data === null) {
+      $data = [];
+    }
+    $num_errors = $validator->validate($data, $schema, Constraint::CHECK_MODE_TYPE_CAST);
     if ($num_errors) {
       // Build the mappings of paths to form paths.
       $mappings = static::buildMappingsElementPaths($element, $element['#array_parents']);
