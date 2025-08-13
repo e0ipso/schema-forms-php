@@ -115,6 +115,7 @@ class UserInputCleaner {
    *   The data without the repercussions of the remove button.
    */
   public static function cleanRemoveButton(array $data): array {
+    $two = 2;
     // Make sure we can undo the remove button data structure.
     $can_undo_form_nesting = static fn (array $items) => array_reduce(
       $items,
@@ -123,7 +124,7 @@ class UserInputCleaner {
         && count(array_intersect(array_keys($item), [
           'removable_element',
           'remove_one',
-        ])) === 2
+        ])) === $two
         && $item['remove_one'] instanceof MarkupInterface,
       TRUE
     );

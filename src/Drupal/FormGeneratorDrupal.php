@@ -27,7 +27,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * {@inheritdoc}
    */
-  public function doTransform($data, Context $context = NULL) {
+  public function doTransform($data, ?Context $context = NULL) {
     $context = $context ?: new Context();
     $form_state = $context['form_state'] ?? new FormState();
     $schema = $this->getSchema($data);
