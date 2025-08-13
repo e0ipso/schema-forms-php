@@ -14,6 +14,6 @@ jobs:
         run: yarn init --yes && yarn add --dev @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/github @semantic-release/git conventional-changelog-conventionalcommits
 
       - name: Tag a new release
-        uses: cycjimmy/semantic-release-action@v2
+        uses: cycjimmy/semantic-release-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
