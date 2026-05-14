@@ -493,13 +493,21 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form element.
    */
   private function transformRadios(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
+    $required = TRUE;
     $form_element['#type'] = $uiwidget ?? 'radios';
-    $form_element['#options'] = array_reduce($json_schema->enum, function (array $carry, string $opt) use ($label_mappings) {
+    $form_element['#options'] = array_reduce($json_schema->enum, function (array $carry, string|int|null $opt) use ($label_mappings, &$required) {
+      // Handle NULL values.
+      if (is_null($opt)) {
+        $opt = '';
+        $label_mappings[$opt] ??= 'NULL';
+        $required = FALSE;
+      }
       return array_merge(
         $carry,
         [$opt => $label_mappings[$opt] ?? $this->machineNameToHumanName($opt)]
       );
     }, []);
+    $form_element['#required'] = $required;
     return $form_element;
   }
 
