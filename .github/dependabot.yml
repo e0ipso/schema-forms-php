@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  # Keeps the workflows off deprecated runner images and Node versions. This is
+  # the rot that made every job warn and, once a dev dependency picked up an
+  # advisory, fail.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
+
+  # `securitychecker_enlightn` gates the build on the committed lock, so a new
+  # advisory against any dev dependency turns every branch red until the lock
+  # moves. Grouped and monthly to keep that to one PR.
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        patterns: ['*']
