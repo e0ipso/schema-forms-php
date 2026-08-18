@@ -39,7 +39,7 @@ final class RecursiveTypeCaster {
     array_reduce([
       static fn(&$data, $types) => static::tryCastingNumber($data, $types),
       static fn(&$data, $types) => static::tryCastingBoolean($data, $types),
-      static fn(&$data, $types) => static::tryCastingNull($data, $types),
+      static fn(&$data, $types) => static::tryCastingNull($data, $types, $schema),
       static fn(&$data, $types) => static::tryCastingString($data, $types),
     ],
       static function (bool $casted, callable $method) use (&$data, $types) {
@@ -72,20 +72,68 @@ final class RecursiveTypeCaster {
   /**
    * Attempts to cast the data to NULL.
    *
+   * Only values that already mean "there is nothing here" become NULL. `null`
+   * in a type union means the property *also* accepts absence; it does not
+   * turn every falsy value the property's other types can hold into absence.
+   * FALSE on a `["boolean", "null"]` property and "0" on a
+   * `["string", "null"]` one are values the caller chose.
+   *
+   * The empty string is the one ambiguous case, because Form API submits it
+   * for a control the user never touched. It is resolved per type rather than
+   * globally: a `string` type can hold it, so it is kept; every other type
+   * cannot, so it can only have come from an untouched control and it becomes
+   * NULL. A `string` whose shape or length is constrained cannot hold it
+   * either -- `minLength`, `format`, `pattern` and an `enum` that does not
+   * list "" all rule it out -- so those become NULL too.
+   *
    * @param mixed $input
    *   The input data. Passed by reference to change its type.
    * @param array $types
    *   The possible types.
+   * @param object $schema
+   *   The schema of the property the value belongs to. Read for the keywords
+   *   that decide whether a `string` type can hold the empty string.
    *
    * @return bool
    *   TRUE if casting was possible. FALSE otherwise.
    */
-  private static function tryCastingNull(&$input, array $types): bool {
-    if (in_array('null', $types, TRUE) && empty($input)) {
+  private static function tryCastingNull(&$input, array $types, object $schema): bool {
+    if (!in_array('null', $types, TRUE)) {
+      return FALSE;
+    }
+    if ($input === NULL) {
+      return TRUE;
+    }
+    if ($input === '' && !static::acceptsTheEmptyString($types, $schema)) {
       $input = NULL;
       return TRUE;
     }
     return FALSE;
+  }
+
+  /**
+   * Decides whether any declared type can hold the empty string.
+   *
+   * @param array $types
+   *   The possible types.
+   * @param object $schema
+   *   The schema of the property the value belongs to.
+   *
+   * @return bool
+   *   TRUE when the empty string is a value the property may hold.
+   */
+  private static function acceptsTheEmptyString(array $types, object $schema): bool {
+    if (!in_array('string', $types, TRUE)) {
+      return FALSE;
+    }
+    $constrains_the_string = ($schema->minLength ?? 0) > 0
+      || ($schema->format ?? '') !== ''
+      || ($schema->pattern ?? '') !== '';
+    if ($constrains_the_string) {
+      return FALSE;
+    }
+    $enum = $schema->enum ?? NULL;
+    return !is_array($enum) || in_array('', $enum, TRUE);
   }
 
   /**
