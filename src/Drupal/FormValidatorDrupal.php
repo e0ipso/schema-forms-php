@@ -88,7 +88,7 @@ final class FormValidatorDrupal {
    *   if the error could be set.
    */
   private static function errorForProp(array $element, FormStateInterface $form_state, array $error, array $mappings): ?string {
-    $message = $error['message'] . ' [JSON Schema violation of "' . $error['constraint'] . '"]';
+    $message = $error['message'] . static::constraintSuffix($error);
     $form_error_parents = $mappings[$error['pointer'] ?? ''] ?? [];
     $key_exists = FALSE;
     $error_element = NestedArray::getValue(
@@ -107,6 +107,30 @@ final class FormValidatorDrupal {
       return NULL;
     }
     return $message;
+  }
+
+  /**
+   * Names the constraint a validation error violated.
+   *
+   * `justinrainbow/json-schema` changed the shape of this value in 6.0: it used
+   * to be the constraint's name as a plain string, and it is now
+   * `['name' => <name>, 'params' => [...]]`. This library supports
+   * `^5.2 || ^6.3`, so both shapes reach here and neither may be assumed.
+   *
+   * @param array $error
+   *   The error data from the JSON-Schema validation.
+   *
+   * @return string
+   *   The suffix to append to the error message, or the empty string when the
+   *   constraint cannot be named.
+   */
+  private static function constraintSuffix(array $error): string {
+    $constraint = $error['constraint'] ?? NULL;
+    $name = is_array($constraint) ? ($constraint['name'] ?? NULL) : $constraint;
+    if (!is_string($name) || $name === '') {
+      return '';
+    }
+    return ' [JSON Schema violation of "' . $name . '"]';
   }
 
   /**

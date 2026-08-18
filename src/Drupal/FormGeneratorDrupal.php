@@ -23,11 +23,33 @@ use Shaper\Util\Context;
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {
 
   /**
+   * The Form API element types this generator produces on purpose.
+   *
+   * Any other value means a JSON-Schema type reached '#type' unchanged, and no
+   * JSON-Schema type is a Drupal element: ElementInfoManager::getInfo() returns
+   * an empty array for an unknown type, so the element renders as an empty
+   * string with no exception, no warning and no log entry. The property then
+   * looks exactly like one the schema never declared. Such an element is
+   * replaced by an explanation instead.
+   *
+   * @see \SchemaForms\Drupal\FormGeneratorDrupal::transformUnsupported()
+   */
+  private const SUPPORTED_ELEMENT_TYPES = [
+    'checkbox',
+    'checkboxes',
+    'details',
+    'email',
+    'number',
+    'radios',
+    'textfield',
+  ];
+
+  /**
    * Creates the Form API element based on the JSON-Schema input.
    *
    * {@inheritdoc}
    */
-  public function doTransform($data, Context $context = NULL) {
+  public function doTransform($data, ?Context $context = NULL) {
     $context = $context ?: new Context();
     $form_state = $context['form_state'] ?? new FormState();
     $schema = $this->getSchema($data);
@@ -126,6 +148,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $form_element['#disabled'] = !$enabled;
     $visible = (bool) ($ui_schema_data['ui:visible'] ?? TRUE);
     $form_element['#visible'] = $visible;
+    // A 'ui:widget' names a Form API element the caller picked deliberately, so
+    // it is taken at face value. Everything else has to be an element this
+    // generator built on purpose; see SUPPORTED_ELEMENT_TYPES.
+    $has_widget = !empty($ui_schema_data['ui:widget']);
+    if (!$has_widget && !in_array($form_element['#type'] ?? '', self::SUPPORTED_ELEMENT_TYPES, TRUE)) {
+      $form_element = $this->transformUnsupported($form_element, $type);
+    }
     return $form_element;
   }
 
@@ -385,6 +414,15 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if ($type === 'string') {
       $form_element['#type'] = 'textfield';
     }
+    if ($type === 'integer') {
+      // Drupal has no 'integer' element. A number input whose step is one is
+      // the native spelling of the constraint: the browser rejects a fractional
+      // value before the form is submitted, and the value still arrives as an
+      // integer because RecursiveTypeCaster::tryCastingNumber() casts a numeric
+      // string with no decimal separator to int.
+      $form_element['#type'] = 'number';
+      $form_element['#step'] = 1;
+    }
     return $form_element;
   }
 
@@ -478,6 +516,39 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Builds the form element for a type with no Form API counterpart.
+   *
+   * Emitting nothing is not an option: a property with no control and no
+   * message is indistinguishable from a property the schema never declared,
+   * which is how an unsupported type stays unnoticed until somebody compares
+   * the generated form against the schema by hand.
+   *
+   * @param array $form_element
+   *   The form element.
+   * @param string $type
+   *   The type that could not be turned into a control.
+   *
+   * @return array
+   *   The form element.
+   */
+  private function transformUnsupported(array $form_element, string $type): array {
+    $form_element['#type'] = 'item';
+    // 'item' collects a value by default, and the only value it could collect
+    // here is the empty string. That string is then type-cast and validated
+    // against the property's schema like any other submission, so a property
+    // that cannot be rendered would make the whole form unsavable. It has to
+    // stay out of the submitted values entirely.
+    $form_element['#input'] = FALSE;
+    $form_element['#markup'] = new TranslatableMarkup(
+      'This property cannot be edited: there is no form element for the %type type.',
+      ['%type' => $type]
+    );
+    $form_element['#disabled'] = TRUE;
+    unset($form_element['#default_value'], $form_element['#placeholder']);
+    return $form_element;
+  }
+
+  /**
    * Builds the form element for the radios case.
    *
    * @param string|null $uiwidget
@@ -494,12 +565,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   private function transformRadios(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'radios';
-    $form_element['#options'] = array_reduce($json_schema->enum, function (array $carry, string $opt) use ($label_mappings) {
-      return array_merge(
-        $carry,
-        [$opt => $label_mappings[$opt] ?? $this->machineNameToHumanName($opt)]
-      );
-    }, []);
+    $form_element['#options'] = $this->enumOptions($json_schema->enum, $label_mappings);
     return $form_element;
   }
 
@@ -520,13 +586,51 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   private function transformCheckboxes(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'checkboxes';
-    $form_element['#options'] = array_reduce($json_schema->items->enum, function (array $carry, string $opt) use ($label_mappings) {
-      return array_merge(
-        $carry,
-        [$opt => $label_mappings[$opt] ?? $this->machineNameToHumanName($opt)]
-      );
-    }, []);
+    $form_element['#options'] = $this->enumOptions($json_schema->items->enum, $label_mappings);
     return $form_element;
+  }
+
+  /**
+   * Builds an '#options' array out of the members of an enum.
+   *
+   * Shared by the radios and the checkboxes cases, which differ only in where
+   * they read the enum from. Both used to inline an array_reduce() whose
+   * closure declared `string $opt` and merged single-element arrays, and each
+   * of those two details was a separate defect:
+   *
+   * 1. `null` is a legal enum member -- it is how a JSON Schema spells "no
+   *    choice made", and it is what `type: ["string", "null"]` props use. The
+   *    `string` declaration turned it into a TypeError that took down the
+   *    whole form rather than one option.
+   * 2. array_merge() RENUMBERS integer keys. PHP coerces the numeric-string
+   *    key '10' to int 10 on the way into the array, array_merge() then
+   *    reassigns it sequentially, and an enum of ["10", "12", "15"] ends up
+   *    offering the keys 0, 1, 2 while still displaying the original labels.
+   *    Every such value failed validation on submission, because the key is
+   *    what the browser sends back and 0 is not in the enumeration. Assigning
+   *    the key directly preserves it: int 10 renders as value="10".
+   *
+   * @param array $members
+   *   The enum members, as decoded from the schema.
+   * @param array $label_mappings
+   *   An associative array to map options to human-readable labels.
+   *
+   * @return array
+   *   The options, keyed by the value Form API will submit.
+   */
+  private function enumOptions(array $members, array $label_mappings): array {
+    $options = [];
+    foreach ($members as $member) {
+      // PHP has no NULL array key: writing one coerces it to the empty
+      // string. That is not a workaround here, it is the correct key -- Form
+      // API submits '' for an unselected control, and Drupal validates props
+      // with CHECK_MODE_TYPE_CAST, which casts an absent or NULL value to ''
+      // before it checks the enumeration. A schema that lists BOTH null and
+      // "" collapses to one option, which no keyed array can avoid.
+      $key = $member ?? '';
+      $options[$key] = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
+    }
+    return $options;
   }
 
   /**

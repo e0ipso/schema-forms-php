@@ -2,6 +2,7 @@
 
 namespace SchemaForms\Tests\Drupal\FormGeneratorDrupal;
 
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormValidator;
@@ -102,6 +103,48 @@ class FormGeneratorDrupalTest extends TestCase {
         ],
       ],
       [
+        '{"type":"object","properties":{"foo":{"type":"integer","description":"How many"}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            // phpcs:ignore
+            '#description' => 'How many',
+            // Drupal has no 'integer' element, so an integer is a number that
+            // steps by one.
+            '#type' => 'number',
+            '#step' => 1,
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      [
+        // A type with no Form API counterpart gets an explanation, never an
+        // element with a '#type' Drupal renders as an empty string.
+        '{"type":"object","properties":{"foo":{"type":"null"}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'item',
+            '#input' => FALSE,
+            '#markup' => new TranslatableMarkup(
+              'This property cannot be edited: there is no form element for the %type type.',
+              ['%type' => 'null']
+            ),
+            '#required' => FALSE,
+            '#disabled' => TRUE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      [
         '{"type":"object","properties":{"foo":{"type":"string","const":"The Big Foo"}}}',
         [
           'foo' => [
@@ -152,6 +195,63 @@ class FormGeneratorDrupalTest extends TestCase {
             '#title' => 'Foo',
             '#type' => 'radios',
             '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      // A numeric-string enum keeps its members as option keys. array_merge()
+      // used to renumber them to 0, 1, 2, 3, so the browser submitted an index
+      // and every choice failed validation against the enumeration.
+      [
+        '{"type":"object","properties":{"foo":{"type":"string","enum":["10","12","15","20"]}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'radios',
+            '#options' => [10 => '10', 12 => '12', 15 => '15', 20 => '20'],
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      // A `null` member is how a schema spells "no choice made". It used to
+      // raise a TypeError against the closure's `string $opt`, which cost the
+      // caller every other control on the form, not just this one.
+      [
+        '{"type":"object","properties":{"foo":{"type":["string","null"],"enum":[null,"lor-em","ipsum"]}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'radios',
+            '#options' => ['' => '', 'lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      // The same two defects reached the checkboxes case through a second copy
+      // of the same closure, which is why #46 -- which patched the radios case
+      // alone -- did not fix an array-typed prop with a nullable enum.
+      [
+        '{"type":"object","properties":{"foo":{"type":"array","items":{"type":["string","null"],"enum":[null,"lor-em"]}}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'checkboxes',
+            '#options' => ['' => '', 'lor-em' => 'Lor Em'],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
