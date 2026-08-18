@@ -161,6 +161,63 @@ class FormGeneratorDrupalTest extends TestCase {
           '#type' => 'container',
         ],
       ],
+      // A numeric-string enum keeps its members as option keys. array_merge()
+      // used to renumber them to 0, 1, 2, 3, so the browser submitted an index
+      // and every choice failed validation against the enumeration.
+      [
+        '{"type":"object","properties":{"foo":{"type":"string","enum":["10","12","15","20"]}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'radios',
+            '#options' => [10 => '10', 12 => '12', 15 => '15', 20 => '20'],
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      // A `null` member is how a schema spells "no choice made". It used to
+      // raise a TypeError against the closure's `string $opt`, which cost the
+      // caller every other control on the form, not just this one.
+      [
+        '{"type":"object","properties":{"foo":{"type":["string","null"],"enum":[null,"lor-em","ipsum"]}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'radios',
+            '#options' => ['' => '', 'lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      // The same two defects reached the checkboxes case through a second copy
+      // of the same closure, which is why #46 -- which patched the radios case
+      // alone -- did not fix an array-typed prop with a nullable enum.
+      [
+        '{"type":"object","properties":{"foo":{"type":"array","items":{"type":["string","null"],"enum":[null,"lor-em"]}}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'checkboxes',
+            '#options' => ['' => '', 'lor-em' => 'Lor Em'],
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
     ];
   }
 

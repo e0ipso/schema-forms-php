@@ -494,12 +494,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   private function transformRadios(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'radios';
-    $form_element['#options'] = array_reduce($json_schema->enum, function (array $carry, string $opt) use ($label_mappings) {
-      return array_merge(
-        $carry,
-        [$opt => $label_mappings[$opt] ?? $this->machineNameToHumanName($opt)]
-      );
-    }, []);
+    $form_element['#options'] = $this->enumOptions($json_schema->enum, $label_mappings);
     return $form_element;
   }
 
@@ -520,13 +515,51 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   private function transformCheckboxes(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'checkboxes';
-    $form_element['#options'] = array_reduce($json_schema->items->enum, function (array $carry, string $opt) use ($label_mappings) {
-      return array_merge(
-        $carry,
-        [$opt => $label_mappings[$opt] ?? $this->machineNameToHumanName($opt)]
-      );
-    }, []);
+    $form_element['#options'] = $this->enumOptions($json_schema->items->enum, $label_mappings);
     return $form_element;
+  }
+
+  /**
+   * Builds an '#options' array out of the members of an enum.
+   *
+   * Shared by the radios and the checkboxes cases, which differ only in where
+   * they read the enum from. Both used to inline an array_reduce() whose
+   * closure declared `string $opt` and merged single-element arrays, and each
+   * of those two details was a separate defect:
+   *
+   * 1. `null` is a legal enum member -- it is how a JSON Schema spells "no
+   *    choice made", and it is what `type: ["string", "null"]` props use. The
+   *    `string` declaration turned it into a TypeError that took down the
+   *    whole form rather than one option.
+   * 2. array_merge() RENUMBERS integer keys. PHP coerces the numeric-string
+   *    key '10' to int 10 on the way into the array, array_merge() then
+   *    reassigns it sequentially, and an enum of ["10", "12", "15"] ends up
+   *    offering the keys 0, 1, 2 while still displaying the original labels.
+   *    Every such value failed validation on submission, because the key is
+   *    what the browser sends back and 0 is not in the enumeration. Assigning
+   *    the key directly preserves it: int 10 renders as value="10".
+   *
+   * @param array $members
+   *   The enum members, as decoded from the schema.
+   * @param array $label_mappings
+   *   An associative array to map options to human-readable labels.
+   *
+   * @return array
+   *   The options, keyed by the value Form API will submit.
+   */
+  private function enumOptions(array $members, array $label_mappings): array {
+    $options = [];
+    foreach ($members as $member) {
+      // PHP has no NULL array key: writing one coerces it to the empty
+      // string. That is not a workaround here, it is the correct key -- Form
+      // API submits '' for an unselected control, and Drupal validates props
+      // with CHECK_MODE_TYPE_CAST, which casts an absent or NULL value to ''
+      // before it checks the enumeration. A schema that lists BOTH null and
+      // "" collapses to one option, which no keyed array can avoid.
+      $key = $member ?? '';
+      $options[$key] = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
+    }
+    return $options;
   }
 
   /**
