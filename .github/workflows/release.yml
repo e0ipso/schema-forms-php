@@ -13,7 +13,6 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
-
 jobs:
   tag:
     runs-on: ubuntu-latest
@@ -24,13 +23,17 @@ jobs:
           # version; a shallow clone hides it.
           fetch-depth: 0
 
-      - uses: actions/checkout@v7
-        with:
-          # semantic-release reads the full tag history to work out the next
-          # version; a shallow clone hides it.
-          fetch-depth: 0
-
       - name: Tag a new release
         uses: cycjimmy/semantic-release-action@v6.0.0
+        with:
+          # semantic-release runs from the action's own node_modules and
+          # resolves plugins from there, not from this checkout -- so the
+          # plugins .releaserc names that semantic-release does not bundle
+          # have to be installed into the action's tree. `commit-analyzer`,
+          # `release-notes-generator` and `github` are bundled; `git` and the
+          # conventionalcommits preset are not.
+          extra_plugins: |
+            @semantic-release/git@^10.0.1
+            conventional-changelog-conventionalcommits@^9.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
