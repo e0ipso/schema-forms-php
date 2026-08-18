@@ -7,6 +7,7 @@ use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use JsonSchema\Constraints\Constraint;
 use JsonSchema\Validator;
 use SchemaForms\ArrayToStdClass;
 use SchemaForms\RecursiveTypeCaster;
@@ -31,14 +32,14 @@ final class FormValidatorDrupal {
     $raw_input = $form_state->getUserInput();
     $submitted = $form_state->getValue($parents) ?? NestedArray::getValue($raw_input, $parents) ?? NULL;
     $data = (new ArrayToStdClass())->transform($submitted);
-    if ($data === []) {
-      // If the data is an empty array we may need to cast it to empty object.
+    if ($data === [] || $data === NULL) {
+      // If the data is empty we may need to cast it to an empty object.
       $types = is_array($schema->type) ? $schema->type : [$schema->type];
       $data = in_array('array', $types, TRUE) ? [] : new \stdClass();
     }
     $validator = new Validator();
     // Validate the massaged data against the schema.
-    $num_errors = $validator->validate($data, $schema);
+    $num_errors = $validator->validate($data, $schema, Constraint::CHECK_MODE_TYPE_CAST);
     if ($num_errors) {
       // Build the mappings of paths to form paths.
       $mappings = static::buildMappingsElementPaths($element, $element['#array_parents']);

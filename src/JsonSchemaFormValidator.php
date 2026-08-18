@@ -23,8 +23,7 @@ class JsonSchemaFormValidator extends JsonSchemaValidator {
    */
   public function isValid($data) {
     return parent::isValid($data)
-      && $data->type === 'object'
-      && (bool) $data->properties;
+      && $data->type === 'object';
   }
 
 }
