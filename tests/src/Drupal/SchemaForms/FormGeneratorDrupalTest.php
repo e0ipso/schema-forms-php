@@ -2,6 +2,7 @@
 
 namespace SchemaForms\Tests\Drupal\FormGeneratorDrupal;
 
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormValidator;
@@ -97,6 +98,48 @@ class FormGeneratorDrupalTest extends TestCase {
             '#visible' => TRUE,
             '#prop_name' => 'bar',
             '#prop_parents' => ['bar'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      [
+        '{"type":"object","properties":{"foo":{"type":"integer","description":"How many"}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            // phpcs:ignore
+            '#description' => 'How many',
+            // Drupal has no 'integer' element, so an integer is a number that
+            // steps by one.
+            '#type' => 'number',
+            '#step' => 1,
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      [
+        // A type with no Form API counterpart gets an explanation, never an
+        // element with a '#type' Drupal renders as an empty string.
+        '{"type":"object","properties":{"foo":{"type":"null"}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'item',
+            '#input' => FALSE,
+            '#markup' => new TranslatableMarkup(
+              'This property cannot be edited: there is no form element for the %type type.',
+              ['%type' => 'null']
+            ),
+            '#required' => FALSE,
+            '#disabled' => TRUE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
           ],
           '#type' => 'container',
         ],
