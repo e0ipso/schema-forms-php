@@ -1,0 +1,6 @@
+/_sessions/
+/_sessions/*.lock/
+/_logs/
+/hooks/
+.state/*
+!.state/installed-version
