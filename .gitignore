@@ -2,3 +2,5 @@
 /build
 /.phpunit.result.cache
 .*.swp
+.env
+
