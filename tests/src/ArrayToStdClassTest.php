@@ -2,6 +2,8 @@
 
 namespace SchemaForms\Tests;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\ArrayToStdClass;
 use Shaper\Transformation\TransformationInterface;
@@ -10,9 +12,8 @@ use Shaper\Transformation\TransformationInterface;
  * Unit tests for the \SchemaForms\ArrayToStdClass class.
  *
  * @package SchemaForms
- *
- * @coversDefaultClass \SchemaForms\ArrayToStdClass
  */
+#[CoversClass(ArrayToStdClass::class)]
 class ArrayToStdClassTest extends TestCase {
 
   /**
@@ -64,9 +65,8 @@ class ArrayToStdClassTest extends TestCase {
 
   /**
    * Tests the transformation.
-   *
-   * @dataProvider dataProviderTransform
    */
+  #[DataProvider('dataProviderTransform')]
   public function testTransform(mixed $data, mixed $expected): void {
     $actual = $this->sut->transform($data);
     $this->assertEquals($expected, $actual);

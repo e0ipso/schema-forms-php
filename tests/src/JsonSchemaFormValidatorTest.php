@@ -4,19 +4,22 @@ namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Validator;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\ArrayToStdClass;
 use SchemaForms\JsonSchemaFormValidator;
 
 /**
- * @coversDefaultClass \SchemaForms\JsonSchemaFormValidator
+ * Unit tests for the \SchemaForms\JsonSchemaFormValidator class.
  */
+#[CoversClass(JsonSchemaFormValidator::class)]
 class JsonSchemaFormValidatorTest extends TestCase {
 
   /**
-   * @covers ::isValid
-   * @dataProvider dataProviderIsValid
+   * Tests which schemas are valid form schemas.
    */
+  #[DataProvider('dataProviderIsValid')]
   public function testIsValid(array $schema, bool $expected, string $message): void {
     $validator = new JsonSchemaFormValidator(
       new Validator(),

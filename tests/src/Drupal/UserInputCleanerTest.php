@@ -3,6 +3,8 @@
 namespace SchemaForms\Tests\Drupal;
 
 use Drupal\Component\Render\MarkupInterface;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\UserInputCleaner;
 
@@ -10,9 +12,8 @@ use SchemaForms\Drupal\UserInputCleaner;
  * Unit tests for the \SchemaForms\Drupal\UserInputCleaner class.
  *
  * @package SchemaForms
- *
- * @coversDefaultClass \SchemaForms\Drupal\UserInputCleaner
  */
+#[CoversClass(UserInputCleaner::class)]
 class UserInputCleanerTest extends TestCase {
 
   /**
@@ -148,11 +149,8 @@ class UserInputCleanerTest extends TestCase {
 
   /**
    * Tests the cleaning.
-   *
-   * @dataProvider dataProviderCleanUserInput
-   *
-   * @covers ::cleanUserInput
    */
+  #[DataProvider('dataProviderCleanUserInput')]
   public function testCleanUserInput($data, $expected): void {
     $this->assertSame($expected, UserInputCleaner::cleanUserInput($data));
   }

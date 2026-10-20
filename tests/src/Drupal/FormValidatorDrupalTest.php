@@ -5,6 +5,9 @@ namespace SchemaForms\Tests\Drupal;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\CoversMethod;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormValidatorDrupal;
@@ -17,9 +20,9 @@ use SchemaForms\Drupal\FormValidatorDrupal;
  * their untranslated string and arguments.
  *
  * @package SchemaForms
- *
- * @coversDefaultClass \SchemaForms\Drupal\FormValidatorDrupal
  */
+#[CoversClass(FormValidatorDrupal::class)]
+#[CoversMethod(FormGeneratorDrupal::class, 'validateWithSchema')]
 class FormValidatorDrupalTest extends TestCase {
 
   /**
@@ -118,11 +121,8 @@ class FormValidatorDrupalTest extends TestCase {
 
   /**
    * Tests that the cleaned and cast values are written back.
-   *
-   * @dataProvider dataProviderTypeCastRecursive
-   *
-   * @covers ::typeCastRecursive
    */
+  #[DataProvider('dataProviderTypeCastRecursive')]
   public function testTypeCastRecursive(string $schema, array $submitted, array $expected): void {
     $element = self::element(['wrapper', 'data'], 'Data');
     $form_state = self::formState(['wrapper' => ['data' => $submitted], 'other' => 'untouched']);
@@ -154,11 +154,8 @@ class FormValidatorDrupalTest extends TestCase {
 
   /**
    * Tests that valid data sets no error.
-   *
-   * @dataProvider dataProviderValidData
-   *
-   * @covers ::validateWithSchema
    */
+  #[DataProvider('dataProviderValidData')]
   public function testValidData(string $schema, $submitted): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
@@ -199,11 +196,8 @@ class FormValidatorDrupalTest extends TestCase {
 
   /**
    * Tests the cast of an empty submission before validating.
-   *
-   * @dataProvider dataProviderEmptyDataCast
-   *
-   * @covers ::validateWithSchema
    */
+  #[DataProvider('dataProviderEmptyDataCast')]
   public function testEmptyDataCast(string $schema, ?array $submitted, string $message): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
@@ -216,8 +210,6 @@ class FormValidatorDrupalTest extends TestCase {
 
   /**
    * Tests that the raw user input is validated when there is no value.
-   *
-   * @covers ::validateWithSchema
    */
   public function testUserInputFallback(): void {
     $schema = json_decode('{"type":"object","properties":{"foo":{"type":"integer"}}}');
@@ -243,8 +235,6 @@ class FormValidatorDrupalTest extends TestCase {
    * The element sits below a parent that is not part of the data, and the
    * multivalue item carries the remove button nesting: the pointer /list/0
    * maps to the item's removable_element, and the buttons are not mapped.
-   *
-   * @covers ::validateWithSchema
    */
   public function testErrorsOnMappedElements(): void {
     $schema = json_decode('{"type":"object","properties":{"foo":{"type":"integer"},"list":{"type":"array","items":{"type":"string","minLength":3}}}}');
@@ -306,11 +296,8 @@ class FormValidatorDrupalTest extends TestCase {
    *
    * Only json-schema 6.x is installed, so the 5.x string shape cannot reach
    * this method through the validator. It is called directly instead.
-   *
-   * @dataProvider dataProviderConstraintSuffix
-   *
-   * @covers ::constraintSuffix
    */
+  #[DataProvider('dataProviderConstraintSuffix')]
   public function testConstraintSuffix(array $error, string $expected): void {
     $method = new \ReflectionMethod(FormValidatorDrupal::class, 'constraintSuffix');
     $this->assertSame($expected, $method->invoke(NULL, $error));
@@ -318,8 +305,6 @@ class FormValidatorDrupalTest extends TestCase {
 
   /**
    * Tests that the form generator's validation callback runs both steps.
-   *
-   * @covers \SchemaForms\Drupal\FormGeneratorDrupal::validateWithSchema
    */
   public function testFormGeneratorValidateWithSchema(): void {
     $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer"},"label":{"type":"string","minLength":3}}}');
@@ -345,8 +330,6 @@ class FormValidatorDrupalTest extends TestCase {
 
   /**
    * Tests that the form generator skips an element without a schema.
-   *
-   * @covers \SchemaForms\Drupal\FormGeneratorDrupal::validateWithSchema
    */
   public function testFormGeneratorValidateWithoutSchema(): void {
     $element = self::element(['data'], 'Data');

@@ -3,6 +3,8 @@
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use Shaper\Util\Context;
@@ -11,9 +13,8 @@ use Shaper\Util\Context;
  * Unit tests for \SchemaForms\Drupal\FormGeneratorDrupal.
  *
  * @package SchemaForms
- *
- * @coversDefaultClass \SchemaForms\Drupal\FormGeneratorDrupal
  */
+#[CoversClass(FormGeneratorDrupal::class)]
 class FormGeneratorDrupalTest extends TestCase {
 
   /**
@@ -38,9 +39,8 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The JSON string containing the schema for the form.
    * @param array $expected_form
    *   The expected form as in Drupal's Form API.
-   *
-   * @dataProvider dataProviderFormGeneration
    */
+  #[DataProvider('dataProviderFormGeneration')]
   public function testFormGeneration(string $schema, array $expected_form) {
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
     $data = json_decode($schema);
@@ -272,9 +272,8 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The JSON string containing the UI schema for the form.
    * @param array $expected_form
    *   The expected form as in Drupal's Form API.
-   *
-   * @dataProvider dataProviderFormGenerationWithUi
    */
+  #[DataProvider('dataProviderFormGenerationWithUi')]
   public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form) {
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
     $data = json_decode($schema);
@@ -370,9 +369,8 @@ class FormGeneratorDrupalTest extends TestCase {
    *
    * @param string $schema
    *   The JSON string containing the schema for the form.
-   *
-   * @dataProvider dataProviderEmptyRootObject
    */
+  #[DataProvider('dataProviderEmptyRootObject')]
   public function testEmptyRootObject(string $schema): void {
     $data = json_decode($schema);
     $warnings = [];
@@ -429,9 +427,8 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The JSON string containing the schema for the form.
    * @param string $path
    *   The property path the exception message must name.
-   *
-   * @dataProvider dataProviderHashPropertyNames
    */
+  #[DataProvider('dataProviderHashPropertyNames')]
   public function testHashPropertyNamesThrow(string $schema, string $path): void {
     $this->expectException(\InvalidArgumentException::class);
     $this->expectExceptionMessage(sprintf('"%s"', $path));
@@ -473,9 +470,8 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The UI schema for the form.
    * @param array $expected
    *   The expected #disabled values, keyed by dotted element path.
-   *
-   * @dataProvider dataProviderDisabledParent
    */
+  #[DataProvider('dataProviderDisabledParent')]
   public function testDisabledParentDisablesChildren(array $ui_schema, array $expected): void {
     $schema = '{"type":"object","properties":{'
       . '"o":{"type":"object","properties":{"role":{"type":"string"},"inner":{"type":"object","properties":{"deep":{"type":"string"}}}}},'

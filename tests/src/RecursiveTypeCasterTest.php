@@ -2,6 +2,8 @@
 
 namespace SchemaForms\Tests;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\RecursiveTypeCaster;
 
@@ -9,9 +11,8 @@ use SchemaForms\RecursiveTypeCaster;
  * Unit tests for the \SchemaForms\RecursiveTypeCaster class.
  *
  * @package SchemaForms
- *
- * @coversDefaultClass \SchemaForms\RecursiveTypeCaster
  */
+#[CoversClass(RecursiveTypeCaster::class)]
 class RecursiveTypeCasterTest extends TestCase {
 
   /**
@@ -74,11 +75,8 @@ class RecursiveTypeCasterTest extends TestCase {
 
   /**
    * Tests the type refinements.
-   *
-   * @dataProvider dataProviderRecursiveTypeRefinements
-   *
-   * @covers ::recursiveTypeRefinements
    */
+  #[DataProvider('dataProviderRecursiveTypeRefinements')]
   public function testRecursiveTypeRefinements($data, string $schema, $expected): void {
     $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, json_decode($schema));
     $this->assertSame($expected, $actual);
