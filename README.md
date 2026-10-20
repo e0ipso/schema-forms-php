@@ -65,7 +65,7 @@ $context = new Context(['ui_hints' => $ui_schema_data]);
 $form = $generator->transform($schema_data, $context);
 ```
 
-`$form` is this render array. The root container also carries `#json_schema` (the decoded schema) and `#element_validate`, left out here:
+`$form` is this render array. The root container also carries `#json_schema` (the decoded schema), `#element_validate` and `#validate`, left out here:
 
 ```php
 [
@@ -200,7 +200,9 @@ Other keys are ignored.
 
 ### Validating submissions
 
-The root container has an `#element_validate` callback. When Drupal validates the form, it:
+The container can be the whole form, or sit under a key of a larger form. Drupal runs the root container's `#element_validate` callback when the container sits under a key, and its `#validate` handler when the container is the form; either way the schema validation runs once, before the form's own `validateForm()`. When the container is the form, only the schema's properties are validated, so `form_id`, `form_build_id` and the values of elements you add next to the generated ones are left alone. In that placement a button with its own non-empty `#validate` list replaces the form-level handlers, so the schema validation does not run for that button.
+
+When Drupal validates the form, the schema validation:
 
 1. Removes the add and remove button values that array properties leave in the submission.
 2. Casts the submitted strings to the schema types. Numeric strings become `int` or `float`, `"0"` and `"1"` become booleans on a `boolean` property, and an empty string becomes `NULL` on a nullable property that cannot hold it.

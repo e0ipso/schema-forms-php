@@ -102,6 +102,36 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Form-level validation callback, for a container that is the form itself.
+   *
+   * The form's values also hold Drupal's own keys, such as form_build_id and
+   * form_id, and the values of elements the module added next to the
+   * generated ones. Only the schema's properties are validated, so those
+   * keys cannot fail a schema that forbids additional properties. The other
+   * values are put back afterwards.
+   *
+   * @param array $form
+   *   The form, which is the generated root container.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public function validateFormWithSchema(array &$form, FormStateInterface $form_state): void {
+    $schema = $form['#json_schema'] ?? NULL;
+    if (!is_object($schema)) {
+      return;
+    }
+    $values = $form_state->getValues();
+    $schema_keys = array_flip(array_keys((array) ($schema->properties ?? [])));
+    $form_state->setValues(array_intersect_key($values, $schema_keys));
+    try {
+      $this->validateWithSchema($form, $form_state);
+    }
+    finally {
+      $form_state->setValues($form_state->getValues() + array_diff_key($values, $schema_keys));
+    }
+  }
+
+  /**
    * Creates a Drupal form element from a property definition.
    *
    * @param mixed $json_schema
@@ -488,7 +518,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       }
       $element[$key]['#required'] = in_array($key, $required_prop_names);
     }
+    // Drupal runs #element_validate when the container sits under a key, but
+    // not on the form itself: there it runs only the form-level #validate
+    // handlers, and it ignores #validate on any other element. Each placement
+    // therefore runs the bridge exactly once. FormBuilder::prepareForm()
+    // appends the form's own ::validateForm after the #validate handler.
     $element['#element_validate'] = [[$this, 'validateWithSchema']];
+    $element['#validate'] = [[$this, 'validateFormWithSchema']];
     return $element;
   }
 

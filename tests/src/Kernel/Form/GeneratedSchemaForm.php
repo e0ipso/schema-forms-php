@@ -19,6 +19,11 @@ use Shaper\Util\Context;
 final class GeneratedSchemaForm implements FormInterface {
 
   /**
+   * The form state storage key that validateForm() writes the values to.
+   */
+  public const VALIDATE_FORM_VALUES = 'schema_forms_test_validate_form_values';
+
+  /**
    * Creates the form.
    *
    * @param object $schema
@@ -64,8 +69,13 @@ final class GeneratedSchemaForm implements FormInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * Records the values it sees, so a test can tell that it ran and whether
+   * it ran after the schema bridge type-cast them.
    */
-  public function validateForm(array &$form, FormStateInterface $form_state): void {}
+  public function validateForm(array &$form, FormStateInterface $form_state): void {
+    $form_state->set(self::VALIDATE_FORM_VALUES, $form_state->getValues());
+  }
 
   /**
    * {@inheritdoc}

@@ -43,6 +43,7 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('dataProviderFormGeneration')]
   public function testFormGeneration(string $schema, array $expected_form) {
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
     $actual_form = $this->sut->transform($data);
@@ -276,6 +277,7 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('dataProviderFormGenerationWithUi')]
   public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form) {
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
     $context = new Context(['ui_hints' => $ui_schema]);
@@ -390,6 +392,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '#type' => 'container',
         '#json_schema' => $data,
         '#element_validate' => [[$this->sut, 'validateWithSchema']],
+        '#validate' => [[$this->sut, 'validateFormWithSchema']],
       ],
       $actual_form
     );

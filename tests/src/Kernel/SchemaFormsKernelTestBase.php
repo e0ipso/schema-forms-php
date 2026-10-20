@@ -12,11 +12,10 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 /**
  * Builds and submits generated forms through Drupal's FormBuilder.
  *
- * Submitting runs the root container's #element_validate bridge, so a test
- * sees the errors and type-cast values Drupal form processing produces. Drupal
- * does not run #element_validate on the form element itself
- * (FormValidator::doValidateForm()), so the bridge only runs when the container
- * sits under a parent key.
+ * Submitting runs the generated schema validation bridge, so a test sees
+ * the errors and type-cast values Drupal form processing produces. Drupal
+ * runs the bridge as #element_validate when the container sits under a key,
+ * and as a form-level #validate handler when the container is the form.
  *
  * Kernel tests run on SQLite, configured by SIMPLETEST_DB in phpunit.xml.
  * Every concrete subclass must carry the #[RunTestsInSeparateProcesses]
@@ -38,12 +37,14 @@ abstract class SchemaFormsKernelTestBase extends KernelTestBase {
    *   container as the form itself.
    * @param bool $tree
    *   Whether the form sets #tree. Only applies with a parent key.
+   * @param \Drupal\Core\Form\FormState|null $form_state
+   *   The form state to submit with, or NULL for a new one.
    *
    * @return \SchemaForms\Tests\Kernel\SchemaFormSubmission
    *   The processed form, its state, its errors and its values.
    */
-  protected function submitSchemaForm(object $schema, array $values, array $ui_hints = [], ?string $parent_key = NULL, bool $tree = FALSE): SchemaFormSubmission {
-    $form_state = (new FormState())->setValues($values);
+  protected function submitSchemaForm(object $schema, array $values, array $ui_hints = [], ?string $parent_key = NULL, bool $tree = FALSE, ?FormState $form_state = NULL): SchemaFormSubmission {
+    $form_state = ($form_state ?? new FormState())->setValues($values);
     $form_object = new GeneratedSchemaForm($schema, $ui_hints, $parent_key, $tree);
     $this->container->get('form_builder')->submitForm($form_object, $form_state);
     $errors = array_map('strval', $form_state->getErrors());
