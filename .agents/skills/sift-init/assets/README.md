@@ -12,6 +12,58 @@ Set the permanent prefix in `.ai/sift/config/config.yaml`:
 prefix: ABCD      # uppercase; stable for the life of the repository
 ```
 
+Drain can review each wave's changes before its end-to-end tests. Without this optional
+block it asks at the start of every drain:
+
+```yaml
+code_review:
+  enabled: true                               # false skips review without asking
+  command: codex exec --yolo --model <model>  # optional; another harness
+  model: <model>                              # optional; this harness on this model
+```
+
+`command` runs another harness non-interactively, with the review prompt on standard input
+and the report on standard output. Without `command`, the harness running the drain reviews
+on `model`, or on its own model when `model` is absent. `command` wins over `model`.
+Wrap `command` in single quotes when it contains ` #` or `: `, which YAML would read as a
+comment or a mapping, and double each single quote inside it.
+
+Drain creates ticket, wave-gate and review worktrees with its `prepare-worktree.sh`. A new
+worktree holds only tracked files, so ignored local state such as `.env` and installed
+dependencies is missing. An optional executable hook at `.ai/sift/config/worktree-setup`
+prepares each one. Without the file nothing changes. On a fresh tree sift-init offers to
+write it; existing trees add it by hand:
+
+```sh
+#!/usr/bin/env bash
+# .ai/sift/config/worktree-setup runs once in each new drain worktree.
+set -eu
+if [ -e "$SIFT_ROOT/.env" ] && [ ! -e .env ]; then
+  ln -s "$SIFT_ROOT/.env" .env
+fi
+npm ci    # this project's dependency install
+```
+
+`prepare-worktree.sh` reads the hook from the git toplevel of the checkout it runs in, which
+is the original checkout, and never from the new worktree. A hook path that is not an
+executable file exits 1 before any worktree or branch exists. The hook runs once, after the
+worktree is added, with the worktree as its working directory, stdin from `/dev/null` and
+stdout sent to stderr. It receives `SIFT_ROOT`, the original checkout; `SIFT_WORKTREE`, the
+new worktree path; `SIFT_BRANCH`, the new branch; and `SIFT_BASE_COMMIT`, the commit that
+branch starts from.
+
+A non-zero hook status makes `prepare-worktree.sh` exit 3. The worktree and branch stay for
+inspection, stderr names both with the hook's status, and drain dispatches nothing there.
+This exit 3 is unrelated to exit 3 from the sift-init gate, which means an uninitialized
+tree. The hook runs unsandboxed, so keep it within these limits:
+
+- Write only inside the new worktree. Never write `.ai/sift` or the original checkout.
+- Never link `.ai` or `.ai/sift`. Workers reach the tracker through `SIFT_ROOT`.
+- A symlinked path is writable state shared by every worktree that links it.
+- Parallel sittings and gates prepare worktrees together, so hooks may run concurrently.
+- A failed worktree is kept, never reset or cleaned. A retry prepares a fresh path and
+  branch; `prepare-worktree.sh` still refuses a path that exists.
+
 `MILESTONES.md` names and orders milestones. `<PREFIX>` and `<milestone>` below stand for
 these configured values. Changing a prefix requires rewriting every ticket ID, filename and
 reference with the config change.

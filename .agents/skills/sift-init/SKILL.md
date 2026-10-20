@@ -100,6 +100,25 @@ values, path characters, spaces, uppercase milestone letters, and leading, trail
 or doubled milestone hyphens are invalid. Any invalid or missing input exits 2 before
 the script creates a directory.
 
+**Worktree setup.** Ask this only on a fresh tree, gate exit 3 or 4, after the user
+confirms the prefix. Never ask it on `INCOMPLETE` repair or `READY`. List the ignored
+paths a new drain worktree would lack:
+
+```sh
+scripts/sift-init.sh --suggest-worktree-links --root "$ROOT"
+```
+
+It prints one path per line and writes nothing. It omits `.ai`, `.ai/sift` and anything
+under it, and names git can only print quoted. Outside a git work tree it prints nothing
+and exits 0; exit 2 means git failed. Offer small local state from the list, such as env
+files and tool settings, as suggested symlinks. Do not suggest dependency or build
+directories; an install command such as `npm ci` recreates those. The user may deselect or
+edit links, add commands, or choose none.
+
+A link must be relative, with no empty, `.` or `..` component, and must not be `.ai`,
+`.ai/sift` or under it. A command must be one non-blank line that `bash -n` parses
+with no error or warning. Either violation exits 2 before any write.
+
 ## 3. Materialize or repair the tree
 
 **Input.** Use the resolved `ROOT`, confirmed prefix, and optional milestone. An
@@ -109,8 +128,15 @@ if the prefix is missing, choose and confirm one through step 2.
 **Command.** Run:
 
 ```sh
-scripts/sift-init.sh --root "$ROOT" --prefix ACME [--milestone <name>]
+scripts/sift-init.sh --root "$ROOT" --prefix ACME [--milestone <name>] \
+  [--worktree-link <path>]... [--worktree-command <cmd>]...
 ```
+
+Pass one `--worktree-link` per chosen link and one `--worktree-command` per command, in
+the user's order, or neither when the user chose none. Any of them writes
+`config/worktree-setup`, an executable bash script: link steps first, then commands, each
+in the order given. A link step symlinks `$SIFT_ROOT/<path>` to `<path>` in the worktree and
+skips a missing source or an existing destination. A command step runs the command verbatim.
 
 **Created entries.** The command creates only absent paths:
 
@@ -120,6 +146,7 @@ scripts/sift-init.sh --root "$ROOT" --prefix ACME [--milestone <name>]
 ├── README.md              <- copied byte for byte from the skill assets
 ├── MILESTONES.md          <- generated with the first milestone
 ├── config/config.yaml     <- generated with the prefix
+├── config/worktree-setup  <- only when setup steps were chosen; executable
 ├── schemas/*.{xsd,xml}    <- schemas and optional XML example
 ├── scripts/sift.sh        <- local tracker operations
 ├── open/<milestone>/      <- empty; the first ticket creates its category
@@ -128,7 +155,10 @@ scripts/sift-init.sh --root "$ROOT" --prefix ACME [--milestone <name>]
 
 `README.md`, `scripts/sift.sh` and the XSD/XML assets are copied byte for byte. A repeat run repairs missing entries and keeps every existing
 entry. It does not restore a missing `.gitignore`; that absence is the repository's
-opt-in to tracking the sift tree.
+opt-in to tracking the sift tree. The hook is create-if-absent like every other entry: an
+existing hook is kept whatever options the run gets. A run with hook options reports
+`created` or `kept` for `.ai/sift/config/worktree-setup`; a run without them prints no
+hook line.
 
 **Publication guarantee.** A bare `mkdir` claims `.ai/sift`, so one concurrent writer
 wins and the others enter the repair path. Each file is staged beside its destination,
@@ -173,6 +203,7 @@ Report these fields after a successful run:
 - permanent prefix
 - first milestone, noting that it is a placeholder
 - gate state `READY`
+- worktree setup hook: the chosen links and commands, `kept` for an existing hook, or none
 - convention drift findings and offered remedies, if any
 - tracking policy and its opt-out
 

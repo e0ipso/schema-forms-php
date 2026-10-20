@@ -35,13 +35,13 @@
       "source": "e0ipso/sift",
       "sourceType": "github",
       "skillPath": "src/skills/sift-drain/SKILL.md",
-      "computedHash": "11d25b80bbd1e660ba887a445df857a9c78e44de7e4a555c26dd5fd3d4ac7884"
+      "computedHash": "1941fa86037321aaee7dd8d83b1804fbddcae523160aa3eb05aee4a2a9938d00"
     },
     "sift-init": {
       "source": "e0ipso/sift",
       "sourceType": "github",
       "skillPath": "src/skills/sift-init/SKILL.md",
-      "computedHash": "feaa6b2a15ef6611dbc7214ae48931133e346e399103275cfe8a4551727ce309"
+      "computedHash": "09c45e99420705563fe4cff2934918bf59706e31ecec7bfcbdc74fa5d3b5e7d7"
     },
     "sift-prime": {
       "source": "e0ipso/sift",
