@@ -418,4 +418,47 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->sut->transform(json_decode('{"type":"array","items":{"type":"string"}}'));
   }
 
+
+  /**
+   * Tests that property names starting with '#' are rejected.
+   *
+   * Regression: such a name became a render property, so a schema could set
+   * '#process' or '#element_validate' to a callback Drupal then called.
+   *
+   * @param string $schema
+   *   The JSON string containing the schema for the form.
+   * @param string $path
+   *   The property path the exception message must name.
+   *
+   * @dataProvider dataProviderHashPropertyNames
+   */
+  public function testHashPropertyNamesThrow(string $schema, string $path): void {
+    $this->expectException(\InvalidArgumentException::class);
+    $this->expectExceptionMessage(sprintf('"%s"', $path));
+    $this->sut->transform(json_decode($schema));
+  }
+
+  /**
+   * Data provider for testHashPropertyNamesThrow.
+   *
+   * @return array
+   *   The data.
+   */
+  public static function dataProviderHashPropertyNames(): array {
+    return [
+      'root' => [
+        '{"type":"object","properties":{"#process":{"type":"string","title":"var_dump"}}}',
+        'properties.#process',
+      ],
+      'nested object' => [
+        '{"type":"object","properties":{"address":{"type":"object","properties":{"street":{"type":"string"},"#element_validate":{"type":"string"}}}}}',
+        'properties.address.properties.#element_validate',
+      ],
+      'array items with no rendered item yet' => [
+        '{"type":"object","properties":{"list":{"type":"array","items":{"type":"object","properties":{"#after_build":{"type":"string"}}}}}}',
+        'properties.list.items.properties.#after_build',
+      ],
+    ];
+  }
+
 }

@@ -151,7 +151,7 @@ $form = $generator->transform($schema_data, $context);
 ]
 ```
 
-The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`. Anything else makes `transform()` throw a `TypeError`.
+The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`. Anything else makes `transform()` throw a `TypeError`. A property name that starts with `#`, at any depth, makes `transform()` throw an `\InvalidArgumentException` naming the property path, because Drupal would read the name as a render property.
 
 ### Context keys
 

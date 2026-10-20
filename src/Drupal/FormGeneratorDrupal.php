@@ -53,6 +53,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $context = $context ?: new Context();
     $form_state = $context['form_state'] ?? new FormState();
     $schema = $this->getSchema($data);
+    $visited = [];
+    $this->rejectRenderPropertyNames($schema, [], $visited);
     // A root object schema may omit 'properties'; that is an empty form.
     $props = $schema->properties ?? new \stdClass();
     // Store the schema for the validation callbacks to access.
@@ -485,6 +487,44 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     }
     $element['#element_validate'] = [[$this, 'validateWithSchema']];
     return $element;
+  }
+
+  /**
+   * Rejects schema property names that Drupal would read as render properties.
+   *
+   * Property names become render-array keys. A name such as '#process' or
+   * '#element_validate' would make Drupal call whatever the schema puts there,
+   * and '#type' or '#tree' would corrupt the form. The schema is checked as a
+   * whole before any element is built, so array items that are not rendered
+   * yet are covered too.
+   *
+   * @param mixed $schema
+   *   The dereferenced schema, or one of its sub-schemas.
+   * @param string[] $path
+   *   The schema path of $schema, as keys from the root.
+   * @param bool[] $visited
+   *   The object IDs of the sub-schemas already checked, so that a schema
+   *   object graph with cycles cannot recurse forever.
+   *
+   * @throws \InvalidArgumentException
+   *   When a property name starts with '#'.
+   */
+  private function rejectRenderPropertyNames($schema, array $path, array &$visited): void {
+    if (!is_object($schema) || isset($visited[spl_object_id($schema)])) {
+      return;
+    }
+    $visited[spl_object_id($schema)] = TRUE;
+    foreach ((array) ($schema->properties ?? []) as $name => $sub_schema) {
+      $sub_path = [...$path, 'properties', (string) $name];
+      if (str_starts_with((string) $name, '#')) {
+        throw new \InvalidArgumentException(sprintf(
+          'Schema property "%s" starts with "#", which Drupal reserves for render properties.',
+          implode('.', $sub_path)
+        ));
+      }
+      $this->rejectRenderPropertyNames($sub_schema, $sub_path, $visited);
+    }
+    $this->rejectRenderPropertyNames($schema->items ?? NULL, [...$path, 'items'], $visited);
   }
 
   /**
