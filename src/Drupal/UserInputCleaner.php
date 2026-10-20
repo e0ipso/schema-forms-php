@@ -6,6 +6,8 @@ use Drupal\Component\Render\MarkupInterface;
 
 /**
  * Cleans the lingering user input from the form submissions.
+ *
+ * @internal
  */
 class UserInputCleaner {
 

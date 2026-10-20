@@ -9,6 +9,8 @@ use Shaper\Validator\ValidateableInterface;
 
 /**
  * Turns associative arrays into stdClass.
+ *
+ * @internal
  */
 final class ArrayToStdClass extends TransformationBase {
 

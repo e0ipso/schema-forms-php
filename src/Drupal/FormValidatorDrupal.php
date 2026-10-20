@@ -14,6 +14,8 @@ use SchemaForms\RecursiveTypeCaster;
 
 /**
  * Generates Drupal Form API forms from JSON-Schema documents.
+ *
+ * @internal
  */
 final class FormValidatorDrupal {
 

@@ -6,6 +6,8 @@ use Shaper\Validator\ValidateableBase;
 
 /**
  * Checks weather or not the passed data is a Drupal render array.
+ *
+ * @internal
  */
 class RenderArrayValidator extends ValidateableBase {
 

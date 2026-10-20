@@ -65,6 +65,8 @@ $context = new Context(['ui_hints' => $ui_schema_data]);
 $form = $generator->transform($schema_data, $context);
 ```
 
+The public API is `FormGeneratorDrupal` and the `FormGeneratorInterface` it implements, with Shaper's `Context` as input. Semantic versioning covers only these. Every other class in `src/` is marked `@internal` and can change in any release.
+
 `$form` is this render array. The root container also carries `#json_schema` (the decoded schema), `#element_validate` and `#validate`, left out here:
 
 ```php

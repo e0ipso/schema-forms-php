@@ -7,6 +7,8 @@ use Shaper\Validator\JsonSchemaValidator;
 
 /**
  * Validates that the input provided conforms to the expectations.
+ *
+ * @internal
  */
 class JsonSchemaFormValidator extends JsonSchemaValidator {
 
