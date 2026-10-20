@@ -28,11 +28,17 @@ class ArrayToStdClassTest extends TestCase {
    * @return array
    *   The data.
    */
-  public function dataProviderTransform(): array {
+  public static function dataProviderTransform(): array {
     return [
       [2, 2],
       [null, null],
-      [$this, (object) []],
+      // An object with only non-public state, as the test case itself was.
+      [
+        new class() {
+          private string $hidden = 'hidden';
+        },
+        (object) [],
+      ],
       [
         ['foo' => [1, 3, ['bar' => 'baz']]],
         (object) ['foo' => [1, 3, (object) ['bar' => 'baz']]],

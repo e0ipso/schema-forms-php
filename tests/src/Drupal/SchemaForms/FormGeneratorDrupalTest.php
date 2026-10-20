@@ -1,11 +1,10 @@
 <?php
 
-namespace SchemaForms\Tests\Drupal\FormGeneratorDrupal;
+namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormValidator;
 use Shaper\Util\Context;
 
 /**
@@ -59,7 +58,7 @@ class FormGeneratorDrupalTest extends TestCase {
    * @return array
    *   The data.
    */
-  public function dataProviderFormGeneration() {
+  public static function dataProviderFormGeneration() {
     return [
       [
         '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',
@@ -294,7 +293,7 @@ class FormGeneratorDrupalTest extends TestCase {
    * @return array
    *   The data.
    */
-  public function dataProviderFormGenerationWithUi(): array {
+  public static function dataProviderFormGenerationWithUi(): array {
     return [
       [
         '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',

@@ -45,7 +45,7 @@ class RenderArrayValidatorTest extends TestCase {
    * @return array
    *   The data.
    */
-  public function dataProviderIsValid() {
+  public static function dataProviderIsValid() {
     return [
       [
         ['#fa' => 'mily'],
