@@ -30,7 +30,11 @@
     },
     "autoload": {
         "psr-4": {
-            "SchemaForms\\": "src",
+            "SchemaForms\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
             "SchemaForms\\Tests\\": "tests/src"
         }
     },
