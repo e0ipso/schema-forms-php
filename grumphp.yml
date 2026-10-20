@@ -30,9 +30,10 @@ grumphp:
     phpmnd:
       hint: true
       triggered_by: ['php', 'module']
-    securitychecker_enlightn:
-      lockfile: ./composer.lock
-      run_always: false
+    shell:
+      scripts:
+        - ['-c', 'composer audit --no-dev --locked']
+      triggered_by: ['lock', 'json']
     phplint:
       exclude: []
       jobs: ~

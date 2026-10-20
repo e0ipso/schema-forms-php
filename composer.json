@@ -19,7 +19,6 @@
         "drupal/coder": "^8.3",
         "drupal/core-dev": "^11",
         "drupal/core-recommended": "^11",
-        "enlightn/security-checker": "^2.0",
         "ergebnis/composer-normalize": "^2.47",
         "nikic/php-parser": "^5.6",
         "php-parallel-lint/php-parallel-lint": "^1.4",
