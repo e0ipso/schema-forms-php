@@ -139,6 +139,10 @@ class UserInputCleanerTest extends TestCase {
         ['a_string_array' => [self::removable('kept'), self::removable('')]],
         ['a_string_array' => ['kept', '']],
       ],
+      'a NULL under a named key is removed' => [
+        ['a_string' => 'hello', 'a_missing_value' => NULL],
+        ['a_string' => 'hello'],
+      ],
     ];
   }
 

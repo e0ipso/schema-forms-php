@@ -55,6 +55,20 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"a":{"type":["string","null"]},"b":{"type":["integer","null"]},"c":{"type":["string","null"]}}}',
         ['a' => '', 'b' => NULL, 'c' => '0'],
       ],
+      // Numeric strings become the number they spell.
+      'number casts a decimal string to float' => ['1.5', '{"type":"number"}', 1.5],
+      'plain integer casts a numeric string' => ['3', '{"type":"integer"}', 3],
+      // A list is refined item by item with the `items` sub-schema.
+      'list items are refined individually' => [
+        ['1', '2', '3'],
+        '{"type":"array","items":{"type":"integer"}}',
+        [1, 2, 3],
+      ],
+      'a list nested in an object is refined' => [
+        ['ids' => ['1', '2'], 'label' => 'x'],
+        '{"type":"object","properties":{"ids":{"type":"array","items":{"type":"integer"}},"label":{"type":"string"}}}',
+        ['ids' => [1, 2], 'label' => 'x'],
+      ],
     ];
   }
 
