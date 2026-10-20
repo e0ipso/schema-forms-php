@@ -116,12 +116,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form state.
    * @param mixed $current_input
    *   The current input.
+   * @param bool $parent_enabled
+   *   FALSE when an ancestor element is disabled. A disabled ancestor disables
+   *   this element whatever its own 'ui:enabled' says.
    *
    * @return array
    *   The form element.
    */
-  private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input): array {
+  private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE): array {
     $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input);
+    $enabled = $parent_enabled && (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
     $form_element['#prop_parents'] = $prop_parents;
     if (!empty($json_schema->const)) {
       unset($form_element['#type']);
@@ -140,14 +144,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     }
     if ($type === 'array') {
       $form_element = empty($json_schema->items->enum)
-        ? $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data)
+        ? $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data, $enabled)
         : $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
     }
     if ($type === 'object') {
-      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input);
+      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled);
     }
 
-    $enabled = (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
     $form_element['#disabled'] = !$enabled;
     $visible = (bool) ($ui_schema_data['ui:visible'] ?? TRUE);
     $form_element['#visible'] = $visible;
@@ -691,11 +694,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The JSON Schema for the element.
    * @param array $ui_schema_data
    *   The schema for the UI refinements.
+   * @param bool $enabled
+   *   Whether the multivalue element is enabled. Items of a disabled element
+   *   are disabled too.
    *
    * @return array
    *   The form element.
    */
-  private function transformMultivalue(array $prop_parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, $json_schema, array $ui_schema_data): array {
+  private function transformMultivalue(array $prop_parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, $json_schema, array $ui_schema_data, bool $enabled): array {
     // Store field information in $form_state.
     if (!static::getPropFormState($prop_parents, $machine_name, $form_state)) {
       $count = count($current_input ?: []);
@@ -752,7 +758,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         $new_prop_parents,
         $ui_schema_data,
         $form_state,
-        $current_input[$delta] ?? NULL
+        $current_input[$delta] ?? NULL,
+        $enabled
       );
 
       $container_id = sprintf('%s-%d-container', $id_prefix, $delta);
@@ -821,11 +828,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form state.
    * @param array|null $current_input
    *   The current input.
+   * @param bool $enabled
+   *   Whether the nested element is enabled. Sub-properties of a disabled
+   *   element are disabled too.
    *
    * @return array
    *   The form element.
    */
-  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input): array {
+  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input, bool $enabled): array {
     $properties = $json_schema->properties ?? [];
     if (!empty($properties)) {
       $form_element['#type'] = 'details';
@@ -837,7 +847,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           [...$parents, $sub_machine_name],
           $ui_schema_data[$sub_machine_name] ?? [],
           $form_state,
-          $current_input[$sub_machine_name] ?? NULL
+          $current_input[$sub_machine_name] ?? NULL,
+          $enabled
         );
       }
     }

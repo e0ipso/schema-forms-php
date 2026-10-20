@@ -192,7 +192,7 @@ Supported controls:
 - `ui:help`: the element description. Defaults to the property's `description`.
 - `ui:placeholder`: placeholder text for the input.
 - `ui:widget`: a Drupal Form API element type, such as `select`, `textarea`, `password` or `hidden`. The generator uses the value as `#type` unchanged and does not check it. A name Drupal does not know, such as the react-jsonschema-form widget `updown`, renders nothing.
-- `ui:enabled`: `0` sets `#disabled` on the element.
+- `ui:enabled`: `0` sets `#disabled` on the element and on every element nested in it, including array items and their sub-properties. A disabled parent wins over a child's own `ui:enabled: 1`.
 - `ui:visible`: `0` sets `#visible` to `FALSE`. Drupal core does not read `#visible`, so the element still renders unless your code acts on that key.
 - `ui:enum`: controls the labels for select, radio and checkbox options. `ui:enum.labels.mappings` maps each enum value to a label, e.g. `{"uuid1": "Super duper product"}`.
 

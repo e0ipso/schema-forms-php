@@ -461,4 +461,103 @@ class FormGeneratorDrupalTest extends TestCase {
     ];
   }
 
+
+  /**
+   * Tests that a disabled parent disables every descendant.
+   *
+   * Regression: each element took #disabled from its own 'ui:enabled' only,
+   * so the sub-fields of a disabled object or array stayed editable and Drupal
+   * processed their input.
+   *
+   * @param array $ui_schema
+   *   The UI schema for the form.
+   * @param array $expected
+   *   The expected #disabled values, keyed by dotted element path.
+   *
+   * @dataProvider dataProviderDisabledParent
+   */
+  public function testDisabledParentDisablesChildren(array $ui_schema, array $expected): void {
+    $schema = '{"type":"object","properties":{'
+      . '"o":{"type":"object","properties":{"role":{"type":"string"},"inner":{"type":"object","properties":{"deep":{"type":"string"}}}}},'
+      . '"list":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"}}}},'
+      . '"plain":{"type":"string"}}}';
+    $context = new Context([
+      'ui_hints' => $ui_schema,
+      'current_input' => ['list' => [['name' => 'a'], ['name' => 'b']]],
+    ]);
+    $actual_form = $this->sut->transform(json_decode($schema), $context);
+    ksort($expected);
+    $this->assertSame($expected, static::collectDisabled($actual_form));
+  }
+
+  /**
+   * Data provider for testDisabledParentDisablesChildren.
+   *
+   * @return array
+   *   The data.
+   */
+  public static function dataProviderDisabledParent(): array {
+    $all_enabled = [
+      'o' => FALSE,
+      'o.role' => FALSE,
+      'o.inner' => FALSE,
+      'o.inner.deep' => FALSE,
+      'list' => FALSE,
+      'list.0.removable_element' => FALSE,
+      'list.0.removable_element.name' => FALSE,
+      'list.1.removable_element' => FALSE,
+      'list.1.removable_element.name' => FALSE,
+      'plain' => FALSE,
+    ];
+    return [
+      'no ui:enabled' => [[], $all_enabled],
+      'disabled object with an enabled child' => [
+        ['o' => ['ui:enabled' => 0, 'inner' => ['ui:enabled' => 1]]],
+        [
+          'o' => TRUE,
+          'o.role' => TRUE,
+          'o.inner' => TRUE,
+          'o.inner.deep' => TRUE,
+        ] + $all_enabled,
+      ],
+      'disabled array of objects with an enabled child' => [
+        ['list' => ['ui:enabled' => 0, 'name' => ['ui:enabled' => 1]]],
+        [
+          'list' => TRUE,
+          'list.0.removable_element' => TRUE,
+          'list.0.removable_element.name' => TRUE,
+          'list.1.removable_element' => TRUE,
+          'list.1.removable_element.name' => TRUE,
+        ] + $all_enabled,
+      ],
+    ];
+  }
+
+  /**
+   * Collects the #disabled value of every element that sets one.
+   *
+   * @param array $element
+   *   The render array.
+   * @param string $path
+   *   The dotted path of $element.
+   *
+   * @return array
+   *   The #disabled values, keyed by dotted element path, sorted by key.
+   */
+  private static function collectDisabled(array $element, string $path = ''): array {
+    $disabled = [];
+    foreach ($element as $key => $child) {
+      if (!is_array($child) || str_starts_with((string) $key, '#')) {
+        continue;
+      }
+      $child_path = $path === '' ? (string) $key : $path . '.' . $key;
+      if (array_key_exists('#disabled', $child)) {
+        $disabled[$child_path] = $child['#disabled'];
+      }
+      $disabled += static::collectDisabled($child, $child_path);
+    }
+    ksort($disabled);
+    return $disabled;
+  }
+
 }
