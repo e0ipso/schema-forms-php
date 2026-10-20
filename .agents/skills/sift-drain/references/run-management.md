@@ -39,11 +39,15 @@ Include documentation made inaccurate by a ticket's change in that ticket's scop
 commit. For separate follow-ups, reuse a worker with relevant context or batch small
 maintenance items, subject to priority and dependencies.
 
-Prepare branches and worktrees centrally with `prepare-worktree.sh`. Pass the worktree and
-shared `SIFT_ROOT` to workers. On reuse, wait for the worker to stop, land completed work,
-then prepare a new branch/worktree from current integration state for its next assignment.
-Keep the old worktree if it holds unfinished work. Never reset or clean a tree holding live
-tickets. Workers never check out the integration branch.
+Prepare branches and worktrees centrally with `prepare-worktree.sh`. Exit 3 means the
+worktree exists but the project's setup hook failed. Do not dispatch into it. Report its
+path, branch and the hook status from stderr, and keep it for inspection. Never reset, clean
+or reuse it; a retry prepares a fresh path and branch. Exit 1 or a git error means nothing
+was created. Pass the worktree and shared `SIFT_ROOT` to workers. On reuse, wait for the
+worker to stop, land completed work, then prepare a new branch/worktree from current
+integration state for its next assignment. Keep the old worktree if it holds unfinished
+work. Never reset or clean a tree holding live tickets. Workers never check out the
+integration branch.
 
 ## The tree moves underneath you
 

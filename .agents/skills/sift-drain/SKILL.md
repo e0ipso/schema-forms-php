@@ -28,6 +28,24 @@ Run `sift-init`'s `scripts/sift-gate.sh` first. Use its resolved root and exit c
 @PIN: src/skills/sift-init/scripts/sift-gate.sh emit "state=UNRESOLVED"
 ```
 
+## Choose code review
+
+Once the gate reaches `READY`, directly or after the `sift-init` handoff, settle the code
+review choice before intake or any other analysis. Use the drain request's answer if it
+gave one. Otherwise use the `code_review` block in `.ai/sift/config/config.yaml`, described
+in the installed README's Configuration section. Otherwise stop and ask the user:
+
+> Do you want a code review between waves? If so, give the full command that runs another
+> harness non-interactively, or a model for this harness. Give neither to review with this
+> session's model.
+
+Wait for the answer, then continue. A choice is off, a command, a model, or this session's
+model. Check a command's first word with `command -v` and its `--help` for a
+non-interactive mode that reads the prompt on stdin. Check that this harness can dispatch
+a named model. If a check fails, say so and ask. Keep the choice for the whole run and
+restate it in every wave summary. After context loss, settle it again the same way: the
+config, else ask.
+
 ## Orchestrate, never implement
 
 Workers implement product code and tests. You prepare their workspaces, land commits,
@@ -61,7 +79,7 @@ scripts/read-context.sh FILE HEADING_OR_--all [PAGE]
 scripts/next-ticket.sh --group   # optional cluster hint for planning a sitting
 scripts/ticket-check.sh
 scripts/reserve-ids.sh <count>
-scripts/prepare-worktree.sh <base> <branch> <absolute-new-path>
+scripts/prepare-worktree.sh <base> <branch> <absolute-new-path>  # exit 3: setup failed, worktree kept
 scripts/drain-log.sh dispatch <TICKET>...
 scripts/drain-log.sh return <TICKET> <STATUS>...
 scripts/drain-log.sh report
@@ -76,7 +94,10 @@ Use `find` and `command grep`, or no-ignore search, inside the usually ignored t
 A sitting contains related tickets from one wave. Use several sittings when orientation
 or write scope differs. At intake, read the Ticket intake and The tree moves underneath you
 sections of [run-management.md](references/run-management.md). Load Worker check-back only
-on a check-back and Reporting to the user when reporting.
+on a check-back and Reporting to the user when reporting. With code review on, record
+the integration branch's HEAD as the wave's review base before its first landing. If a
+current-wave ticket is already archived, as on a resume, record nothing; the gate derives
+the base from `git log`.
 
 Repeat until no dispatchable work remains in this wave:
 
@@ -90,7 +111,9 @@ Repeat until no dispatchable work remains in this wave:
 2. Prepare each branch and worktree using `prepare-worktree.sh` from the original
    repository. Pass the prepared worktree as `PROJECT_ROOT`, its branch, and the original
    project root as `SIFT_ROOT`. Keep the integration checkout for landings. Workers use
-   absolute shared tracker paths; do not replace their `.ai/sift` with a symlink.
+   absolute shared tracker paths; do not replace their `.ai/sift` with a symlink. On exit 3,
+   do not dispatch that sitting; report it and keep the worktree (see
+   [run-management.md](references/run-management.md)).
 3. Stamp `drain-log.sh dispatch` immediately before dispatch. For a fresh worker, load the
    placeholder preamble and Template section of [ticket-agent-prompt.md](references/ticket-agent-prompt.md)
    and send the fixed contract first, verbatim, followed by its resolved Assignment block.
@@ -107,8 +130,8 @@ Repeat until no dispatchable work remains in this wave:
 5. On return, handle tamper first, then record each ticket's reported status with
    `drain-log.sh return`. For each done ticket, cherry-pick its commit with `-n`, set
    status, resolution and updated, then move it to the mirrored archive path and delete the
-   folders the move emptied. Land one commit per ticket containing implementation and
-   tracker changes where tracked.
+   folders the move emptied. Land one commit per ticket, naming its ID in the message and
+   containing implementation and tracker changes where tracked.
 6. Assign every filed follow-up to this or a later wave. Run `ticket-check.sh` after your
    bookkeeping and fix any findings. Report one progress line per ticket and surface every
    self-filed ID. Rewire the graph and dispatch newly ready sittings.
@@ -131,12 +154,16 @@ Do not load [wave-gate.md](references/wave-gate.md) during intake or implementat
 At each gate stage, read only its numbered section and send that stage's resolved fence.
 Load section 3 only for failures and section 4 only when capture is warranted. Load section 5
 at close. The order and skip conditions are below; other stage prompts can stay unread.
-Prepare gate worktrees and branches as for implementation workers. Workers from the
-wave do not continue into the gate or the next wave.
+Prepare gate worktrees and branches as for implementation workers, and handle exit 3 the
+same way. Workers from the wave do not continue into the gate or the next wave.
 
-1. Dispatch the e2e specialist first and alone when an e2e layer can reach this wave's
-   behavior. Otherwise record the skip reason. A skipped authoring pass does not remove
-   the full e2e run when that layer exists.
+With code review on, read [code-review.md](references/code-review.md) at the
+gate, then run the reviewer and land its fix tickets before stage 1. Otherwise leave it
+unread.
+
+1. Dispatch the e2e specialist alone, after any code review, when an e2e layer can
+   reach this wave's behavior. Otherwise record the skip reason. A skipped authoring pass
+   does not remove the full e2e run when that layer exists.
 2. Build batch coverage input from waived archived resolutions and deferred unsafe
    sequences. Dispatch the coverage agent next; it may also carry the full-suite close.
 3. Land returned commits, then verify the integrated state with the full test, lint,
@@ -154,8 +181,9 @@ Continue into the next wave without a human pause.
 
 ## Final report at run end
 
-Report wave state, blocked tickets and reasons, all filed tickets, and the timing table
-from `drain-log.sh report`.
+Report wave state, blocked tickets and reasons, all filed tickets, the code review
+choice with per-wave finding counts or skip reasons, and the timing table from
+`drain-log.sh report`.
 
 ## Contract pins
 
@@ -172,6 +200,8 @@ from `drain-log.sh report`.
 @PIN: src/skills/sift-drain/references/wave-gate.md You are the batch coverage agent closing Wave {{WAVE}} of the sift roadmap in
 @PIN: src/skills/sift-drain/references/wave-gate.md Fix one root cause of Wave {{WAVE}} gate fallout in {{PROJECT_ROOT}}.
 @PIN: src/skills/sift-drain/references/wave-gate.md You are the knowledge-capture pass closing Wave {{WAVE}} of the sift roadmap in
+@PIN: src/skills/sift-drain/references/code-review.md You are an independent code reviewer for Wave {{WAVE}} of the sift roadmap in
+@PIN: src/skills/sift-drain/references/code-review.md ## Handling findings
 @PIN: src/skills/sift-drain/references/run-management.md ## Ticket intake
 @PIN: src/skills/sift-drain/references/run-management.md ## Worker check-back
 @PIN: src/skills/sift-drain/references/run-management.md ## Reporting to the user
