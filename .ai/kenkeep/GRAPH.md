@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:ee8085c57c3cc260b4852b109cf5715b3c5a4d7c143e707e333e02fb8c40c90f'
-node_count: 13
+nodes_hash: 'sha256:e474e8c4f05984eff88d83fc35f893c1652ffe148d52766fb569dc26ddf13d18'
+node_count: 12
 ---
 # kenkeep Graph
 
-Total nodes: 13
+Total nodes: 12
 
 ## map-form-generator-drupal
 
@@ -79,13 +79,6 @@ Total nodes: 13
 - **title:** Filter empty items only from lists, never from named keys
 - **path:** practice-keep-empty-arrays-under-named-keys.md
 - **tags:** user-input, arrays, gotcha
-
-## practice-keep-php-74-compatible
-
-- **kind:** practice
-- **title:** Keep src/ runnable on PHP 7.4
-- **path:** practice-keep-php-74-compatible.md
-- **tags:** php, compatibility, ci
 
 ## practice-run-composer-test-grumphp
 

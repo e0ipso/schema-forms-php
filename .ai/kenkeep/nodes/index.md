@@ -15,7 +15,6 @@ _None._
 - Open [**Build enum #options by key assignment, never array_merge**](practice-enum-options-assign-keys-directly.md) to learn about: array_merge renumbers numeric-string keys and a string-typed closure crashes on null members. Use enumOptions(). #drupal #enum #gotcha
 - Open [**Cast only true absence to NULL on nullable props**](practice-empty-string-to-null-only-when-unholdable.md) to learn about: A null union is not a falsy-to-null rule. '' becomes NULL only when no declared type can hold it. #type-casting #validation #gotcha
 - Open [**Filter empty items only from lists, never from named keys**](practice-keep-empty-arrays-under-named-keys.md) to learn about: UserInputCleaner drops \[\] items in multivalue lists but keeps an array property's legitimate empty value. #user-input #arrays #gotcha
-- Open [**Keep src/ runnable on PHP 7.4**](practice-keep-php-74-compatible.md) to learn about: composer.json allows php >=7.4 on purpose, but CI only runs 8.3 and 8.4, so nothing catches PHP 8 syntax. #php #compatibility #ci
 - Open [**Run composer test: GrumPHP runs tests, Drupal phpcs and code rules**](practice-run-composer-test-grumphp.md) to learn about: composer test runs PHPUnit, Drupal/DrupalPractice phpcs, phpmnd and a parser that bans else, exit and var_dump. #tooling #testing #coding-standards
 - Open [**Support justinrainbow/json-schema 5.2 and 6.3 side by side**](practice-support-both-json-schema-majors.md) to learn about: composer allows ^5.2 || ^6.3, and error constraint data changed shape in 6.0. Never assume one shape. #dependencies #json-schema #validation
 - Open [**Use Conventional Commits and type/kebab branch names**](practice-conventional-commits-and-branches.md) to learn about: GrumPHP hooks enforce commit type/scope and a 50-char subject. semantic-release tags master from commits. #git #release #conventions
@@ -52,12 +51,8 @@ _None._
 ### #arrays
 - Open [**Filter empty items only from lists, never from named keys**](practice-keep-empty-arrays-under-named-keys.md) — UserInputCleaner drops \[\] items in multivalue lists but keeps an array property's legitimate empty value.
 - Open [**Multivalue array widget and its form-state storage**](map-multivalue-array-widget.md) — Non-enum arrays render as details with per-item remove buttons and an AJAX 'Append an item' button.
-### #ci
-- Open [**Keep src/ runnable on PHP 7.4**](practice-keep-php-74-compatible.md) — composer.json allows php >=7.4 on purpose, but CI only runs 8.3 and 8.4, so nothing catches PHP 8 syntax.
 ### #coding-standards
 - Open [**Run composer test: GrumPHP runs tests, Drupal phpcs and code rules**](practice-run-composer-test-grumphp.md) — composer test runs PHPUnit, Drupal/DrupalPractice phpcs, phpmnd and a parser that bans else, exit and var_dump.
-### #compatibility
-- Open [**Keep src/ runnable on PHP 7.4**](practice-keep-php-74-compatible.md) — composer.json allows php >=7.4 on purpose, but CI only runs 8.3 and 8.4, so nothing catches PHP 8 syntax.
 ### #conventions
 - Open [**Use Conventional Commits and type/kebab branch names**](practice-conventional-commits-and-branches.md) — GrumPHP hooks enforce commit type/scope and a 50-char subject. semantic-release tags master from commits.
 ### #dependencies
@@ -66,8 +61,6 @@ _None._
 - Open [**Build enum #options by key assignment, never array_merge**](practice-enum-options-assign-keys-directly.md) — array_merge renumbers numeric-string keys and a string-typed closure crashes on null members. Use enumOptions().
 ### #git
 - Open [**Use Conventional Commits and type/kebab branch names**](practice-conventional-commits-and-branches.md) — GrumPHP hooks enforce commit type/scope and a 50-char subject. semantic-release tags master from commits.
-### #php
-- Open [**Keep src/ runnable on PHP 7.4**](practice-keep-php-74-compatible.md) — composer.json allows php >=7.4 on purpose, but CI only runs 8.3 and 8.4, so nothing catches PHP 8 syntax.
 ### #release
 - Open [**Use Conventional Commits and type/kebab branch names**](practice-conventional-commits-and-branches.md) — GrumPHP hooks enforce commit type/scope and a 50-char subject. semantic-release tags master from commits.
 ### #testing
