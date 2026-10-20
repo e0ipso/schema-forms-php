@@ -361,4 +361,61 @@ class FormGeneratorDrupalTest extends TestCase {
     ];
   }
 
+
+  /**
+   * Tests that a root object without properties yields an empty container.
+   *
+   * Regression: doTransform() read $schema->properties unguarded, so a root
+   * schema without 'properties' raised an undefined-property warning.
+   *
+   * @param string $schema
+   *   The JSON string containing the schema for the form.
+   *
+   * @dataProvider dataProviderEmptyRootObject
+   */
+  public function testEmptyRootObject(string $schema): void {
+    $data = json_decode($schema);
+    $warnings = [];
+    set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
+      $warnings[] = $message;
+      return TRUE;
+    });
+    try {
+      $actual_form = $this->sut->transform($data);
+    }
+    finally {
+      restore_error_handler();
+    }
+    $this->assertSame([], $warnings);
+    $this->assertEquals(
+      [
+        '#type' => 'container',
+        '#json_schema' => $data,
+        '#element_validate' => [[$this->sut, 'validateWithSchema']],
+      ],
+      $actual_form
+    );
+  }
+
+  /**
+   * Data provider for testEmptyRootObject.
+   *
+   * @return array
+   *   The data.
+   */
+  public static function dataProviderEmptyRootObject(): array {
+    return [
+      'no properties' => ['{"type":"object"}'],
+      'empty properties' => ['{"type":"object","properties":{}}'],
+    ];
+  }
+
+  /**
+   * Tests that a root schema whose type is not object is rejected.
+   */
+  public function testNonObjectRootThrows(): void {
+    $this->expectException(\TypeError::class);
+    $this->sut->transform(json_decode('{"type":"array","items":{"type":"string"}}'));
+  }
+
 }
