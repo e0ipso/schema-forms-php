@@ -213,6 +213,10 @@ When Drupal validates the form, the schema validation:
 - `$ref` is not resolved. A property that is only a `$ref` throws a `TypeError`.
 - Only the root `required` list sets `#required`. A `required` list inside a nested object does not mark its sub-properties.
 
+## Security
+
+Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do not file them as public issues.
+
 ## Development
 
 `composer test` runs GrumPHP. It runs PHPUnit, PHP_CodeSniffer with the Drupal and DrupalPractice standards, PHP lint, phpmnd, composer normalize, and YAML and JSON lint.
