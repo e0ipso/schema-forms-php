@@ -215,4 +215,6 @@ The root container has an `#element_validate` callback. When Drupal validates th
 
 `composer test` runs GrumPHP. It runs PHPUnit, PHP_CodeSniffer with the Drupal and DrupalPractice standards, PHP lint, phpmnd, composer normalize, and YAML and JSON lint.
 
+Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
+
 GrumPHP also installs git hooks that check commit messages and branch names. Commits follow Conventional Commits (`fix(drupal): ...`, with a subject of 50 characters or fewer). Branches are named `<type>/<kebab-case>`, for example `fix/enum-options`. semantic-release tags a release from the commit messages on every push to `master`.
