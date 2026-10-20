@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 7.4 or later. CI runs on PHP 8.3 and 8.4. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or later. CI runs on PHP 8.3 and 8.4. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
