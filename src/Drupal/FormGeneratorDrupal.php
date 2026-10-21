@@ -533,7 +533,20 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       if (($element[$key]['#input'] ?? NULL) === FALSE) {
         continue;
       }
-      $element[$key]['#required'] = in_array($key, $required_prop_names);
+      $required = in_array($key, $required_prop_names);
+      // Schema required means presence, so unchecked values remain valid.
+      if (in_array($element[$key]['#type'] ?? '', ['checkbox', 'checkboxes'], TRUE)) {
+        $element[$key]['#required'] = FALSE;
+        if ($required) {
+          $element[$key]['#label_attributes']['class'][] = 'form-required';
+          // Composite checkboxes render their title inside a legend instead.
+          if ($element[$key]['#type'] === 'checkboxes') {
+            $element[$key]['#title'] = Markup::create('<span class="form-required">' . $element[$key]['#title'] . '</span>');
+          }
+        }
+        continue;
+      }
+      $element[$key]['#required'] = $required;
     }
     // Drupal runs #element_validate when the container sits under a key, but
     // not on the form itself: there it runs only the form-level #validate
