@@ -100,29 +100,6 @@ class UserInputCleaner {
   }
 
   /**
-   * Checks if a simple data structure contains any data.
-   *
-   * @param mixed $item
-   *   The data structure.
-   *
-   * @return bool
-   *   TRUE if it has data. FALSE otherwise.
-   */
-  private static function hasData($item): bool {
-    if (empty($item) && $item !== 0 && $item !== FALSE) {
-      return FALSE;
-    }
-    if (!is_array($item)) {
-      return TRUE;
-    }
-    return array_reduce(
-      $item,
-      static fn(bool $res, $el) => $res || static::hasData($el),
-      FALSE
-    );
-  }
-
-  /**
    * Removes the cruft introduced to support the remove button.
    *
    * [['removable_element' => 'foo', 'remove_one' => TranslatebleMarkup], ...]

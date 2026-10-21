@@ -3,12 +3,23 @@
     "description": "Creates form definitions from JSON Schema property definitions and display configuration.",
     "license": "GPL-2.0-or-later",
     "type": "library",
+    "keywords": [
+        "json-schema",
+        "drupal",
+        "form-api",
+        "forms"
+    ],
     "authors": [
         {
             "name": "Mateu Aguiló Bosch",
             "email": "mateu@mateuaguilo.com"
         }
     ],
+    "homepage": "https://github.com/e0ipso/schema-forms-php",
+    "support": {
+        "issues": "https://github.com/e0ipso/schema-forms-php/issues",
+        "source": "https://github.com/e0ipso/schema-forms-php"
+    },
     "require": {
         "php": ">=8.3",
         "ext-json": "*",
@@ -26,6 +37,9 @@
         "phpunit/phpunit": "^11.5",
         "povils/phpmnd": "^3.6",
         "squizlabs/php_codesniffer": "^3.7"
+    },
+    "suggest": {
+        "drupal/core": "Required for the SchemaForms\\Drupal classes; tested with Drupal 11."
     },
     "autoload": {
         "psr-4": {

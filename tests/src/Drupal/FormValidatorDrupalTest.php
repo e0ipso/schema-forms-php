@@ -6,7 +6,6 @@ use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\CoversMethod;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
@@ -22,7 +21,7 @@ use SchemaForms\Drupal\FormValidatorDrupal;
  * @package SchemaForms
  */
 #[CoversClass(FormValidatorDrupal::class)]
-#[CoversMethod(FormGeneratorDrupal::class, 'validateWithSchema')]
+#[CoversClass(FormGeneratorDrupal::class)]
 class FormValidatorDrupalTest extends TestCase {
 
   /**
@@ -202,9 +201,11 @@ class FormValidatorDrupalTest extends TestCase {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
     FormValidatorDrupal::validateWithSchema($element, $form_state, json_decode($schema));
-    $this->assertSame(
-      ['data' => ['%element' => 'Data', '@message' => $message]],
-      self::errorArguments($form_state)
+    // Library releases differ in whether minItems reports the actual count.
+    $messages = [$message, str_replace(', 0 found', '', $message)];
+    $this->assertContains(
+      self::errorArguments($form_state),
+      array_map(static fn(string $expected) => ['data' => ['@full_message' => $expected]], $messages)
     );
   }
 
@@ -337,6 +338,52 @@ class FormValidatorDrupalTest extends TestCase {
     (new FormGeneratorDrupal())->validateWithSchema($element, $form_state);
     $this->assertSame(['count' => '3'], $form_state->getValue('data'));
     $this->assertSame([], $form_state->getErrors());
+  }
+
+  /**
+   * SCHE-0016: unmatched messages are joined once without an empty title.
+   */
+  public function testUnmatchedErrorsAreJoinedAndEscapedOnce(): void {
+    $element = self::element(['schema'], '');
+    $state = self::formState(['schema' => []]);
+    $schema = json_decode('{"type":"object","required":["first","second"]}');
+    FormValidatorDrupal::validateWithSchema($element, $state, $schema);
+    $errors = $state->getErrors();
+    $this->assertSame(['schema'], array_keys($errors));
+    $error = $errors['schema'];
+    $this->assertStringNotContainsString('errors errors', $error->getUntranslatedString());
+    $args = $error->getArguments();
+    $this->assertSame(['@full_message'], array_keys($args));
+    $this->assertSame(1, substr_count($args['@full_message'], 'first'));
+    $this->assertSame(1, substr_count($args['@full_message'], 'second'));
+    $this->assertStringContainsString('"required"', $args['@full_message']);
+    $this->assertStringNotContainsString('&quot;', $args['@full_message']);
+    // Use the real Drupal placeholder renderer with an identity translator.
+    $translator = $this->createMock(\Drupal\Core\StringTranslation\TranslationInterface::class);
+    $translator->method('translateString')->willReturn($error->getUntranslatedString());
+    $markup = new TranslatableMarkup($error->getUntranslatedString(), $args, [], $translator);
+    $this->assertStringContainsString('&quot;required&quot;', (string) $markup);
+    $this->assertStringNotContainsString('&amp;quot;', (string) $markup);
+  }
+
+  /**
+   * SCHE-0019: values that cannot be JSON encoded must never validate as {}.
+   */
+  #[DataProvider('unencodableProvider')]
+  public function testUnencodableSubmission(mixed $value): void {
+    $element = self::element(['schema'], 'Data');
+    $state = self::formState(['schema' => ['value' => $value]]);
+    FormValidatorDrupal::validateWithSchema($element, $state, (object) ['type' => 'object']);
+    $this->assertSame(['schema'], array_keys($state->getErrors()));
+    $this->assertSame('The submitted data could not be encoded as JSON. Please check the submitted values.', $state->getErrors()['schema']->getUntranslatedString());
+  }
+
+  public static function unencodableProvider(): array {
+    return [
+      'positive infinity' => [INF],
+      'not a number' => [NAN],
+      'invalid UTF-8' => ["\xB1"],
+    ];
   }
 
 }

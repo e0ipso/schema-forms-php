@@ -23,6 +23,10 @@ class RecursiveTypeCasterTest extends TestCase {
    */
   public static function dataProviderRecursiveTypeRefinements(): array {
     return [
+      'untyped numeric string unchanged' => ['12', '{}', '12'],
+      'untyped boolean text unchanged' => ['false', '{}', 'false'],
+      'untyped array unchanged' => [['12', FALSE], '{}', ['12', FALSE]],
+      'fractional number enum' => ['0.5', '{"type":"number","enum":[0.5,1.5]}', 0.5],
       // A `null` member means the property also accepts absence. It does not
       // mean every falsy value the other members can hold is absence.
       'nullable string keeps the empty string' => ['', '{"type":["string","null"]}', ''],
@@ -56,6 +60,12 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"a":{"type":["string","null"]},"b":{"type":["integer","null"]},"c":{"type":["string","null"]}}}',
         ['a' => '', 'b' => NULL, 'c' => '0'],
       ],
+      // SCHE-0018: unsafe numeric conversions must retain the input string.
+      'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
+      'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
+      'positive integer overflow' => ['99999999999999999999', '{"type":"integer"}', '99999999999999999999'],
+      'negative integer overflow' => ['-99999999999999999999', '{"type":"integer"}', '-99999999999999999999'],
+      'ordinary negative decimal' => ['-1.5', '{"type":"number"}', -1.5],
       // Numeric strings become the number they spell.
       'number casts a decimal string to float' => ['1.5', '{"type":"number"}', 1.5],
       'plain integer casts a numeric string' => ['3', '{"type":"integer"}', 3],
@@ -80,6 +90,21 @@ class RecursiveTypeCasterTest extends TestCase {
   public function testRecursiveTypeRefinements($data, string $schema, $expected): void {
     $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, json_decode($schema));
     $this->assertSame($expected, $actual);
+  }
+
+  /**
+   * SCHE-0020: object writes must preserve stdClass at every nesting level.
+   */
+  public function testStdClassProperties(): void {
+    $data = json_decode('{"count":"3","nested":{"ratio":"1.5","optional":""}}');
+    $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer"},"nested":{"type":"object","properties":{"ratio":{"type":"number"},"optional":{"type":"string","minLength":1}}}}}');
+    $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    $this->assertSame($data, $actual);
+    $this->assertInstanceOf(\stdClass::class, $actual);
+    $this->assertInstanceOf(\stdClass::class, $actual->nested);
+    $this->assertSame(3, $actual->count);
+    $this->assertSame(1.5, $actual->nested->ratio);
+    $this->assertObjectNotHasProperty('optional', $actual->nested);
   }
 
 }

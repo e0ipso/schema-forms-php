@@ -2,6 +2,10 @@
 
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
+use Drupal\Component\Utility\Html;
+use Drupal\Core\Render\Element\Details;
+use Drupal\Core\Form\FormState;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -43,6 +47,7 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('dataProviderFormGeneration')]
   public function testFormGeneration(string $schema, array $expected_form) {
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#tree'] = TRUE;
     $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
@@ -61,11 +66,27 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   public static function dataProviderFormGeneration() {
     return [
+      'schema default without current input' => [
+        '{"type":"object","properties":{"foo":{"type":"string","default":"schema default"}}}',
+        [
+          'foo' => [
+            '#title' => Markup::create('Foo'),
+            '#type' => 'textfield',
+            '#default_value' => 'schema default',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
       [
         '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'textfield',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -80,7 +101,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","required":["bar"],"properties":{"foo":{"type":"string","title":"The Big Foo","format":"email"},"bar":{"type":"number","description":"It is just a bar"}}}',
         [
           'foo' => [
-            '#title' => 'The Big Foo',
+            '#title' => Markup::create('The Big Foo'),
             '#type' => 'email',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -89,7 +110,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#prop_parents' => ['foo'],
           ],
           'bar' => [
-            '#title' => 'Bar',
+            '#title' => Markup::create('Bar'),
             // phpcs:ignore
             '#description' => 'It is just a bar',
             '#type' => 'number',
@@ -106,7 +127,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"integer","description":"How many"}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             // phpcs:ignore
             '#description' => 'How many',
             // Drupal has no 'integer' element, so an integer is a number that
@@ -128,14 +149,13 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"null"}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'item',
             '#input' => FALSE,
             '#markup' => new TranslatableMarkup(
               'This property cannot be edited: there is no form element for the %type type.',
               ['%type' => 'null']
             ),
-            '#required' => FALSE,
             '#disabled' => TRUE,
             '#visible' => TRUE,
             '#prop_name' => 'foo',
@@ -148,9 +168,10 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","const":"The Big Foo"}}}',
         [
           'foo' => [
-            '#markup' => 'The Big Foo',
-            '#title' => 'Foo',
-            '#required' => FALSE,
+            '#plain_text' => 'The Big Foo',
+            '#title' => Markup::create('Foo'),
+            '#input' => FALSE,
+            '#schema_fixed_value' => 'The Big Foo',
             '#prop_name' => 'foo',
             '#prop_parents' => ['foo'],
           ],
@@ -161,7 +182,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"a-foo":{"type":"boolean"}}}',
         [
           'a-foo' => [
-            '#title' => 'A Foo',
+            '#title' => Markup::create('A Foo'),
             '#type' => 'checkbox',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -176,9 +197,10 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"array","items":{"type":"string","enum":["lor-em","ipsum"]}}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
-            '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
+            '#options' => ['lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -192,9 +214,9 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","enum":["lor-em","ipsum"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#options' => ['lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -211,9 +233,9 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","enum":["10","12","15","20"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => [10 => '10', 12 => '12', 15 => '15', 20 => '20'],
+            '#options' => [10 => Markup::create('10'), 12 => Markup::create('12'), 15 => Markup::create('15'), 20 => Markup::create('20')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -230,9 +252,9 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":["string","null"],"enum":[null,"lor-em","ipsum"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => ['' => '', 'lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#options' => ['' => Markup::create(''), 'lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -249,9 +271,10 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"array","items":{"type":["string","null"],"enum":[null,"lor-em"]}}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
-            '#options' => ['' => '', 'lor-em' => 'Lor Em'],
+            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
+            '#options' => ['' => Markup::create(''), 'lor-em' => Markup::create('Lor Em')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -273,14 +296,21 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The JSON string containing the UI schema for the form.
    * @param array $expected_form
    *   The expected form as in Drupal's Form API.
+   * @param array $current_input
+   *   Saved values to prefill the generated controls.
    */
   #[DataProvider('dataProviderFormGenerationWithUi')]
-  public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form) {
+  public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form, array $current_input = []) {
+    Html::resetSeenIds();
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#tree'] = TRUE;
     $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
-    $context = new Context(['ui_hints' => $ui_schema]);
+    $context = new Context([
+      'ui_hints' => $ui_schema,
+      'current_input' => $current_input,
+    ]);
     $actual_form = $this->sut->transform($data, $context);
     $this->assertEquals(
       $expected_form,
@@ -295,7 +325,185 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The data.
    */
   public static function dataProviderFormGenerationWithUi(): array {
+    $multivalue = [
+      '#title' => Markup::create('Labels'),
+      '#type' => 'details',
+      '#prop_name' => 'tag_labels',
+      '#default_value' => ['first', 'second'],
+      '#description' => 'Add useful labels',
+      '#placeholder' => 'A label',
+      '#prop_parents' => ['tag_labels'],
+      '#open' => TRUE,
+      '#process' => [
+        [Details::class, 'processGroup'],
+        [Details::class, 'processAjaxForm'],
+        [FormGeneratorDrupal::class, 'multiValueProcess'],
+      ],
+      '#after_build' => [[FormGeneratorDrupal::class, 'multiValueAfterBuild']],
+      '#cardinality' => -1,
+      '#max_delta' => 1,
+      '#prefix' => '<div id="tag-labels-add-more-wrapper">',
+      '#suffix' => '</div>',
+      '#disabled' => FALSE,
+      '#visible' => TRUE,
+      '#required' => FALSE,
+    ];
+    foreach (['first', 'second'] as $delta => $value) {
+      $multivalue[$delta] = [
+        '#type' => 'container',
+        '#prefix' => '<div id="tag-labels-' . $delta . '-container">',
+        '#wrapper_id' => 'tag-labels-' . $delta . '-container',
+        '#suffix' => '</div>',
+        '#attributes' => ['style' => 'position: relative;'],
+        'removable_element' => [
+          '#title' => new TranslatableMarkup('@title (value @number)', [
+            '@title' => Markup::create('Labels'),
+            '@number' => $delta + 1,
+          ]),
+          '#title_display' => 'invisible',
+          '#description' => '',
+          '#type' => 'textfield',
+          '#prop_name' => (string) $delta,
+          '#default_value' => $value,
+          '#placeholder' => 'A label',
+          '#prop_parents' => ['tag_labels', $delta],
+          '#disabled' => FALSE,
+          '#visible' => TRUE,
+        ],
+        'remove_one' => [
+          '#delta' => $delta,
+          '#type' => 'submit',
+          '#name' => 'tag_labels-' . $delta . '-remove',
+          '#value' => new TranslatableMarkup('⨯'),
+          '#validate' => [],
+          '#prop_parents' => ['tag_labels', $delta],
+          '#attributes' => [
+            'class' => ['field-remove-one-submit'],
+            'style' => 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;',
+            'title' => new TranslatableMarkup('Remove item'),
+          ],
+          '#limit_validation_errors' => [],
+          '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],
+          '#ajax' => [
+            'callback' => [FormGeneratorDrupal::class, 'removeOneAjax'],
+            'wrapper' => 'tag-labels-' . $delta . '-container',
+            'effect' => 'fade',
+          ],
+          '#weight' => 101,
+        ],
+      ];
+    }
+    $multivalue['add_more'] = [
+      '#type' => 'submit',
+      '#name' => 'tag_labels_add_more',
+      '#value' => new TranslatableMarkup('Append an item'),
+      '#attributes' => ['class' => ['field-add-more-submit']],
+      '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
+      '#ajax' => [
+        'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],
+        'wrapper' => 'tag-labels-add-more-wrapper',
+        'effect' => 'fade',
+      ],
+    ];
+
     return [
+      'nested hints and object default' => [
+        '{"type":"object","properties":{"address":{"type":"object","required":["street"],"default":{"street":"schema street"},"properties":{"street":{"type":"string"}}}}}',
+        [
+          'address' => [
+            'ui:title' => 'Postal address',
+            'street' => [
+              'ui:title' => 'Street address',
+              'ui:help' => 'Include the house number',
+              'ui:placeholder' => '12 Main Street',
+            ],
+          ],
+        ],
+        [
+          'address' => [
+            '#title' => Markup::create('Postal address'),
+            '#type' => 'details',
+            '#default_value' => (object) ['street' => 'schema street'],
+            '#prop_name' => 'address',
+            '#prop_parents' => ['address'],
+            '#open' => TRUE,
+            // A nested required list currently adds no #required key.
+            'street' => [
+              '#title' => Markup::create('Street address'),
+              '#type' => 'textfield',
+              '#default_value' => 'schema street',
+              '#prop_name' => 'street',
+              '#description' => 'Include the house number',
+              '#placeholder' => '12 Main Street',
+              '#prop_parents' => ['address', 'street'],
+              '#disabled' => FALSE,
+              '#visible' => TRUE,
+            ],
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#required' => FALSE,
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      'two saved multivalue items with inherited hints' => [
+        '{"type":"object","properties":{"tag_labels":{"type":"array","default":["schema first","schema second"],"items":{"type":"string"}}}}',
+        [
+          'tag_labels' => [
+            'ui:title' => 'Labels',
+            'ui:help' => 'Add useful labels',
+            'ui:placeholder' => 'A label',
+          ],
+        ],
+        ['tag_labels' => $multivalue, '#type' => 'container'],
+        ['tag_labels' => ['first', 'second']],
+      ],
+      'disabled and invisible controls' => [
+        '{"type":"object","properties":{"disabled":{"type":"string"},"invisible":{"type":"string"}}}',
+        [
+          'disabled' => ['ui:enabled' => 0],
+          'invisible' => ['ui:visible' => 0],
+        ],
+        [
+          'disabled' => [
+            '#title' => Markup::create('Disabled'),
+            '#type' => 'textfield',
+            '#required' => FALSE,
+            '#disabled' => TRUE,
+            '#visible' => TRUE,
+            '#prop_name' => 'disabled',
+            '#prop_parents' => ['disabled'],
+          ],
+          'invisible' => [
+            '#title' => Markup::create('Invisible'),
+            '#type' => 'textfield',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => FALSE,
+            '#prop_name' => 'invisible',
+            '#prop_parents' => ['invisible'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      'current input overrides schema default' => [
+        '{"type":"object","properties":{"foo":{"type":"string","default":"schema default"}}}',
+        [],
+        [
+          'foo' => [
+            '#title' => Markup::create('Foo'),
+            '#type' => 'textfield',
+            '#default_value' => 'saved value',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+        ['foo' => 'saved value'],
+      ],
       [
         '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',
         [
@@ -308,7 +516,7 @@ class FormGeneratorDrupalTest extends TestCase {
         ],
         [
           'foo' => [
-            '#title' => 'A title',
+            '#title' => Markup::create('A title'),
             '#type' => 'textfield',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -335,7 +543,7 @@ class FormGeneratorDrupalTest extends TestCase {
         ],
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'hidden',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -344,14 +552,14 @@ class FormGeneratorDrupalTest extends TestCase {
             '#prop_parents' => ['foo'],
           ],
           'bar' => [
-            '#title' => 'Bar',
+            '#title' => Markup::create('Bar'),
             '#type' => 'select',
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
             '#options' => [
-              'uuid1' => 'My Super Option #1',
-              'uuid2' => 'Uuid2',
+              'uuid1' => Markup::create('My Super Option #1'),
+              'uuid2' => Markup::create('Uuid2'),
             ],
             '#prop_name' => 'bar',
             '#prop_parents' => ['bar'],
@@ -390,6 +598,7 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->assertEquals(
       [
         '#type' => 'container',
+        '#tree' => TRUE,
         '#json_schema' => $data,
         '#element_validate' => [[$this->sut, 'validateWithSchema']],
         '#validate' => [[$this->sut, 'validateFormWithSchema']],
@@ -557,6 +766,265 @@ class FormGeneratorDrupalTest extends TestCase {
     }
     ksort($disabled);
     return $disabled;
+  }
+
+
+  /**
+   * SCHE-0028: null does not hide an editable member of a union.
+   */
+  #[DataProvider('nullableTypeProvider')]
+  public function testNullFirstTypes(array $types, string $expected): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => (object) ['type' => $types]]];
+    $field = $this->sut->transform($schema)['field'];
+    $this->assertSame($expected, $field['#type']);
+    $this->assertSame($expected === 'item', $field['#disabled']);
+    if ($expected === 'item') {
+      $this->assertStringContainsString('cannot be edited', $field['#markup']->getUntranslatedString());
+    }
+  }
+
+  public static function nullableTypeProvider(): array {
+    return [
+      'null first string' => [['null', 'string'], 'textfield'],
+      'null first number' => [['null', 'number'], 'number'],
+      'null only' => [['null'], 'item'],
+    ];
+  }
+
+  /**
+   * SCHE-0029: falsy and structured constants are non-input plain text.
+   */
+  #[DataProvider('constantProvider')]
+  public function testEveryConstant(mixed $value, string $text): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => match (gettype($value)) {
+      'integer' => 'integer', 'double' => 'number', 'boolean' => 'boolean',
+      'array' => 'array', 'object' => 'object', 'NULL' => 'null', default => 'string',
+    }, 'const' => $value]]];
+    $field = $this->sut->transform($schema)['fixed'];
+    $this->assertSame($text, $field['#plain_text']);
+    $this->assertFalse($field['#input']);
+    $this->assertArrayNotHasKey('#type', $field);
+    $this->assertEquals($value, $field['#schema_fixed_value']);
+  }
+
+  public static function constantProvider(): array {
+    return [
+      'zero' => [0, '0'],
+      'false' => [FALSE, 'false'],
+      'empty string' => ['', ''],
+      'string zero' => ['0', '0'],
+      'array' => [['a'], '["a"]'],
+      'object' => [(object) ['k' => 1], '{"k":1}'],
+      'null' => [NULL, 'null'],
+      'unsafe text' => ['<script>alert(1)</script>', '<script>alert(1)</script>'],
+    ];
+  }
+
+  /**
+   * SCHE-0030: fractional keys survive in both enum controls.
+   */
+  #[DataProvider('fractionalEnumProvider')]
+  public function testFractionalEnumOptions(bool $multiple): void {
+    $property = (object) ['type' => 'number', 'enum' => [0.5, 1.5, 1.75]];
+    if ($multiple) {
+      $property = (object) ['type' => 'array', 'items' => $property];
+    }
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => $property]];
+    $context = new Context(['ui_hints' => ['field' => ['ui:enum' => ['labels' => ['mappings' => ['0.5' => '<script>bad</script><em>Half</em>']]]]]]);
+    $field = $this->sut->transform($schema, $context)['field'];
+    $this->assertSame(['0.5', '1.5', '1.75'], array_keys($field['#options']));
+    $this->assertSame('bad<em>Half</em>', (string) $field['#options']['0.5']);
+  }
+
+  public static function fractionalEnumProvider(): array {
+    return ['radios' => [FALSE], 'checkboxes' => [TRUE]];
+  }
+
+  /**
+   * SCHE-0031: AJAX wraps the final real delta, including after removal.
+   */
+  #[DataProvider('ajaxDeltaProvider')]
+  public function testAppendAjaxUsesRealDelta(array $indices): void {
+    $state = new FormState();
+    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => $indices, 'array_parents' => []]);
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
+    $form = $this->sut->transform($schema, new Context(['form_state' => $state]));
+    $state->setTriggeringElement(['#array_parents' => ['items', 'add_more']]);
+    $result = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $this->assertSame(array_keys($form['items']), array_keys($result));
+    if (!$indices) {
+      $this->assertSame($form['items'], $result);
+      return;
+    }
+    $last = end($indices);
+    foreach ($indices as $delta) {
+      $expected = $form['items'][$delta]['#prefix'];
+      if ($delta === $last) {
+        $expected = '<div class="ajax-new-content">' . $expected;
+      }
+      $this->assertSame($expected, $result[$delta]['#prefix']);
+    }
+    $this->assertSame($form['items'][$last]['#suffix'] . '</div>', $result[$last]['#suffix']);
+  }
+
+  public static function ajaxDeltaProvider(): array {
+    return ['three items' => [[0, 1, 2]], 'gap' => [[0, 2]], 'removed first' => [[1, 2]], 'empty' => [[]]];
+  }
+
+  /**
+   * SCHE-0033: every AJAX reference shares one safe, unique container ID.
+   */
+  public function testItemIdsAcrossForms(): void {
+    $name = 'odd " field';
+    $schema = (object) ['type' => 'object', 'properties' => (object) [$name => (object) ['type' => 'array', 'items' => (object) ['type' => 'string']]]];
+    $ids = [];
+    foreach (range(1, 2) as $form_number) {
+      $form = $this->sut->transform($schema, new Context(['current_input' => [$name => ['one', 'two']]]));
+      foreach ([0, 1] as $delta) {
+        $item = $form[$name][$delta];
+        $id = $item['#wrapper_id'];
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]+$/D', $id);
+        $this->assertSame('<div id="' . $id . '">', $item['#prefix']);
+        $this->assertSame($id, $item['remove_one']['#ajax']['wrapper']);
+        $ids[] = $id;
+      }
+    }
+    $this->assertCount(4, array_unique($ids));
+  }
+
+  /**
+   * SCHE-0034: decoded objects and associative saved values are equivalent.
+   */
+  public function testObjectCurrentInput(): void {
+    $schema = json_decode('{"type":"object","properties":{"profile":{"type":"object","properties":{"name":{"type":"string","default":"fallback"},"tags":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"}}}}}},"other":{"type":"string","default":"default"}}}');
+    $input = '{"profile":{"name":"saved","tags":[{"label":"first"},{"label":"second"}]}}';
+    Html::resetSeenIds();
+    $array_form = $this->sut->transform($schema, new Context(['current_input' => json_decode($input, TRUE)]));
+    Html::resetSeenIds();
+    $object_form = $this->sut->transform($schema, new Context(['current_input' => json_decode($input)]));
+    $this->assertEquals($array_form, $object_form);
+    $this->assertSame('saved', $object_form['profile']['name']['#default_value']);
+    $this->assertSame('second', $object_form['profile']['tags'][1]['removable_element']['label']['#default_value']);
+    $this->assertSame('default', $object_form['other']['#default_value']);
+  }
+
+  /**
+   * SCHE-0038: inferred enum controls and fixed or unsupported schemas.
+   */
+  #[DataProvider('enumOnlyControlProvider')]
+  public function testEnumOnlyControls(array $enum): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['choice' => (object) ['enum' => $enum]]];
+    $form = $this->sut->transform($schema);
+    $this->assertSame('radios', $form['choice']['#type']);
+    $this->assertCount(count($enum), $form['choice']['#options']);
+  }
+
+  public static function enumOnlyControlProvider(): array {
+    return [
+      'string' => [['a', 'b']],
+      'integer' => [[0, 12]],
+      'number' => [[0.5, 1.75]],
+      'boolean' => [[FALSE, TRUE]],
+      'mixed' => [['a', TRUE, 2.5]],
+    ];
+  }
+
+  public function testUntypedConstantAndEmptySchema(): void {
+    $text = '<script>alert("x")</script>&';
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['const' => $text], 'unknown' => (object) []]];
+    $form = $this->sut->transform($schema);
+    $this->assertSame($text, $form['fixed']['#plain_text']);
+    $this->assertFalse($form['fixed']['#input']);
+    $this->assertArrayNotHasKey('#markup', $form['fixed']);
+    $this->assertSame('item', $form['unknown']['#type']);
+    $this->assertTrue($form['unknown']['#disabled']);
+  }
+
+  /**
+   * SCHE-0039: compound defaults are normalized before filling descendants.
+   */
+  #[DataProvider('compoundInputProvider')]
+  public function testCompoundDefaults(array $input, array $expected): void {
+    $schema = json_decode('{"type":"object","properties":{"tags":{"type":"array","default":["first","second"],"items":{"type":"string"}},"profile":{"type":"object","default":{"name":"default","rows":[{"label":"nested"}]},"properties":{"name":{"type":"string"},"rows":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"}}}}}}}}');
+    $before = serialize($schema);
+    $form = $this->sut->transform($schema, new Context(['current_input' => $input]));
+    $tags = [];
+    foreach ($form['tags'] as $key => $element) {
+      if (is_int($key)) {
+        $tags[] = $element['removable_element']['#default_value'] ?? NULL;
+      }
+    }
+    $this->assertSame($expected[0], $tags);
+    $this->assertSame($expected[1], $form['profile']['name']['#default_value'] ?? NULL);
+    $this->assertSame($expected[2], $form['profile']['rows'][0]['removable_element']['label']['#default_value'] ?? NULL);
+    $this->assertSame($before, serialize($schema));
+  }
+
+  public static function compoundInputProvider(): array {
+    return [
+      'defaults' => [[], [['first', 'second'], 'default', 'nested']],
+      'saved arrays' => [['tags' => ['saved'], 'profile' => ['name' => 'saved', 'rows' => [['label' => 'saved row']]]], [['saved'], 'saved', 'saved row']],
+      'saved objects' => [['tags' => ['saved'], 'profile' => (object) ['name' => 'saved', 'rows' => [(object) ['label' => 'saved row']]]], [['saved'], 'saved', 'saved row']],
+      'explicit empty arrays' => [['tags' => [], 'profile' => []], [[], NULL, NULL]],
+      'explicit empty object' => [['tags' => [], 'profile' => (object) []], [[], NULL, NULL]],
+    ];
+  }
+
+  /**
+   * SCHE-0065: scalar defaults cannot reach compound array-only helpers.
+   */
+  #[DataProvider('scalarCompoundDefaultProvider')]
+  public function testScalarCompoundDefaults(mixed $type, mixed $default): void {
+    $property = (object) ['type' => $type, 'default' => $default, 'items' => (object) ['type' => 'string'], 'properties' => (object) ['name' => (object) ['type' => 'string']]];
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['value' => $property]];
+    $form = $this->sut->transform($schema);
+    $this->assertSame('details', $form['value']['#type']);
+    $this->assertArrayNotHasKey(0, $form['value']);
+  }
+
+  public static function scalarCompoundDefaultProvider(): array {
+    $cases = [];
+    foreach (['array', 'object', ['array', 'string']] as $type) {
+      foreach (['scalar', 7, TRUE] as $default) {
+        $cases[json_encode([$type, $default])] = [$type, $default];
+      }
+    }
+    return $cases;
+  }
+
+  /**
+   * Itemless and tuple arrays cannot be edited by homogeneous array widgets.
+   */
+  #[DataProvider('unsupportedItemsProvider')]
+  public function testUnsupportedArrayItems(mixed $items, bool $saved): void {
+    $property = (object) ['type' => 'array', 'default' => ['default']];
+    if ($items !== NULL) {
+      $property->items = $items;
+    }
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['value' => $property]];
+    $context = new Context($saved ? ['current_input' => ['value' => ['saved']]] : []);
+    $form = $this->sut->transform($schema, $context);
+    $this->assertSame('item', $form['value']['#type']);
+    $this->assertTrue($form['value']['#disabled']);
+    $this->assertSame($saved ? ['saved'] : ['default'], $form['value']['#schema_fixed_value']);
+    $this->assertArrayNotHasKey('add_more', $form['value']);
+    $this->assertSame(['value' => ['1']], \SchemaForms\RecursiveTypeCaster::recursiveTypeRefinements(['value' => ['1']], $schema));
+  }
+
+  public static function unsupportedItemsProvider(): array {
+    return ['missing default' => [NULL, FALSE], 'missing saved' => [NULL, TRUE], 'tuple default' => [[(object) ['type' => 'string']], FALSE], 'tuple saved' => [[(object) ['type' => 'string']], TRUE]];
+  }
+
+  /**
+   * Saved NULL wins over both compound and child defaults.
+   */
+  public function testNullCompoundDefaultPrecedence(): void {
+    $schema = json_decode('{"type":"object","properties":{"tags":{"type":["array","null"],"default":["default"],"items":{"type":"string"}},"profile":{"type":["object","null"],"default":{"name":"default"},"properties":{"name":{"type":"string","default":"child"}}}}}');
+    $form = $this->sut->transform($schema, new Context(['current_input' => ['tags' => NULL, 'profile' => NULL]]));
+    $this->assertArrayNotHasKey(0, $form['tags']);
+    $this->assertArrayNotHasKey('#default_value', $form['profile']['name']);
+    $this->assertTrue($form['tags']['#schema_saved_null']);
+    $this->assertTrue($form['profile']['#schema_saved_null']);
   }
 
 }

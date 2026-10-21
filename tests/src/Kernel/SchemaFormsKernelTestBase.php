@@ -39,13 +39,19 @@ abstract class SchemaFormsKernelTestBase extends KernelTestBase {
    *   Whether the form sets #tree. Only applies with a parent key.
    * @param \Drupal\Core\Form\FormState|null $form_state
    *   The form state to submit with, or NULL for a new one.
+   * @param array $current_input
+   *   Previously saved values supplied to the generator.
    *
    * @return \SchemaForms\Tests\Kernel\SchemaFormSubmission
    *   The processed form, its state, its errors and its values.
    */
-  protected function submitSchemaForm(object $schema, array $values, array $ui_hints = [], ?string $parent_key = NULL, bool $tree = FALSE, ?FormState $form_state = NULL): SchemaFormSubmission {
+  protected function submitSchemaForm(object $schema, array $values, array $ui_hints = [], ?string $parent_key = NULL, bool $tree = FALSE, ?FormState $form_state = NULL, array $current_input = []): SchemaFormSubmission {
     $form_state = ($form_state ?? new FormState())->setValues($values);
-    $form_object = new GeneratedSchemaForm($schema, $ui_hints, $parent_key, $tree);
+    // AJAX buttons need a current route even in the disposable kernel fixture.
+    $request = $this->container->get('request_stack')->getCurrentRequest();
+    $request->attributes->set('_route', 'schema_forms_test');
+    $request->attributes->set('_route_object', new \Symfony\Component\Routing\Route('/schema-form'));
+    $form_object = new GeneratedSchemaForm($schema, $ui_hints, $parent_key, $tree, $current_input);
     $this->container->get('form_builder')->submitForm($form_object, $form_state);
     $errors = array_map('strval', $form_state->getErrors());
     return new SchemaFormSubmission(
