@@ -193,32 +193,39 @@ final class FormValidatorDrupal {
    *   The parents of the JSON Schema form.
    * @param array $_current_mappings
    *   The current mappings. This is an internal variable used for tracking.
+   * @param array $_json_pointer_parents
+   *   The data path, with multivalue deltas replaced by item ordinals.
    *
    * @return array
    *   The mappings of paths from the JSON Pointer to the form structure.
    */
-  private static function buildMappingsElementPaths(array $element, array $root_parents, array $_current_mappings = []): array {
+  private static function buildMappingsElementPaths(array $element, array $root_parents, array $_current_mappings = [], array $_json_pointer_parents = []): array {
     $parents = $element['#array_parents'] ?? [];
     // Now drop some parents to make everything relative to `/`.
     $parents = array_slice($parents, count($root_parents));
-    $json_pointer_parents = array_filter(
-      $parents,
-      static fn (string $parent) => $parent !== 'removable_element'
-    );
-    $json_pointer = '/' . implode('/', $json_pointer_parents);
+    $json_pointer = '/' . implode('/', $_json_pointer_parents);
     $_current_mappings[$json_pointer] = $parents;
     $keys = Element::children($element);
     if (empty($keys)) {
       return $_current_mappings;
     }
+    $item_ordinal = 0;
     foreach ($keys as $key) {
       if (in_array($key, ['remove_one', 'add_more'], TRUE)) {
         continue;
       }
+      $child_pointer_parents = $_json_pointer_parents;
+      if ($key !== 'removable_element') {
+        // Cleaning compacts item values, while form deltas retain removal gaps.
+        $child_pointer_parents[] = isset($element[$key]['removable_element'])
+          ? $item_ordinal++
+          : $key;
+      }
       $_current_mappings = static::buildMappingsElementPaths(
         $element[$key],
         $root_parents,
-        $_current_mappings
+        $_current_mappings,
+        $child_pointer_parents
       );
     }
     return $_current_mappings;
