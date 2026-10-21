@@ -29,6 +29,8 @@ kk_confidence: high
 - An `object` with `properties` is an open `details` holding one element per sub-property.
 - Any present `const`, including `NULL`, `FALSE` and zero, drops `#type`, renders as escaped `#plain_text`, and carries the exact value in `#schema_fixed_value` with `#input => FALSE` in `doTransformOneField()`. Strings display verbatim as text; other values display as JSON, including structured constants.
 
+A schema without `type` but with `enum` takes its type from the members in `guessSchemaType()`: all integers give `integer`, all integers or floats give `number`, all booleans give `boolean`, and anything else, including mixed members, gives `string`. The enum then renders as editable radios. A schema with neither `type`, `enum` nor `const`, such as `{}`, resolves to `unknown` and becomes the disabled unsupported item. See `testEnumOnlyControls()` and `testUntypedConstantAndEmptySchema()` in `tests/src/Drupal/SchemaForms/FormGeneratorDrupalTest.php`.
+
 `guessSchemaType()` chooses the first type other than the string `"null"` from a type union. Thus `["null","string"]` renders a textfield. An all-null union still resolves to `null` and uses the unsupported item. An explicit `ui:widget` takes precedence.
 
 When changing this, also run the data providers in `tests/src/Drupal/SchemaForms/FormGeneratorDrupalTest.php`. They compare the full render array, so any key a change adds or drops fails them.
