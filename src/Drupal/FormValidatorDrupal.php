@@ -2,7 +2,6 @@
 
 namespace SchemaForms\Drupal;
 
-use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element;
@@ -56,14 +55,11 @@ final class FormValidatorDrupal {
       if (empty($generic_errors)) {
         return;
       }
-      $full_message = implode(
-        ', ',
-        array_map([Html::class, 'escape'], $generic_errors)
-      );
+      $full_message = implode(', ', $generic_errors);
       $form_state->setError(
         $element,
         new TranslatableMarkup(
-          '<p>Invalid data, please make sure all data is valid according to the schema. Schema validation returned the following errors errors: @full_message</p>',
+          '<p>Invalid data, please make sure all data is valid according to the schema. Schema validation returned the following errors: @full_message</p>',
           ['@full_message' => $full_message]
         )
       );
@@ -88,7 +84,10 @@ final class FormValidatorDrupal {
    */
   private static function errorForProp(array $element, FormStateInterface $form_state, array $error, array $mappings): ?string {
     $message = $error['message'] . static::constraintSuffix($error);
-    $form_error_parents = $mappings[$error['pointer'] ?? ''] ?? [];
+    $form_error_parents = $mappings[$error['pointer'] ?? ''] ?? NULL;
+    if ($form_error_parents === NULL) {
+      return $message;
+    }
     $key_exists = FALSE;
     $error_element = NestedArray::getValue(
       $element,

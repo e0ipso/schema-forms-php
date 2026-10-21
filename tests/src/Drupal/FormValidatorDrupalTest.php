@@ -203,7 +203,7 @@ class FormValidatorDrupalTest extends TestCase {
     $form_state = self::formState(['data' => $submitted]);
     FormValidatorDrupal::validateWithSchema($element, $form_state, json_decode($schema));
     $this->assertSame(
-      ['data' => ['%element' => 'Data', '@message' => $message]],
+      ['data' => ['@full_message' => $message]],
       self::errorArguments($form_state)
     );
   }
