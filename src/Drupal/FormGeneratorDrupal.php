@@ -80,6 +80,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     ];
     $ui_hints = $context['ui_hints'] ?? [];
     $current_input = $context['current_input'] ?? [];
+    // Normalize decoded objects once, before passing saved values to fields.
+    $normalize_input = static function ($value) use (&$normalize_input) {
+      if (!is_array($value) && !$value instanceof \stdClass) {
+        return $value;
+      }
+      return array_map($normalize_input, (array) $value);
+    };
+    $current_input = $normalize_input($current_input);
     foreach ((array) $props as $key => $prop) {
       // If there is UI context, grab it and pass it along.
       $ui_schema_data = $ui_hints[$key] ?? [];
