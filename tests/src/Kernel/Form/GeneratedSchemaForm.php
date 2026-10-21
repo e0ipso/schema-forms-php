@@ -35,12 +35,15 @@ final class GeneratedSchemaForm implements FormInterface {
    *   container as the form.
    * @param bool $tree
    *   Whether the form sets #tree. Only applies with a parent key.
+   * @param array $currentInput
+   *   Previously saved values supplied to the generator.
    */
   public function __construct(
     private readonly object $schema,
     private readonly array $uiHints = [],
     private readonly ?string $parentKey = NULL,
     private readonly bool $tree = FALSE,
+    private readonly array $currentInput = [],
   ) {}
 
   /**
@@ -57,6 +60,7 @@ final class GeneratedSchemaForm implements FormInterface {
     $context = new Context([
       'form_state' => $form_state,
       'ui_hints' => $this->uiHints,
+      'current_input' => $this->currentInput,
     ]);
     $element = (new FormGeneratorDrupal())->transform($this->schema, $context);
     if ($this->parentKey === NULL) {

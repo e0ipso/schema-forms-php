@@ -338,4 +338,50 @@ class FormValidatorDrupalTest extends TestCase {
     $this->assertSame([], $form_state->getErrors());
   }
 
+  /**
+   * SCHE-0016: unmatched messages are joined once without an empty title.
+   */
+  public function testUnmatchedErrorsAreJoinedAndEscapedOnce(): void {
+    $element = self::element(['schema'], '');
+    $state = self::formState(['schema' => []]);
+    $schema = json_decode('{"type":"object","required":["first","second"]}');
+    FormValidatorDrupal::validateWithSchema($element, $state, $schema);
+    $errors = $state->getErrors();
+    $this->assertSame(['schema'], array_keys($errors));
+    $error = $errors['schema'];
+    $this->assertStringNotContainsString('errors errors', $error->getUntranslatedString());
+    $args = $error->getArguments();
+    $this->assertSame(['@full_message'], array_keys($args));
+    $this->assertSame(1, substr_count($args['@full_message'], 'first'));
+    $this->assertSame(1, substr_count($args['@full_message'], 'second'));
+    $this->assertStringContainsString('"required"', $args['@full_message']);
+    $this->assertStringNotContainsString('&quot;', $args['@full_message']);
+    // Use the real Drupal placeholder renderer with an identity translator.
+    $translator = $this->createMock(\Drupal\Core\StringTranslation\TranslationInterface::class);
+    $translator->method('translateString')->willReturn($error->getUntranslatedString());
+    $markup = new TranslatableMarkup($error->getUntranslatedString(), $args, [], $translator);
+    $this->assertStringContainsString('&quot;required&quot;', (string) $markup);
+    $this->assertStringNotContainsString('&amp;quot;', (string) $markup);
+  }
+
+  /**
+   * SCHE-0019: values that cannot be JSON encoded must never validate as {}.
+   */
+  #[DataProvider('unencodableProvider')]
+  public function testUnencodableSubmission(mixed $value): void {
+    $element = self::element(['schema'], 'Data');
+    $state = self::formState(['schema' => ['value' => $value]]);
+    FormValidatorDrupal::validateWithSchema($element, $state, (object) ['type' => 'object']);
+    $this->assertSame(['schema'], array_keys($state->getErrors()));
+    $this->assertSame('The submitted data could not be encoded as JSON. Please check the submitted values.', $state->getErrors()['schema']->getUntranslatedString());
+  }
+
+  public static function unencodableProvider(): array {
+    return [
+      'positive infinity' => [INF],
+      'not a number' => [NAN],
+      'invalid UTF-8' => ["\xB1"],
+    ];
+  }
+
 }

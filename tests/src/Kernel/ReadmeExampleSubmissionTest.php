@@ -115,4 +115,35 @@ JSON;
     return json_decode(self::UI_SCHEMA, TRUE, flags: JSON_THROW_ON_ERROR);
   }
 
+  /**
+   * SCHE-0014: untouched optional controls must not reject the README form.
+   */
+  public function testMinimumSubmissionOmitsRejectedBlanks(): void {
+    $submission = $this->submitSchemaForm($this->schema(), ['schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris', 'password' => '', 'age' => '', 'bio' => '']], $this->uiSchema(), 'schema');
+    $this->assertSame([], $submission->errors);
+    $values = $submission->values['schema'];
+    $this->assertArrayNotHasKey('password', $values);
+    $this->assertArrayNotHasKey('age', $values);
+    $this->assertSame('', $values['bio']);
+  }
+
+  /**
+   * SCHE-0014: the README needs only its two required names.
+   */
+  public function testOnlyRequiredNames(): void {
+    $submission = $this->submitSchemaForm($this->schema(), ['schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris']], $this->uiSchema(), 'schema');
+    $this->assertSame([], $submission->errors);
+    $this->assertArrayNotHasKey('age', $submission->values['schema']);
+    $this->assertArrayNotHasKey('password', $submission->values['schema']);
+  }
+
+  /**
+   * Required blank input stays present and errors on the input itself.
+   */
+  public function testBlankRequiredLastName(): void {
+    $submission = $this->submitSchemaForm($this->schema(), ['schema' => ['firstName' => 'Chuck', 'lastName' => '']], $this->uiSchema(), 'schema');
+    $this->assertSame(['schema][lastName'], array_keys($submission->errors));
+    $this->assertSame('', $submission->values['schema']['lastName']);
+  }
+
 }
