@@ -908,4 +908,88 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->assertSame('default', $object_form['other']['#default_value']);
   }
 
+  /**
+   * SCHE-0038: inferred enum controls and fixed or unsupported schemas.
+   */
+  #[DataProvider('enumOnlyControlProvider')]
+  public function testEnumOnlyControls(array $enum): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['choice' => (object) ['enum' => $enum]]];
+    $form = $this->sut->transform($schema);
+    $this->assertSame('radios', $form['choice']['#type']);
+    $this->assertCount(count($enum), $form['choice']['#options']);
+  }
+
+  public static function enumOnlyControlProvider(): array {
+    return [
+      'string' => [['a', 'b']],
+      'integer' => [[0, 12]],
+      'number' => [[0.5, 1.75]],
+      'boolean' => [[FALSE, TRUE]],
+      'mixed' => [['a', TRUE, 2.5]],
+    ];
+  }
+
+  public function testUntypedConstantAndEmptySchema(): void {
+    $text = '<script>alert("x")</script>&';
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['const' => $text], 'unknown' => (object) []]];
+    $form = $this->sut->transform($schema);
+    $this->assertSame($text, $form['fixed']['#plain_text']);
+    $this->assertFalse($form['fixed']['#input']);
+    $this->assertArrayNotHasKey('#markup', $form['fixed']);
+    $this->assertSame('item', $form['unknown']['#type']);
+    $this->assertTrue($form['unknown']['#disabled']);
+  }
+
+  /**
+   * SCHE-0039: compound defaults are normalized before filling descendants.
+   */
+  #[DataProvider('compoundInputProvider')]
+  public function testCompoundDefaults(array $input, array $expected): void {
+    $schema = json_decode('{"type":"object","properties":{"tags":{"type":"array","default":["first","second"],"items":{"type":"string"}},"profile":{"type":"object","default":{"name":"default","rows":[{"label":"nested"}]},"properties":{"name":{"type":"string"},"rows":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"}}}}}}}}');
+    $before = serialize($schema);
+    $form = $this->sut->transform($schema, new Context(['current_input' => $input]));
+    $tags = [];
+    foreach ($form['tags'] as $key => $element) {
+      if (is_int($key)) {
+        $tags[] = $element['removable_element']['#default_value'] ?? NULL;
+      }
+    }
+    $this->assertSame($expected[0], $tags);
+    $this->assertSame($expected[1], $form['profile']['name']['#default_value'] ?? NULL);
+    $this->assertSame($expected[2], $form['profile']['rows'][0]['removable_element']['label']['#default_value'] ?? NULL);
+    $this->assertSame($before, serialize($schema));
+  }
+
+  public static function compoundInputProvider(): array {
+    return [
+      'defaults' => [[], [['first', 'second'], 'default', 'nested']],
+      'saved arrays' => [['tags' => ['saved'], 'profile' => ['name' => 'saved', 'rows' => [['label' => 'saved row']]]], [['saved'], 'saved', 'saved row']],
+      'saved objects' => [['tags' => ['saved'], 'profile' => (object) ['name' => 'saved', 'rows' => [(object) ['label' => 'saved row']]]], [['saved'], 'saved', 'saved row']],
+      'explicit empty arrays' => [['tags' => [], 'profile' => []], [[], NULL, NULL]],
+      'explicit empty object' => [['tags' => [], 'profile' => (object) []], [[], NULL, NULL]],
+    ];
+  }
+
+  /**
+   * SCHE-0065: scalar defaults cannot reach compound array-only helpers.
+   */
+  #[DataProvider('scalarCompoundDefaultProvider')]
+  public function testScalarCompoundDefaults(mixed $type, mixed $default): void {
+    $property = (object) ['type' => $type, 'default' => $default, 'items' => (object) ['type' => 'string'], 'properties' => (object) ['name' => (object) ['type' => 'string']]];
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['value' => $property]];
+    $form = $this->sut->transform($schema);
+    $this->assertSame('details', $form['value']['#type']);
+    $this->assertArrayNotHasKey(0, $form['value']);
+  }
+
+  public static function scalarCompoundDefaultProvider(): array {
+    $cases = [];
+    foreach (['array', 'object', ['array', 'string']] as $type) {
+      foreach (['scalar', 7, TRUE] as $default) {
+        $cases[json_encode([$type, $default])] = [$type, $default];
+      }
+    }
+    return $cases;
+  }
+
 }
