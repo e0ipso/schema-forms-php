@@ -220,9 +220,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       $form_element = $this->transformRadios($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
     }
     if ($type === 'array') {
-      $form_element = empty($json_schema->items->enum)
-        ? $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data, $enabled)
-        : $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
+      // Draft-04 makes 'items' optional and also allows a list of schemas.
+      // Neither gives one schema for every item, so no item control exists.
+      $form_element = match (TRUE) {
+        !is_object($json_schema->items ?? NULL) => $this->transformUnsupported($form_element, $type),
+        empty($json_schema->items->enum) => $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data, $enabled),
+        default => $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings),
+      };
     }
     if ($type === 'object') {
       $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled);

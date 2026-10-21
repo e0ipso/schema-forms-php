@@ -175,11 +175,11 @@ The `Context` accepts three keys, all optional:
 | `boolean` | `checkbox` |
 | any type with `enum` | `radios`, options from the enum |
 | `array` whose `items` has an `enum` | `checkboxes`, options from the enum |
-| any other `array` | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. |
+| any other `array` whose `items` is one schema object | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. |
 | `object` with `properties` | an open `details` element with one control per sub-property |
 | a property with `const` | escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
 
-A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form.
+A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form. An `array` with no `items`, or with a list of item schemas, renders the same item and its saved value is kept unchanged.
 
 When `type` is a list, the generator uses the first type other than `"null"`. The position of `"null"` does not matter: `["null", "string"]` and `["string", "null"]` both render a textfield. A list containing only `"null"` renders the "cannot be edited" item.
 

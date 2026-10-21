@@ -56,6 +56,10 @@ final class RecursiveTypeCaster {
     $types = $schema->type ?? [];
     $types = is_array($types) ? $types : [$types];
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
+      // Missing or list-form items give no single item schema to cast against.
+      if (!is_object($schema->items ?? NULL)) {
+        return $data;
+      }
       return array_map(static fn($item) => static::refineValue($item, $schema->items, $factory), $data);
     }
     if ((is_array($data) || is_object($data)) && in_array('object', $types, TRUE)) {
