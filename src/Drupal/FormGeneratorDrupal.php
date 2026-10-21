@@ -7,6 +7,7 @@ use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Render\Element\Checkboxes;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Constraints\Factory;
@@ -667,7 +668,24 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   private function transformCheckboxes(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
     $form_element['#type'] = $uiwidget ?? 'checkboxes';
     $form_element['#options'] = $this->enumOptions($json_schema->items->enum, $label_mappings);
+    $form_element['#element_validate'][] = [static::class, 'validateCheckboxes'];
     return $form_element;
+  }
+
+  /**
+   * Normalizes selected checkbox keys before schema type casting.
+   *
+   * @param array $element
+   *   The checkboxes element.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public static function validateCheckboxes(array &$element, FormStateInterface $form_state): void {
+    // Integer 0 marks an unchecked option; the string '0' is a checked key.
+    $checked = array_fill_keys(Checkboxes::getCheckedCheckboxes($element['#value']), TRUE);
+    // Follow the schema's option order, regardless of submission order.
+    $values = array_keys(array_intersect_key($element['#options'], $checked));
+    $form_state->setValueForElement($element, $values);
   }
 
   /**

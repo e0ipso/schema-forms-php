@@ -178,6 +178,7 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => 'Foo',
             '#type' => 'checkboxes',
+            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
             '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -251,6 +252,7 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => 'Foo',
             '#type' => 'checkboxes',
+            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
             '#options' => ['' => '', 'lor-em' => 'Lor Em'],
             '#required' => FALSE,
             '#disabled' => FALSE,
