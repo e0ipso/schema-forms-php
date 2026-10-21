@@ -79,15 +79,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       '#json_schema' => $schema,
     ];
     $ui_hints = $context['ui_hints'] ?? [];
-    $current_input = $context['current_input'] ?? [];
     // Normalize decoded objects once, before passing saved values to fields.
-    $normalize_input = static function ($value) use (&$normalize_input) {
-      if (!is_array($value) && !$value instanceof \stdClass) {
-        return $value;
-      }
-      return array_map($normalize_input, (array) $value);
-    };
-    $current_input = $normalize_input($current_input);
+    $current_input = $this->normalizeInput($context['current_input'] ?? []);
     foreach ((array) $props as $key => $prop) {
       // If there is UI context, grab it and pass it along.
       $ui_schema_data = $ui_hints[$key] ?? [];
@@ -159,6 +152,22 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Normalizes compound saved values and defaults for child field lookups.
+   *
+   * @param mixed $value
+   *   The input value.
+   *
+   * @return mixed
+   *   The value with decoded objects recursively converted to arrays.
+   */
+  private function normalizeInput($value) {
+    if (!is_array($value) && !$value instanceof \stdClass) {
+      return $value;
+    }
+    return array_map([$this, 'normalizeInput'], (array) $value);
+  }
+
+  /**
    * Creates a Drupal form element from a property definition.
    *
    * @param mixed $json_schema
@@ -197,6 +206,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       return $form_element;
     }
     $type = $this->guessSchemaType($json_schema, $ui_schema_data);
+    if ($current_input === NULL && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
+      $current_input = $this->normalizeInput($json_schema->default);
+    }
     if ($type === 'string' && !empty($json_schema->format) && $json_schema->format === 'email') {
       $form_element = $this->transformEmail($form_element);
     }

@@ -407,7 +407,7 @@ class FormGeneratorDrupalTest extends TestCase {
     ];
 
     return [
-      'nested hints and wrapper-only object default' => [
+      'nested hints and object default' => [
         '{"type":"object","properties":{"address":{"type":"object","required":["street"],"default":{"street":"schema street"},"properties":{"street":{"type":"string"}}}}}',
         [
           'address' => [
@@ -423,7 +423,6 @@ class FormGeneratorDrupalTest extends TestCase {
           'address' => [
             '#title' => Markup::create('Postal address'),
             '#type' => 'details',
-            // SCHE-0039 will pass this default to the street control too.
             '#default_value' => (object) ['street' => 'schema street'],
             '#prop_name' => 'address',
             '#prop_parents' => ['address'],
@@ -432,6 +431,7 @@ class FormGeneratorDrupalTest extends TestCase {
             'street' => [
               '#title' => Markup::create('Street address'),
               '#type' => 'textfield',
+              '#default_value' => 'schema street',
               '#prop_name' => 'street',
               '#description' => 'Include the house number',
               '#placeholder' => '12 Main Street',
