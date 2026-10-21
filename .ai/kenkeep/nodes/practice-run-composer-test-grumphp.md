@@ -2,8 +2,7 @@
 type: practice
 title: 'Run composer test: GrumPHP runs tests, Drupal phpcs and code rules'
 description: >-
-  composer test runs PHPUnit, Drupal/DrupalPractice phpcs, phpmnd and a parser
-  that bans else, exit and var_dump.
+  composer test runs GrumPHP with PHPUnit 11.5 and strict Composer validation; CI separately enforces the coverage floor.
 tags:
   - tooling
   - testing
@@ -11,16 +10,15 @@ tags:
 kk_schema_version: 3
 kk_id: practice-run-composer-test-grumphp
 kk_derived_from: []
-kk_relates_to: []
+kk_relates_to:
+  - map-submission-validation-pipeline
 kk_depends_on: []
 kk_confidence: high
 ---
-`composer test` runs `vendor/bin/grumphp.phar run` with `grumphp.yml`, and CI runs the same command. The tasks are PHPUnit, PHP_CodeSniffer with the `Drupal` and `DrupalPractice` standards (2-space indent, `tests/` excluded), phplint, phpmnd, composer validate and normalize, yamllint, jsonlint and a security check of `composer.lock`.
+`composer test` runs `php vendor/bin/grumphp.phar run` with `grumphp.yml`. GrumPHP runs PHPUnit, Drupal/DrupalPractice PHP_CodeSniffer with 2-space indentation and `tests/` excluded, phplint, phpmnd, strict Composer validation, composer normalize, YAML/JSON lint, and `composer audit --no-dev --locked`. Its parser bans `else`, `exit`, `var_dump` and `kint`; use guard clauses and named numeric values. Composer warnings fail the `composer` task because `strict: true` (`composer.json:69`; `grumphp.yml:44`).
 
-The `phpparser` task bans `else`, `exit` and calls to `var_dump` or `kint`. Write early returns and guard clauses. `src/` has no `else`.
+The project requires PHPUnit `^11.5`; tests are autoloaded under `SchemaForms\Tests\` from `tests/src`. Keep coverage attribution at class level with `#[CoversClass]`, so executed private helpers count toward their class. Kernel tests submit generated forms through Drupal FormBuilder and need `pdo_sqlite`; `phpunit.xml` supplies `SIMPLETEST_DB=sqlite://localhost/:memory:` (`composer.json:37`; `tests/src/RecursiveTypeCasterTest.php:15`; `README.md:227`).
 
-phpmnd flags magic numbers. The code names them instead, as `$two = 2;` in `UserInputCleaner::cleanRemoveButton()` does.
+For coverage with Xdebug, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes `build/logs/clover.xml`. A local `php vendor/bin/phpunit --no-coverage` run exercises tests without a driver but does not verify the coverage gate. CI runs the Composer suite with Xdebug, then `php tests/coverage-checker.php` and `php scripts/check-coverage.php` (`phpunit.xml:8`; `.github/workflows/php.yml:51`).
 
-PHPUnit 10 tests live in `tests/src`, autoloaded as `SchemaForms\Tests\`. Regression cases in the data providers carry a comment that names the defect they guard.
-
-`phpunit.xml` configures coverage, so PHPUnit 10 exits 1 when no coverage driver is installed, even with every test passing. CI installs xdebug. Locally, install xdebug or pcov, or run `vendor/bin/phpunit --no-coverage`.
+The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts/check-coverage.php`. The checker reads project statement totals, compares the unrounded ratio, and rejects missing, malformed, empty or inconsistent reports; it also accepts one explicit Clover path. To raise the floor, measure the complete suite with a driver, increase the constant to an attainable floor, and update boundary fixtures in `tests/coverage-checker.php`. Run those dependency-free fixtures with `php tests/coverage-checker.php` (`scripts/check-coverage.php:10`; `README.md:229`).

@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:e474e8c4f05984eff88d83fc35f893c1652ffe148d52766fb569dc26ddf13d18'
-node_count: 12
+nodes_hash: 'sha256:4e65db5046663e411815cd2ae415c6214a6c31ca63e1dd36b793cb1ba70c471e'
+node_count: 13
 ---
 # kenkeep Graph
 
-Total nodes: 12
+Total nodes: 13
 
 ## map-form-generator-drupal
 
@@ -13,6 +13,7 @@ Total nodes: 12
 - **title:** FormGeneratorDrupal: JSON Schema to Drupal Form API
 - **path:** map-form-generator-drupal.md
 - **tags:** drupal, json-schema, form-api
+- **relates_to:** map-submission-validation-pipeline, map-multivalue-array-widget, practice-keep-elements-in-supported-list
 - **derived_from:** README.md
 
 ## map-multivalue-array-widget
@@ -28,6 +29,7 @@ Total nodes: 12
 - **title:** How JSON Schema types map to Form API elements
 - **path:** map-schema-type-element-mapping.md
 - **tags:** drupal, json-schema, form-api
+- **relates_to:** practice-keep-elements-in-supported-list, practice-enum-options-assign-keys-directly
 - **derived_from:** README.md
 
 ## map-submission-validation-pipeline
@@ -36,6 +38,7 @@ Total nodes: 12
 - **title:** Submission validation: clean, type-cast, validate, map errors
 - **path:** map-submission-validation-pipeline.md
 - **tags:** validation, drupal, json-schema
+- **relates_to:** practice-enum-options-assign-keys-directly, practice-empty-string-to-null-only-when-unholdable, practice-keep-elements-in-supported-list, practice-preserve-unrepresentable-numbers-and-object-shape, map-multivalue-array-widget
 
 ## map-ui-schema-controls
 
@@ -43,6 +46,7 @@ Total nodes: 12
 - **title:** UI schema controls (ui:*) for form generation
 - **path:** map-ui-schema-controls.md
 - **tags:** ui-schema, drupal
+- **relates_to:** practice-enum-options-assign-keys-directly, map-form-generator-drupal
 - **derived_from:** README.md
 
 ## practice-conventional-commits-and-branches
@@ -58,6 +62,7 @@ Total nodes: 12
 - **title:** Cast only true absence to NULL on nullable props
 - **path:** practice-empty-string-to-null-only-when-unholdable.md
 - **tags:** type-casting, validation, gotcha
+- **relates_to:** map-submission-validation-pipeline, practice-preserve-unrepresentable-numbers-and-object-shape
 
 ## practice-enum-options-assign-keys-directly
 
@@ -65,6 +70,7 @@ Total nodes: 12
 - **title:** Build enum #options by key assignment, never array_merge
 - **path:** practice-enum-options-assign-keys-directly.md
 - **tags:** drupal, enum, gotcha
+- **relates_to:** map-submission-validation-pipeline, practice-preserve-unrepresentable-numbers-and-object-shape
 
 ## practice-keep-elements-in-supported-list
 
@@ -72,6 +78,7 @@ Total nodes: 12
 - **title:** Add every generated element type to SUPPORTED_ELEMENT_TYPES
 - **path:** practice-keep-elements-in-supported-list.md
 - **tags:** drupal, form-api, gotcha
+- **relates_to:** map-schema-type-element-mapping, map-submission-validation-pipeline
 
 ## practice-keep-empty-arrays-under-named-keys
 
@@ -80,12 +87,21 @@ Total nodes: 12
 - **path:** practice-keep-empty-arrays-under-named-keys.md
 - **tags:** user-input, arrays, gotcha
 
+## practice-preserve-unrepresentable-numbers-and-object-shape
+
+- **kind:** practice
+- **title:** Preserve unrepresentable numbers and object shape
+- **path:** practice-preserve-unrepresentable-numbers-and-object-shape.md
+- **tags:** type-casting, validation, gotcha
+- **relates_to:** practice-empty-string-to-null-only-when-unholdable, map-submission-validation-pipeline
+
 ## practice-run-composer-test-grumphp
 
 - **kind:** practice
 - **title:** Run composer test: GrumPHP runs tests, Drupal phpcs and code rules
 - **path:** practice-run-composer-test-grumphp.md
 - **tags:** tooling, testing, coding-standards
+- **relates_to:** map-submission-validation-pipeline
 
 ## practice-support-both-json-schema-majors
 

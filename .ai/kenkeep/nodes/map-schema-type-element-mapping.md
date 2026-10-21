@@ -12,7 +12,9 @@ kk_schema_version: 3
 kk_id: map-schema-type-element-mapping
 kk_derived_from:
   - README.md
-kk_relates_to: []
+kk_relates_to:
+  - practice-keep-elements-in-supported-list
+  - practice-enum-options-assign-keys-directly
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -24,7 +26,7 @@ kk_confidence: high
 - A property with `enum` is `radios`. An `array` whose `items` has an `enum` is `checkboxes`. `ui:widget` can replace either, for example with `select`.
 - Any other `array` is the multivalue widget, an open `details` with add and remove buttons.
 - An `object` with `properties` is an open `details` holding one element per sub-property.
-- A non-empty `const` drops `#type` and renders the constant as `#markup`.
+- Any present `const`, including `NULL`, `FALSE` and zero, drops `#type`, renders as `#markup`, and carries the exact value in `#schema_fixed_value` with `#input => FALSE` (`src/Drupal/FormGeneratorDrupal.php:169`).
 
 A type list such as `["string","null"]` uses its first entry. The filter in `guessSchemaType()` drops PHP `NULL`, not the string `"null"`, so `["null","string"]` resolves to `null` and renders the "cannot be edited" item.
 

@@ -2,8 +2,7 @@
 type: map
 title: 'FormGeneratorDrupal: JSON Schema to Drupal Form API'
 description: >-
-  Drupal entry point: transform() turns a draft-04 object schema plus Context
-  hints into a Form API container.
+  transform() turns draft-04 object schemas into Form API containers whose root #tree preserves nested submission paths.
 tags:
   - drupal
   - json-schema
@@ -12,7 +11,10 @@ kk_schema_version: 3
 kk_id: map-form-generator-drupal
 kk_derived_from:
   - README.md
-kk_relates_to: []
+kk_relates_to:
+  - map-submission-validation-pipeline
+  - map-multivalue-array-widget
+  - practice-keep-elements-in-supported-list
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -22,7 +24,7 @@ kk_confidence: high
 
 The `Context` takes three optional keys. `ui_hints` is the UI schema keyed by property name. `form_state` is the form's state, which array properties use to keep their item list across rebuilds. `current_input` holds saved values, and a value there becomes `#default_value` ahead of the schema `default`.
 
-The result is a `container` with one child per root property. The root also carries `#json_schema` (the schema, used later by validation) and `#element_validate => [[$generator, 'validateWithSchema']]`. Every child gets `#prop_name`, `#prop_parents`, `#disabled` and `#visible`. Only the root `required` list sets `#required`, and nested `required` lists are ignored. A property that is only a `$ref` throws a `TypeError` in `guessSchemaType()`, because nothing resolves it.
+The result is a `container` with `#tree => TRUE` and one child per root property. Preserve that root flag even under a key in a parent form whose `#tree` is false: nested objects and multivalue wrappers need schema-shaped paths to avoid flattening and key collisions (`src/Drupal/FormGeneratorDrupal.php:64`; `tests/src/Kernel/ValidationPlacementTest.php:132`). The root also carries `#json_schema` (the schema, used later by validation) and `#element_validate => [[$generator, 'validateWithSchema']]`. Children carry `#prop_name` and `#prop_parents`; ordinary input elements also carry `#disabled` and `#visible`. The root `required` list sets Form API `#required` on input children. Nested required lists govern schema refinement and validation, while non-input fixed values skip Form API required flags (`src/Drupal/FormGeneratorDrupal.php:165`, `:526`). The root also registers the form-level `#validate` bridge for placement as the form itself. `getSchema()` dereferences schema references before building controls (`src/Drupal/FormGeneratorDrupal.php:595`).
 
 <!-- kk:citations:start -->
 # Citations
