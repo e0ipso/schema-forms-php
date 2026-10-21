@@ -59,7 +59,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // A root object schema may omit 'properties'; that is an empty form.
     $props = $schema->properties ?? new \stdClass();
     // Store the schema for the validation callbacks to access.
-    $element = ['#type' => 'container', '#json_schema' => $schema];
+    $element = [
+      '#type' => 'container',
+      '#tree' => TRUE,
+      '#json_schema' => $schema,
+    ];
     $ui_hints = $context['ui_hints'] ?? [];
     $current_input = $context['current_input'] ?? [];
     foreach ((array) $props as $key => $prop) {

@@ -72,6 +72,7 @@ The public API is `FormGeneratorDrupal` and the `FormGeneratorInterface` it impl
 ```php
 [
   '#type' => 'container',
+  '#tree' => TRUE,
   'firstName' => [
     '#title' => 'First name',
     '#type' => 'textfield',
