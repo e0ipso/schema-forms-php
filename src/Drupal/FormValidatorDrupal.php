@@ -32,6 +32,16 @@ final class FormValidatorDrupal {
     $parents = $element['#parents'];
     $raw_input = $form_state->getUserInput();
     $submitted = $form_state->getValue($parents) ?? NestedArray::getValue($raw_input, $parents) ?? NULL;
+    try {
+      json_encode($submitted, JSON_THROW_ON_ERROR);
+    }
+    catch (\JsonException $e) {
+      $form_state->setError(
+        $element,
+        new TranslatableMarkup('The submitted data could not be encoded as JSON. Please check the submitted values.')
+      );
+      return;
+    }
     $data = (new ArrayToStdClass())->transform($submitted);
     if ($data === [] || $data === NULL) {
       // If the data is empty we may need to cast it to an empty object.
