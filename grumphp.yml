@@ -9,8 +9,8 @@ grumphp:
     git_commit_message:
       enforce_capitalized_subject: false
       type_scope_conventions:
-        - types: ['build', 'ci', 'chore', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test']
-        - scopes: ['schema', 'form', 'drupal', 'api', 'deps', 'deps-dev']
+        types: ['build', 'ci', 'chore', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test']
+        scopes: ['schema', 'form', 'drupal', 'api', 'deps', 'deps-dev']
       max_subject_width: 50
       enforce_no_subject_punctuations: true
       enforce_no_subject_trailing_period: true
