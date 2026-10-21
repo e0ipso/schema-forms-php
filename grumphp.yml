@@ -4,13 +4,13 @@ grumphp:
   stop_on_failure: false
   ignore_unstaged_changes: false
   hide_circumvention_tip: false
-  process_timeout: 60
+  process_timeout: 300
   tasks:
     git_commit_message:
       enforce_capitalized_subject: false
       type_scope_conventions:
-        - types: ['build', 'ci', 'chore', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test']
-        - scopes: ['schema', 'form', 'drupal', 'api']
+        types: ['build', 'ci', 'chore', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test']
+        scopes: ['schema', 'form', 'drupal', 'api', 'deps', 'deps-dev']
       max_subject_width: 50
       enforce_no_subject_punctuations: true
       enforce_no_subject_trailing_period: true

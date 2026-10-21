@@ -162,7 +162,7 @@ The `Context` accepts three keys, all optional:
 
 - `ui_hints`: the UI schema, as an array keyed by property name.
 - `form_state`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
-- `current_input`: previously saved values, keyed like the schema. A value here becomes the element's `#default_value` and wins over the schema's `default`.
+- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the element's `#default_value` and wins over the schema's `default`, and so does `null`. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
 
 ### How schema types become elements
 
@@ -175,13 +175,13 @@ The `Context` accepts three keys, all optional:
 | `boolean` | `checkbox` |
 | any type with `enum` | `radios`, options from the enum |
 | `array` whose `items` has an `enum` | `checkboxes`, options from the enum |
-| any other `array` | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. |
+| any other `array` whose `items` is one schema object | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. A positive integer `maxItems` hides Append at the limit; saved items above the limit remain editable for correction. |
 | `object` with `properties` | an open `details` element with one control per sub-property |
-| a property with `const` | the constant as `#markup`, with no input |
+| a property with `const` | escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
 
-A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form.
+A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form. An `array` with no `items`, or with a list of item schemas, renders the same item and its saved value is kept unchanged.
 
-When `type` is a list such as `["string", "null"]`, the generator uses the first entry. Put `null` last: `["null", "string"]` renders as the "cannot be edited" item.
+When `type` is a list, the generator uses the first type other than `"null"`. The position of `"null"` does not matter: `["null", "string"]` and `["string", "null"]` both render a textfield. A list containing only `"null"` renders the "cannot be edited" item.
 
 The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way.
 
@@ -213,7 +213,7 @@ When Drupal validates the form, the schema validation:
 
 ### Limitations
 
-- `$ref` is not resolved. A property that is only a `$ref` throws a `TypeError`.
+- Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
 - Only the root `required` list sets `#required`. A `required` list inside a nested object does not mark its sub-properties.
 
 ## Security
@@ -222,7 +222,20 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 
 ## Development
 
-`composer test` runs GrumPHP. It runs PHPUnit, PHP_CodeSniffer with the Drupal and DrupalPractice standards, PHP lint, phpmnd, composer normalize, and YAML and JSON lint.
+`composer test` runs GrumPHP over the tracked files. The tasks in `grumphp.yml` are:
+
+- `git_branch_name`: checks the branch naming convention below.
+- `phpunit`: runs PHPUnit when PHP files are present.
+- `phpcs`: checks Drupal and DrupalPractice standards with two-space indentation. It checks `php`, `module`, `inc`, `install`, `test`, `profile` and `theme` files, excluding tests and dependency directories.
+- `phpmnd`: checks for magic numbers in `php` and `module` files.
+- `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
+- `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
+- `yamllint` and `jsonlint`: check YAML and JSON files.
+- `composer`: runs strict Composer validation, `composer validate --strict`, when `composer.json` or `composer.lock` is present.
+- `composer_normalize`: runs `composer normalize --dry-run` when `composer.json` is present.
+- `shell`: runs `composer audit --no-dev --locked` when JSON or lock files are present. It audits production dependencies in the lock file.
+
+Tasks with file filters skip when no matching files are present. The pre-commit hook uses staged files for these checks. The remaining task, `git_commit_message`, runs only in the commit-msg hook, not under `composer test`.
 
 Coverage uses class-level `#[CoversClass]` attributes so executed private helpers count toward their class. With Xdebug enabled, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes line coverage to `build/logs/clover.xml`. Run `php scripts/check-coverage.php` afterward, or pass a Clover path as its only argument. CI runs this check after `composer test` and fails on coverage below the floor or on a missing or invalid report.
 
@@ -230,4 +243,18 @@ The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts
 
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
 
-GrumPHP also installs git hooks that check commit messages and branch names. Commits follow Conventional Commits (`fix(drupal): ...`, with a subject of 50 characters or fewer). Branches are named `<type>/<kebab-case>`, for example `fix/enum-options`. semantic-release tags a release from the commit messages on every push to `master`.
+### JSON Schema compatibility
+
+Run `composer test` with the normal development installation for JSON Schema 6.x. To run the same GrumPHP checks and complete PHPUnit suite against JSON Schema 5.3.4, use:
+
+```sh
+bash scripts/test-json-schema-5.sh
+```
+
+Install the normal development dependencies first with `composer install`. The runner needs Bash, Composer, PHP 8.3 or later and the same PHP extensions as the normal suite. Current development tools require JSON Schema 6.x, so the runner installs production dependencies in a disposable directory and overrides their autoloading only inside PHPUnit. It verifies the installed version and the loaded JSON Schema, Shaper and project class paths before running tests and again in PHPUnit's bootstrap. The normal vendor tree, lock file, development requirements and advisory policy are preserved. Composer audits the isolated runtime before tests start.
+
+Temporary files go under `/var/tmp`; set `SCHEMA_COMPAT_TMPDIR` to another existing directory if needed. Successful runs remove them. Failed runs print the retained directory for diagnosis and return the failing command's exit status. Set `SCHEMA_COMPAT_KEEP=1` to retain successful runs too, including coverage reports. Remove the printed directory when finished. Select executables with `PHP_BINARY` and `COMPOSER_BINARY`; container users must make both the checkout and temporary directory visible at the same paths inside the container.
+
+Arguments are passed to GrumPHP, for example `bash scripts/test-json-schema-5.sh --tasks=phpunit`. For scoped diagnostics, `SCHEMA_COMPAT_PHPUNIT_CONFIG` and `SCHEMA_COMPAT_GRUMPHP_CONFIG` accept existing configuration paths; relative PHPUnit inputs resolve beside their original XML. Overrides can limit checks, so omit them for full compatibility verification.
+
+GrumPHP installs these git hooks locally. Commits follow Conventional Commits (`fix(drupal): ...`, with a subject of 50 characters or fewer). Branches are named `<type>/<kebab-case>`, for example `fix/enum-options`. semantic-release tags a release from the commit messages on every push to `master`.
