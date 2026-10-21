@@ -7,7 +7,9 @@ namespace SchemaForms\Tests\Kernel;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use Drupal\Component\Utility\Html;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Tests\Drupal\SchemaForms\FormGeneratorDrupalTest;
 use Shaper\Util\Context;
 
 /**
@@ -74,6 +76,29 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
     $this->assertSame(self::LABEL, $form['fixed']['#plain_text']);
     $this->assertSame(self::LABEL, (string) $form['field']['#description']);
     $this->assertSame(self::LABEL, $form['field']['#placeholder']);
+  }
+
+
+  /**
+   * SCHE-0029: constant markup escapes text and JSON and renders no input.
+   */
+  #[DataProvider('renderedConstantProvider')]
+  public function testRenderedConstants(mixed $value, string $text): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => match (gettype($value)) {
+      'integer' => 'integer', 'double' => 'number', 'boolean' => 'boolean',
+      'array' => 'array', 'object' => 'object', 'NULL' => 'null', default => 'string',
+    }, 'const' => $value]]];
+    $form = (new FormGeneratorDrupal())->transform($schema);
+    $html = (string) $this->container->get('renderer')->renderInIsolation($form['fixed']);
+    $this->assertSame(Html::escape($text), $html);
+    $this->assertStringNotContainsString('<input', $html);
+  }
+
+  public static function renderedConstantProvider(): array {
+    return FormGeneratorDrupalTest::constantProvider() + [
+      'unsafe array' => [['<img src=x onerror=alert(1)>'], '["<img src=x onerror=alert(1)>"]'],
+      'unsafe object' => [(object) ['<b>' => '<script>'], '{"<b>":"<script>"}'],
+    ];
   }
 
 }

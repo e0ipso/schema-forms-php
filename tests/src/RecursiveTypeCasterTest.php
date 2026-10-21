@@ -23,6 +23,7 @@ class RecursiveTypeCasterTest extends TestCase {
    */
   public static function dataProviderRecursiveTypeRefinements(): array {
     return [
+      'fractional number enum' => ['0.5', '{"type":"number","enum":[0.5,1.5]}', 0.5],
       // A `null` member means the property also accepts absence. It does not
       // mean every falsy value the other members can hold is absence.
       'nullable string keeps the empty string' => ['', '{"type":["string","null"]}', ''],

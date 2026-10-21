@@ -4,6 +4,7 @@ namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Component\Utility\Html;
 use Drupal\Core\Render\Element\Details;
+use Drupal\Core\Form\FormState;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -765,6 +766,146 @@ class FormGeneratorDrupalTest extends TestCase {
     }
     ksort($disabled);
     return $disabled;
+  }
+
+
+  /**
+   * SCHE-0028: null does not hide an editable member of a union.
+   */
+  #[DataProvider('nullableTypeProvider')]
+  public function testNullFirstTypes(array $types, string $expected): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => (object) ['type' => $types]]];
+    $field = $this->sut->transform($schema)['field'];
+    $this->assertSame($expected, $field['#type']);
+    $this->assertSame($expected === 'item', $field['#disabled']);
+    if ($expected === 'item') {
+      $this->assertStringContainsString('cannot be edited', $field['#markup']->getUntranslatedString());
+    }
+  }
+
+  public static function nullableTypeProvider(): array {
+    return [
+      'null first string' => [['null', 'string'], 'textfield'],
+      'null first number' => [['null', 'number'], 'number'],
+      'null only' => [['null'], 'item'],
+    ];
+  }
+
+  /**
+   * SCHE-0029: falsy and structured constants are non-input plain text.
+   */
+  #[DataProvider('constantProvider')]
+  public function testEveryConstant(mixed $value, string $text): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => match (gettype($value)) {
+      'integer' => 'integer', 'double' => 'number', 'boolean' => 'boolean',
+      'array' => 'array', 'object' => 'object', 'NULL' => 'null', default => 'string',
+    }, 'const' => $value]]];
+    $field = $this->sut->transform($schema)['fixed'];
+    $this->assertSame($text, $field['#plain_text']);
+    $this->assertFalse($field['#input']);
+    $this->assertArrayNotHasKey('#type', $field);
+    $this->assertEquals($value, $field['#schema_fixed_value']);
+  }
+
+  public static function constantProvider(): array {
+    return [
+      'zero' => [0, '0'],
+      'false' => [FALSE, 'false'],
+      'empty string' => ['', ''],
+      'string zero' => ['0', '0'],
+      'array' => [['a'], '["a"]'],
+      'object' => [(object) ['k' => 1], '{"k":1}'],
+      'null' => [NULL, 'null'],
+      'unsafe text' => ['<script>alert(1)</script>', '<script>alert(1)</script>'],
+    ];
+  }
+
+  /**
+   * SCHE-0030: fractional keys survive in both enum controls.
+   */
+  #[DataProvider('fractionalEnumProvider')]
+  public function testFractionalEnumOptions(bool $multiple): void {
+    $property = (object) ['type' => 'number', 'enum' => [0.5, 1.5, 1.75]];
+    if ($multiple) {
+      $property = (object) ['type' => 'array', 'items' => $property];
+    }
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => $property]];
+    $context = new Context(['ui_hints' => ['field' => ['ui:enum' => ['labels' => ['mappings' => ['0.5' => '<script>bad</script><em>Half</em>']]]]]]);
+    $field = $this->sut->transform($schema, $context)['field'];
+    $this->assertSame(['0.5', '1.5', '1.75'], array_keys($field['#options']));
+    $this->assertSame('bad<em>Half</em>', (string) $field['#options']['0.5']);
+  }
+
+  public static function fractionalEnumProvider(): array {
+    return ['radios' => [FALSE], 'checkboxes' => [TRUE]];
+  }
+
+  /**
+   * SCHE-0031: AJAX wraps the final real delta, including after removal.
+   */
+  #[DataProvider('ajaxDeltaProvider')]
+  public function testAppendAjaxUsesRealDelta(array $indices): void {
+    $state = new FormState();
+    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => $indices, 'array_parents' => []]);
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
+    $form = $this->sut->transform($schema, new Context(['form_state' => $state]));
+    $state->setTriggeringElement(['#array_parents' => ['items', 'add_more']]);
+    $result = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $this->assertSame(array_keys($form['items']), array_keys($result));
+    if (!$indices) {
+      $this->assertSame($form['items'], $result);
+      return;
+    }
+    $last = end($indices);
+    foreach ($indices as $delta) {
+      $expected = $form['items'][$delta]['#prefix'];
+      if ($delta === $last) {
+        $expected = '<div class="ajax-new-content">' . $expected;
+      }
+      $this->assertSame($expected, $result[$delta]['#prefix']);
+    }
+    $this->assertSame($form['items'][$last]['#suffix'] . '</div>', $result[$last]['#suffix']);
+  }
+
+  public static function ajaxDeltaProvider(): array {
+    return ['three items' => [[0, 1, 2]], 'gap' => [[0, 2]], 'removed first' => [[1, 2]], 'empty' => [[]]];
+  }
+
+  /**
+   * SCHE-0033: every AJAX reference shares one safe, unique container ID.
+   */
+  public function testItemIdsAcrossForms(): void {
+    $name = 'odd " field';
+    $schema = (object) ['type' => 'object', 'properties' => (object) [$name => (object) ['type' => 'array', 'items' => (object) ['type' => 'string']]]];
+    $ids = [];
+    foreach (range(1, 2) as $form_number) {
+      $form = $this->sut->transform($schema, new Context(['current_input' => [$name => ['one', 'two']]]));
+      foreach ([0, 1] as $delta) {
+        $item = $form[$name][$delta];
+        $id = $item['#wrapper_id'];
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]+$/D', $id);
+        $this->assertSame('<div id="' . $id . '">', $item['#prefix']);
+        $this->assertSame($id, $item['remove_one']['#ajax']['wrapper']);
+        $ids[] = $id;
+      }
+    }
+    $this->assertCount(4, array_unique($ids));
+  }
+
+  /**
+   * SCHE-0034: decoded objects and associative saved values are equivalent.
+   */
+  public function testObjectCurrentInput(): void {
+    $schema = json_decode('{"type":"object","properties":{"profile":{"type":"object","properties":{"name":{"type":"string","default":"fallback"},"tags":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"}}}}}},"other":{"type":"string","default":"default"}}}');
+    $input = '{"profile":{"name":"saved","tags":[{"label":"first"},{"label":"second"}]}}';
+    Html::resetSeenIds();
+    $array_form = $this->sut->transform($schema, new Context(['current_input' => json_decode($input, TRUE)]));
+    Html::resetSeenIds();
+    $object_form = $this->sut->transform($schema, new Context(['current_input' => json_decode($input)]));
+    $this->assertEquals($array_form, $object_form);
+    $this->assertSame('saved', $object_form['profile']['name']['#default_value']);
+    $this->assertSame('second', $object_form['profile']['tags'][1]['removable_element']['label']['#default_value']);
+    $this->assertSame('default', $object_form['other']['#default_value']);
   }
 
 }
