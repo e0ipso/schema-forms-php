@@ -206,7 +206,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       return $form_element;
     }
     $type = $this->guessSchemaType($json_schema, $ui_schema_data);
-    if ($current_input === NULL && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
+    // Saved input wins over the default, including an explicit NULL.
+    if (!$has_current_input && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
       $default_input = $this->normalizeInput($json_schema->default);
       // A union may select a compound widget but supply a scalar default.
       $current_input = is_array($default_input) ? $default_input : NULL;
