@@ -213,7 +213,7 @@ When Drupal validates the form, the schema validation:
 
 ### Limitations
 
-- `$ref` is not resolved. A property that is only a `$ref` throws a `TypeError`.
+- Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
 - Only the root `required` list sets `#required`. A `required` list inside a nested object does not mark its sub-properties.
 
 ## Security

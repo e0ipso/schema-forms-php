@@ -201,9 +201,11 @@ class FormValidatorDrupalTest extends TestCase {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
     FormValidatorDrupal::validateWithSchema($element, $form_state, json_decode($schema));
-    $this->assertSame(
-      ['data' => ['@full_message' => $message]],
-      self::errorArguments($form_state)
+    // Library releases differ in whether minItems reports the actual count.
+    $messages = [$message, str_replace(', 0 found', '', $message)];
+    $this->assertContains(
+      self::errorArguments($form_state),
+      array_map(static fn(string $expected) => ['data' => ['@full_message' => $expected]], $messages)
     );
   }
 

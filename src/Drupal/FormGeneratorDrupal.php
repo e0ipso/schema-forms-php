@@ -13,11 +13,12 @@ use Drupal\Core\Render\Element\Details;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
-use JsonSchema\Constraints\Factory;
+use JsonSchema\Exception\ExceptionInterface;
 use JsonSchema\Validator;
 use SchemaForms\FormGeneratorInterface;
 use SchemaForms\JsonSchemaFormValidator;
 use SchemaForms\RenderArrayValidator;
+use SchemaForms\SchemaReferenceResolver;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;
 
@@ -56,7 +57,17 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   public function doTransform($data, ?Context $context = NULL) {
     $context = $context ?: new Context();
     $form_state = $context['form_state'] ?? new FormState();
-    $schema = $this->getSchema($data);
+    try {
+      $schema = $this->getSchema($data);
+    }
+    catch (ExceptionInterface $e) {
+      return $this->addValidationRules([
+        '#type' => 'container',
+        '#tree' => TRUE,
+        '#json_schema' => $data,
+        '#markup' => new TranslatableMarkup('The schema contains an unsupported reference. External schema retrieval is disabled.'),
+      ]);
+    }
     $visited = [];
     $this->rejectRenderPropertyNames($schema, [], $visited);
     // A root object schema may omit 'properties'; that is an empty form.
@@ -82,7 +93,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public function getInputValidator() {
     // Validate the JSON-Schema input.
-    return new JsonSchemaFormValidator(new Validator(), Constraint::CHECK_MODE_TYPE_CAST);
+    return new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
   }
 
   /**
@@ -626,9 +637,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The dereferenced schema.
    */
   private function getSchema($data) {
-    $storage = (new Factory(NULL, NULL, Constraint::CHECK_MODE_TYPE_CAST))->getSchemaStorage();
-    $storage->addSchema('internal:/schema-with-refs', $data);
-    return $storage->getSchema('internal:/schema-with-refs');
+    $storage = SchemaReferenceResolver::createFactory($data)->getSchemaStorage();
+    return $storage->getSchema(SchemaReferenceResolver::SCHEMA_URI);
   }
 
   /**

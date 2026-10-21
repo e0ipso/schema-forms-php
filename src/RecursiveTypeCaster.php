@@ -2,6 +2,7 @@
 
 namespace SchemaForms;
 
+use JsonSchema\Constraints\Factory;
 use JsonSchema\Validator;
 
 /**
@@ -23,19 +24,36 @@ final class RecursiveTypeCaster {
    *   The same data with refined types.
    */
   public static function recursiveTypeRefinements($data, object $schema) {
+    return static::refineValue($data, $schema, SchemaReferenceResolver::createFactory($schema));
+  }
+
+  /**
+   * Refines a value while keeping root references available to blank checks.
+   *
+   * @param mixed $data
+   *   The data.
+   * @param object $schema
+   *   The schema for this value.
+   * @param \JsonSchema\Constraints\Factory $factory
+   *   The restricted factory with the root schema registered.
+   *
+   * @return mixed
+   *   The same data with refined types.
+   */
+  private static function refineValue($data, object $schema, Factory $factory) {
     $types = $schema->type;
     $types = is_array($types) ? $types : [$types];
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
-      return array_map(static fn($item) => static::recursiveTypeRefinements($item, $schema->items), $data);
+      return array_map(static fn($item) => static::refineValue($item, $schema->items, $factory), $data);
     }
     if ((is_array($data) || is_object($data)) && in_array('object', $types, TRUE)) {
       // Handle each property recursively.
       foreach ((array) $data as $key => $value) {
         $sub_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
-        $refined_value = static::recursiveTypeRefinements($value, $sub_schema);
+        $refined_value = static::refineValue($value, $sub_schema, $factory);
         // Nullable refinements take precedence over omitting untouched fields.
         if ($value === '' && $refined_value === '' && !in_array($key, $schema->required ?? [], TRUE)) {
-          $validator = new Validator();
+          $validator = new Validator($factory);
           $validator->validate($value, $sub_schema);
           if (!$validator->isValid()) {
             if (is_object($data)) {
