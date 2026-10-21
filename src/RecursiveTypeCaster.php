@@ -41,7 +41,7 @@ final class RecursiveTypeCaster {
    *   The same data with refined types.
    */
   private static function refineValue($data, object $schema, Factory $factory) {
-    $types = $schema->type;
+    $types = $schema->type ?? [];
     $types = is_array($types) ? $types : [$types];
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
       return array_map(static fn($item) => static::refineValue($item, $schema->items, $factory), $data);

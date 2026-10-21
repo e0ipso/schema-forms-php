@@ -530,7 +530,22 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if (!empty($ui_schema_data['ui:widget'])) {
       return $ui_schema_data['ui:widget'];
     }
-    $type = $element->type;
+    if (!isset($element->type) && !empty($element->enum)) {
+      $members = $element->enum;
+      $count = count($members);
+      if (count(array_filter($members, 'is_int')) === $count) {
+        return 'integer';
+      }
+      if (count(array_filter($members, static fn($member) => is_int($member) || is_float($member))) === $count) {
+        return 'number';
+      }
+      if (count(array_filter($members, 'is_bool')) === $count) {
+        return 'boolean';
+      }
+      // String-only and mixed enums both use string controls.
+      return 'string';
+    }
+    $type = $element->type ?? 'unknown';
     if (is_array($type)) {
       // Use the first type other than 'null', or 'null' if none remains.
       $type = current(array_filter($type, function ($item) {
