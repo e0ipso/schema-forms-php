@@ -53,3 +53,8 @@ jobs:
           XDEBUG_MODE: coverage
           SIMPLETEST_DB: 'sqlite://localhost/:memory:'
         run: composer run-script test
+
+      - name: Check line coverage floor
+        run: |
+          php tests/coverage-checker.php
+          php scripts/check-coverage.php

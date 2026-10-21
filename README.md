@@ -224,6 +224,10 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 
 `composer test` runs GrumPHP. It runs PHPUnit, PHP_CodeSniffer with the Drupal and DrupalPractice standards, PHP lint, phpmnd, composer normalize, and YAML and JSON lint.
 
+Coverage uses class-level `#[CoversClass]` attributes so executed private helpers count toward their class. With Xdebug enabled, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes line coverage to `build/logs/clover.xml`. Run `php scripts/check-coverage.php` afterward, or pass a Clover path as its only argument. CI runs this check after `composer test` and fails on coverage below the floor or on a missing or invalid report.
+
+The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`. Keep coverage attribution at class level when adding tests.
+
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
 
 GrumPHP also installs git hooks that check commit messages and branch names. Commits follow Conventional Commits (`fix(drupal): ...`, with a subject of 50 characters or fewer). Branches are named `<type>/<kebab-case>`, for example `fix/enum-options`. semantic-release tags a release from the commit messages on every push to `master`.

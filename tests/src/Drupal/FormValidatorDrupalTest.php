@@ -6,7 +6,6 @@ use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\CoversMethod;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
@@ -22,7 +21,7 @@ use SchemaForms\Drupal\FormValidatorDrupal;
  * @package SchemaForms
  */
 #[CoversClass(FormValidatorDrupal::class)]
-#[CoversMethod(FormGeneratorDrupal::class, 'validateWithSchema')]
+#[CoversClass(FormGeneratorDrupal::class)]
 class FormValidatorDrupalTest extends TestCase {
 
   /**
