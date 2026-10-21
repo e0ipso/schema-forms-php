@@ -51,7 +51,8 @@ jobs:
           # have to be installed into the action's tree. `commit-analyzer`,
           # `release-notes-generator` and `github` are bundled; the
           # conventionalcommits preset is not.
+          # Dependabot does not update these pins; bump them by hand.
           extra_plugins: |
-            conventional-changelog-conventionalcommits@^9.1.0
+            conventional-changelog-conventionalcommits@10.4.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
