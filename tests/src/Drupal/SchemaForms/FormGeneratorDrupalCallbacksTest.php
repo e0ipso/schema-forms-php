@@ -127,4 +127,72 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame($right, FormGeneratorDrupal::getPropFormState(['left', 'items'], 'other', $state));
   }
 
+  /**
+   * Invalid or absent limits retain the documented unlimited fallback.
+   */
+  #[DataProvider('cardinalityProvider')]
+  public function testCardinalitySelection(object $schema, int $expected): void {
+    // Invalid schemas can be rejected upstream, so test this pure policy here.
+    $method = new \ReflectionMethod(FormGeneratorDrupal::class, 'cardinality');
+    $this->assertSame($expected, $method->invoke(NULL, $schema));
+  }
+
+  public static function cardinalityProvider(): array {
+    $cases = ['missing' => [(object) [], -1]];
+    foreach ([NULL, 0, -1, 2.5, '2', 2.0, FALSE] as $value) {
+      $cases[json_encode($value, JSON_PRESERVE_ZERO_FRACTION)] = [(object) ['maxItems' => $value], -1];
+    }
+    $cases['one'] = [(object) ['maxItems' => 1], 1];
+    $cases['two'] = [(object) ['maxItems' => 2], 2];
+    return $cases;
+  }
+
+  /**
+   * Finite limits count surviving items, not the last delta, after removal.
+   */
+  public function testFiniteRemovalReappendAndForcedAppend(): void {
+    $generator = new FormGeneratorDrupal();
+    $schema = json_decode('{"type":"object","properties":{"a":{"type":"array","maxItems":2,"items":{"type":"string"}},"b":{"type":"array","maxItems":1,"items":{"type":"string"}}}}');
+    $state = new FormState();
+    $context = new Context(['form_state' => $state, 'current_input' => ['a' => ['first', 'second']]]);
+    $form = $generator->transform($schema, $context);
+    $this->assertFalse($form['a']['add_more']['#access']);
+    $this->assertTrue($form['b']['add_more']['#access'] ?? TRUE);
+    $state->setTriggeringElement($form['a']['add_more'] + ['#array_parents' => ['a', 'add_more']]);
+    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']);
+    $this->assertTrue($state->isRebuilding());
+    $state->setTriggeringElement($form['a'][0]['remove_one'] + ['#array_parents' => ['a', 0, 'remove_one'], '#parents' => ['a', 0, 'remove_one']]);
+    FormGeneratorDrupal::removeOneSubmit($form, $state);
+    $form = $generator->transform($schema, $context);
+    $this->assertTrue($form['a']['add_more']['#access'] ?? TRUE);
+    $this->assertArrayNotHasKey(0, $form['a']);
+    $this->assertSame('second', $form['a'][1]['removable_element']['#default_value']);
+    $state->setTriggeringElement($form['a']['add_more'] + ['#array_parents' => ['a', 'add_more']]);
+    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    $form = $generator->transform($schema, $context);
+    $this->assertSame([1, 2], array_values(FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']));
+    $this->assertFalse($form['a']['add_more']['#access']);
+    $this->assertArrayNotHasKey(0, $form['b']);
+    $this->assertSame(2, $form['a']['#max_delta']);
+    $ajax = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $this->assertFalse($ajax['add_more']['#access']);
+    $this->assertStringContainsString('ajax-new-content', $ajax[2]['#prefix']);
+    $this->assertStringNotContainsString('ajax-new-content', $ajax[1]['#prefix']);
+    $this->assertSame($ajax[2]['#wrapper_id'], $ajax[2]['remove_one']['#ajax']['wrapper']);
+    $this->assertStringContainsString($ajax[2]['#wrapper_id'], $ajax[2]['#prefix']);
+    $this->assertNotSame($ajax[1]['#wrapper_id'], $ajax[2]['#wrapper_id']);
+    $this->assertArrayNotHasKey('#default_value', $ajax[2]['removable_element']);
+    $state->setTriggeringElement($form['b']['add_more'] + ['#array_parents' => ['b', 'add_more']]);
+    $empty = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $this->assertNull($empty['#max_delta']);
+    $this->assertArrayNotHasKey(0, $empty);
+    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    $form = $generator->transform($schema, $context);
+    $this->assertFalse($form['b']['add_more']['#access']);
+    $this->assertSame([1, 2], array_values(FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']));
+    $this->assertSame('invisible', $form['b'][0]['removable_element']['#title_display']);
+    $this->assertSame('fade', $form['b']['add_more']['#ajax']['effect']);
+  }
+
 }

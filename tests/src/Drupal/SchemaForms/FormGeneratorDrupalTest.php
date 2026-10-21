@@ -992,4 +992,39 @@ class FormGeneratorDrupalTest extends TestCase {
     return $cases;
   }
 
+  /**
+   * Itemless and tuple arrays cannot be edited by homogeneous array widgets.
+   */
+  #[DataProvider('unsupportedItemsProvider')]
+  public function testUnsupportedArrayItems(mixed $items, bool $saved): void {
+    $property = (object) ['type' => 'array', 'default' => ['default']];
+    if ($items !== NULL) {
+      $property->items = $items;
+    }
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['value' => $property]];
+    $context = new Context($saved ? ['current_input' => ['value' => ['saved']]] : []);
+    $form = $this->sut->transform($schema, $context);
+    $this->assertSame('item', $form['value']['#type']);
+    $this->assertTrue($form['value']['#disabled']);
+    $this->assertSame($saved ? ['saved'] : ['default'], $form['value']['#schema_fixed_value']);
+    $this->assertArrayNotHasKey('add_more', $form['value']);
+    $this->assertSame(['value' => ['1']], \SchemaForms\RecursiveTypeCaster::recursiveTypeRefinements(['value' => ['1']], $schema));
+  }
+
+  public static function unsupportedItemsProvider(): array {
+    return ['missing default' => [NULL, FALSE], 'missing saved' => [NULL, TRUE], 'tuple default' => [[(object) ['type' => 'string']], FALSE], 'tuple saved' => [[(object) ['type' => 'string']], TRUE]];
+  }
+
+  /**
+   * Saved NULL wins over both compound and child defaults.
+   */
+  public function testNullCompoundDefaultPrecedence(): void {
+    $schema = json_decode('{"type":"object","properties":{"tags":{"type":["array","null"],"default":["default"],"items":{"type":"string"}},"profile":{"type":["object","null"],"default":{"name":"default"},"properties":{"name":{"type":"string","default":"child"}}}}}');
+    $form = $this->sut->transform($schema, new Context(['current_input' => ['tags' => NULL, 'profile' => NULL]]));
+    $this->assertArrayNotHasKey(0, $form['tags']);
+    $this->assertArrayNotHasKey('#default_value', $form['profile']['name']);
+    $this->assertTrue($form['tags']['#schema_saved_null']);
+    $this->assertTrue($form['profile']['#schema_saved_null']);
+  }
+
 }

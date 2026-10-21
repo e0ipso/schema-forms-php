@@ -192,7 +192,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form element.
    */
   private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE, bool $has_current_input = FALSE): array {
-    $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input);
+    $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input, $has_current_input);
     $enabled = $parent_enabled && (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
     $form_element['#prop_parents'] = $prop_parents;
     if (property_exists($json_schema, 'const')) {
@@ -206,7 +206,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       return $form_element;
     }
     $type = $this->guessSchemaType($json_schema, $ui_schema_data);
-    if ($current_input === NULL && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
+    // Saved input wins over the default, including an explicit NULL.
+    if (!$has_current_input && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
       $default_input = $this->normalizeInput($json_schema->default);
       // A union may select a compound widget but supply a scalar default.
       $current_input = is_array($default_input) ? $default_input : NULL;
@@ -220,12 +221,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       $form_element = $this->transformRadios($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
     }
     if ($type === 'array') {
-      $form_element = empty($json_schema->items->enum)
-        ? $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data, $enabled)
-        : $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
+      // Draft-04 makes 'items' optional and also allows a list of schemas.
+      // Neither gives one schema for every item, so no item control exists.
+      $form_element = match (TRUE) {
+        !is_object($json_schema->items ?? NULL) => $this->transformUnsupported($form_element, $type),
+        empty($json_schema->items->enum) => $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data, $enabled),
+        default => $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings),
+      };
     }
     if ($type === 'object') {
-      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled);
+      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled, $has_current_input);
     }
 
     $form_element['#disabled'] = !$enabled;
@@ -240,6 +245,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       if ($has_current_input || property_exists($json_schema, 'default')) {
         $form_element['#schema_fixed_value'] = $has_current_input ? $current_input : $json_schema->default;
       }
+      return $form_element;
+    }
+    // An editable control cannot show NULL, so an untouched one would submit
+    // a blank value instead. Record the saved NULL to restore it on submit.
+    if ($has_current_input && $current_input === NULL && in_array('null', (array) ($json_schema->type ?? []), TRUE)) {
+      $form_element['#schema_saved_null'] = TRUE;
     }
     return $form_element;
   }
@@ -276,6 +287,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if ($form_state->isProcessingInput()) {
       $element_parents = $element['#parents'];
       $data = $form_state->getValue($element_parents);
+      // Mark saved NULL items before cleaning compacts their deltas.
+      FormValidatorDrupal::markUntouchedSavedNulls($element, count($element_parents), $data);
       $clean_data = UserInputCleaner::cleanUserInput($data);
       $form_state->setValue($element_parents, $clean_data);
     }
@@ -373,13 +386,47 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
     // Increment the items count.
     $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
+    $form_state->setRebuild();
+    if (static::isFull($element['#cardinality'] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED, $prop_state['items_indices'] ?? [])) {
+      return;
+    }
     $next_index = empty($prop_state['items_indices'])
       ? 0
       : end($prop_state['items_indices']) + 1;
     $prop_state['items_indices'][] = $next_index;
     static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
+  }
 
-    $form_state->setRebuild();
+  /**
+   * Gets the multivalue cardinality from the array schema.
+   *
+   * @param mixed $json_schema
+   *   The JSON Schema for the array.
+   *
+   * @return int
+   *   The integer maxItems when it is at least 1, otherwise unlimited.
+   */
+  private static function cardinality($json_schema): int {
+    $max_items = $json_schema->maxItems ?? NULL;
+    return is_int($max_items) && $max_items >= 1
+      ? $max_items
+      : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
+  }
+
+  /**
+   * Decides whether a multivalue widget holds as many items as it may.
+   *
+   * @param int $cardinality
+   *   The widget cardinality.
+   * @param array $indices
+   *   The item deltas. Removals leave gaps, so they are counted.
+   *
+   * @return bool
+   *   TRUE when no further item may be appended.
+   */
+  private static function isFull(int $cardinality, array $indices): bool {
+    return $cardinality !== FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
+      && count($indices) >= $cardinality;
   }
 
   /**
@@ -402,11 +449,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // Go one level up in the form, to the widgets container.
     $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -1));
 
-    // Ensure the widget allows adding additional items.
-    if ($element['#cardinality'] != FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED) {
-      return NULL;
-    }
-
+    // Finite widgets are replaced too, so a hidden Append button disappears.
     // Add a DIV around the delta receiving the Ajax effect.
     $delta = $element['#max_delta'] ?? NULL;
     if ($delta === NULL || !isset($element[$delta])) {
@@ -484,11 +527,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The schema for the UI refinements.
    * @param mixed $current_input
    *   The current input.
+   * @param bool $has_current_input
+   *   Whether current input is available, including an explicit NULL.
    *
    * @return array
    *   The scaffolded form element.
    */
-  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, $current_input): array {
+  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, $current_input, bool $has_current_input): array {
     $type = $this->guessSchemaType($element, $ui_schema_data);
     $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
     $form_element = [
@@ -496,11 +541,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       '#type' => $type,
       '#prop_name' => $machine_name,
     ];
-    if (!is_null($element->default ?? NULL)) {
-      $form_element['#default_value'] = $element->default;
-    }
-    if (!is_null($current_input)) {
-      $form_element['#default_value'] = $current_input;
+    // Saved input wins over the default, and a saved NULL shows no value.
+    $default_value = $has_current_input ? $current_input : ($element->default ?? NULL);
+    if (!is_null($default_value)) {
+      $form_element['#default_value'] = $default_value;
     }
     $description = $ui_schema_data['ui:help'] ?? $element->description ?? NULL;
     if (!empty($description)) {
@@ -862,14 +906,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       static::setPropFormState($prop_parents, $machine_name, $form_state, $prop_state);
     }
 
-    // @todo If we ever support non-infinite multivalues, change this.
-    $cardinality = FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
-    // Determine the widgets to display and the last real delta.
-    $indices = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
-      ? static::getPropFormState($prop_parents, $machine_name, $form_state)['items_indices'] ?? [0]
-      : range(0, $cardinality);
+    $cardinality = static::cardinality($json_schema);
+    // Determine the widgets to display and the last real delta. Saved items
+    // beyond maxItems stay, so that validation reports them.
+    $indices = static::getPropFormState($prop_parents, $machine_name, $form_state)['items_indices'] ?? [0];
     $max = $indices ? end($indices) : NULL;
-    $is_multiple = $cardinality !== 1;
     $id_prefix = implode('-', $prop_parents);
     $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
     $form_element['#type'] = 'details';
@@ -886,24 +927,17 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $form_element['#prefix'] = '<div id="' . $wrapper_id . '">';
     $form_element['#suffix'] = '</div>';
     $title = $form_element['#title'] ?? '';
-    $description = $form_element['#description'] ?? '';
     foreach ($indices as $delta) {
-      // For multiple fields, the wrapping details element shows the title and
-      // description; each item gets an invisible numbered title.
-      $element = $is_multiple
-        ? [
-          '#title' => new TranslatableMarkup('@title (value @number)', [
-            '@title' => $title,
-            '@number' => $delta + 1,
-          ]),
-          '#title_display' => 'invisible',
-          '#description' => '',
-        ]
-        : [
-          '#title' => $title,
-          '#title_display' => 'before',
-          '#description' => $description,
-        ];
+      // The wrapping details element shows the title and description, even
+      // when maxItems is 1; each item gets an invisible numbered title.
+      $element = [
+        '#title' => new TranslatableMarkup('@title (value @number)', [
+          '@title' => $title,
+          '@number' => $delta + 1,
+        ]),
+        '#title_display' => 'invisible',
+        '#description' => '',
+      ];
       // Add a new empty item if it doesn't exist yet at this delta.
       $new_prop_parents = [...$prop_parents, $delta];
       $element += $this->doTransformOneField(
@@ -964,6 +998,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         'effect' => 'fade',
       ],
     ];
+    if (static::isFull($cardinality, $indices)) {
+      // An inaccessible button cannot trigger a submission either.
+      $form_element['add_more']['#access'] = FALSE;
+    }
     return $form_element;
   }
 
@@ -985,11 +1023,15 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param bool $enabled
    *   Whether the nested element is enabled. Sub-properties of a disabled
    *   element are disabled too.
+   * @param bool $has_current_input
+   *   Whether current input is available, including an explicit NULL.
    *
    * @return array
    *   The form element.
    */
-  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input, bool $enabled): array {
+  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input, bool $enabled, bool $has_current_input): array {
+    // Inside a saved NULL, every sub-property is saved NULL too.
+    $saved_null = $has_current_input && $current_input === NULL;
     $properties = $json_schema->properties ?? [];
     if (!empty($properties)) {
       $form_element['#type'] = 'details';
@@ -1003,7 +1045,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           $form_state,
           $current_input[$sub_machine_name] ?? NULL,
           $enabled,
-          array_key_exists($sub_machine_name, $current_input ?? [])
+          $saved_null || array_key_exists($sub_machine_name, $current_input ?? [])
         );
       }
     }
