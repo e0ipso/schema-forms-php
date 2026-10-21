@@ -49,10 +49,9 @@ jobs:
           # resolves plugins from there, not from this checkout -- so the
           # plugins .releaserc names that semantic-release does not bundle
           # have to be installed into the action's tree. `commit-analyzer`,
-          # `release-notes-generator` and `github` are bundled; `git` and the
-          # conventionalcommits preset are not.
+          # `release-notes-generator` and `github` are bundled; the
+          # conventionalcommits preset is not.
           extra_plugins: |
-            @semantic-release/git@^10.0.1
             conventional-changelog-conventionalcommits@^9.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
