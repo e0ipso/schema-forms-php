@@ -243,4 +243,18 @@ The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts
 
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
 
+### JSON Schema compatibility
+
+Run `composer test` with the normal development installation for JSON Schema 6.x. To run the same GrumPHP checks and complete PHPUnit suite against JSON Schema 5.3.4, use:
+
+```sh
+bash scripts/test-json-schema-5.sh
+```
+
+Install the normal development dependencies first with `composer install`. The runner needs Bash, Composer, PHP 8.3 or later and the same PHP extensions as the normal suite. Current development tools require JSON Schema 6.x, so the runner installs production dependencies in a disposable directory and overrides their autoloading only inside PHPUnit. It verifies the installed version and the loaded JSON Schema, Shaper and project class paths before running tests and again in PHPUnit's bootstrap. The normal vendor tree, lock file, development requirements and advisory policy are preserved. Composer audits the isolated runtime before tests start.
+
+Temporary files go under `/var/tmp`; set `SCHEMA_COMPAT_TMPDIR` to another existing directory if needed. Successful runs remove them. Failed runs print the retained directory for diagnosis and return the failing command's exit status. Set `SCHEMA_COMPAT_KEEP=1` to retain successful runs too, including coverage reports. Remove the printed directory when finished. Select executables with `PHP_BINARY` and `COMPOSER_BINARY`; container users must make both the checkout and temporary directory visible at the same paths inside the container.
+
+Arguments are passed to GrumPHP, for example `bash scripts/test-json-schema-5.sh --tasks=phpunit`. For scoped diagnostics, `SCHEMA_COMPAT_PHPUNIT_CONFIG` and `SCHEMA_COMPAT_GRUMPHP_CONFIG` accept existing configuration paths; relative PHPUnit inputs resolve beside their original XML. Overrides can limit checks, so omit them for full compatibility verification.
+
 GrumPHP installs these git hooks locally. Commits follow Conventional Commits (`fix(drupal): ...`, with a subject of 50 characters or fewer). Branches are named `<type>/<kebab-case>`, for example `fix/enum-options`. semantic-release tags a release from the commit messages on every push to `master`.
