@@ -177,7 +177,7 @@ The `Context` accepts three keys, all optional:
 | `array` whose `items` has an `enum` | `checkboxes`, options from the enum |
 | any other `array` | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. |
 | `object` with `properties` | an open `details` element with one control per sub-property |
-| a property with `const` | the constant as `#markup`, with no input |
+| a property with `const` | escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
 
 A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form.
 

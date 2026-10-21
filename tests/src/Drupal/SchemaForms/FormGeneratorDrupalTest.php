@@ -166,7 +166,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","const":"The Big Foo"}}}',
         [
           'foo' => [
-            '#markup' => 'The Big Foo',
+            '#plain_text' => 'The Big Foo',
             '#title' => Markup::create('Foo'),
             '#input' => FALSE,
             '#schema_fixed_value' => 'The Big Foo',

@@ -61,7 +61,7 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * Title filtering must not alter other metadata and fixed markup.
+   * Title filtering preserves other metadata and fixed text.
    */
   public function testOtherMetadataIsUnchanged(): void {
     $schema = (object) ['type' => 'object', 'properties' => (object) [
@@ -71,7 +71,7 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
     $form = (new FormGeneratorDrupal())->transform($schema, new Context([
       'ui_hints' => ['field' => ['ui:placeholder' => self::LABEL]],
     ]));
-    $this->assertSame(self::LABEL, $form['fixed']['#markup']);
+    $this->assertSame(self::LABEL, $form['fixed']['#plain_text']);
     $this->assertSame(self::LABEL, (string) $form['field']['#description']);
     $this->assertSame(self::LABEL, $form['field']['#placeholder']);
   }

@@ -168,7 +168,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $form_element['#prop_parents'] = $prop_parents;
     if (property_exists($json_schema, 'const')) {
       unset($form_element['#type']);
-      $form_element['#markup'] = $json_schema->const;
+      $form_element['#plain_text'] = is_string($json_schema->const)
+        ? $json_schema->const
+        : json_encode($json_schema->const, JSON_THROW_ON_ERROR);
       $form_element['#input'] = FALSE;
       $form_element['#schema_fixed_value'] = $json_schema->const;
       // Not much more to do with constants.
