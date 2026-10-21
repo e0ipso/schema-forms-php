@@ -9,6 +9,7 @@ use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element\Checkboxes;
+use Drupal\Core\Render\Element\Details;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
@@ -208,6 +209,20 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       }
     }
     return $form_element;
+  }
+
+  /**
+   * Limits Append validation to the widget's final form value path.
+   *
+   * @param array $element
+   *   The multivalue element with its Form API parents assigned.
+   *
+   * @return array
+   *   The processed element.
+   */
+  public static function multiValueProcess(array $element): array {
+    $element['add_more']['#limit_validation_errors'] = [$element['#parents']];
+    return $element;
   }
 
   /**
@@ -814,6 +829,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
     $form_element['#type'] = 'details';
     $form_element['#open'] = TRUE;
+    // Keep the details element's default processing before setting the path.
+    $form_element['#process'] = [
+      [Details::class, 'processGroup'],
+      [Details::class, 'processAjaxForm'],
+      [static::class, 'multiValueProcess'],
+    ];
     $form_element['#after_build'][] = [static::class, 'multiValueAfterBuild'];
     $form_element['#cardinality'] = $cardinality;
     $form_element['#max_delta'] = $max;
@@ -891,7 +912,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       '#name' => strtr($id_prefix, '-', '_') . '_add_more',
       '#value' => new TranslatableMarkup('Append an item'),
       '#attributes' => ['class' => ['field-add-more-submit']],
-      '#limit_validation_errors' => [array_merge($prop_parents, [$machine_name])],
       '#submit' => [[static::class, 'addMoreSubmit']],
       '#ajax' => [
         'callback' => [static::class, 'addMoreAjax'],

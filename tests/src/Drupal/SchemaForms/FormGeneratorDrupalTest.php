@@ -3,6 +3,7 @@
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Component\Utility\Html;
+use Drupal\Core\Render\Element\Details;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -332,6 +333,11 @@ class FormGeneratorDrupalTest extends TestCase {
       '#placeholder' => 'A label',
       '#prop_parents' => ['tag_labels'],
       '#open' => TRUE,
+      '#process' => [
+        [Details::class, 'processGroup'],
+        [Details::class, 'processAjaxForm'],
+        [FormGeneratorDrupal::class, 'multiValueProcess'],
+      ],
       '#after_build' => [[FormGeneratorDrupal::class, 'multiValueAfterBuild']],
       '#cardinality' => -1,
       '#max_delta' => 1,
@@ -392,8 +398,6 @@ class FormGeneratorDrupalTest extends TestCase {
       '#name' => 'tag_labels_add_more',
       '#value' => new TranslatableMarkup('Append an item'),
       '#attributes' => ['class' => ['field-add-more-submit']],
-      // SCHE-0032 will remove the duplicated property from this path.
-      '#limit_validation_errors' => [['tag_labels', 'tag_labels']],
       '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
       '#ajax' => [
         'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],
