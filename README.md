@@ -175,7 +175,7 @@ The `Context` accepts three keys, all optional:
 | `boolean` | `checkbox` |
 | any type with `enum` | `radios`, options from the enum |
 | `array` whose `items` has an `enum` | `checkboxes`, options from the enum |
-| any other `array` whose `items` is one schema object | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. |
+| any other `array` whose `items` is one schema object | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. A positive integer `maxItems` hides Append at the limit; saved items above the limit remain editable for correction. |
 | `object` with `properties` | an open `details` element with one control per sub-property |
 | a property with `const` | escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
 
