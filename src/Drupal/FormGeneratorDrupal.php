@@ -493,10 +493,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     }
     $type = $element->type;
     if (is_array($type)) {
-      // Guess the first non null type.
+      // Use the first type other than 'null', or 'null' if none remains.
       $type = current(array_filter($type, function ($item) {
-        return $item !== NULL;
-      }));
+        return $item !== 'null';
+      })) ?: 'null';
     }
     return $type;
   }

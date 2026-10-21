@@ -181,7 +181,7 @@ The `Context` accepts three keys, all optional:
 
 A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form.
 
-When `type` is a list such as `["string", "null"]`, the generator uses the first entry. Put `null` last: `["null", "string"]` renders as the "cannot be edited" item.
+When `type` is a list, the generator uses the first type other than `"null"`. The position of `"null"` does not matter: `["null", "string"]` and `["string", "null"]` both render a textfield. A list containing only `"null"` renders the "cannot be edited" item.
 
 The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way.
 
