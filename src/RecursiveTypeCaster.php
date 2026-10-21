@@ -168,7 +168,7 @@ final class RecursiveTypeCaster {
   private static function tryCastingBoolean(&$input, array $types): bool {
     $is_quasi_boolean = $input === '0' || $input === '1' || $input === 0 || $input === 1;
     if (in_array('boolean', $types) && $is_quasi_boolean) {
-      $input = (boolean) $input;
+      $input = (bool) $input;
       return TRUE;
     }
     return FALSE;
