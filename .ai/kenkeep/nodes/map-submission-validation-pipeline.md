@@ -2,20 +2,24 @@
 type: map
 title: 'Submission validation: clean, type-cast, validate, map errors'
 description: >-
-  Clean and refine submissions, restore fixed values, reject JSON encoding failures, then place schema errors once.
+  Clean and refine submissions, restore fixed values, reject JSON encoding
+  failures, then place schema errors once.
 tags:
   - validation
   - drupal
   - json-schema
 kk_schema_version: 3
 kk_id: map-submission-validation-pipeline
-kk_derived_from: []
+kk_derived_from:
+  - src/Drupal/FormValidatorDrupal.php
 kk_relates_to:
   - practice-enum-options-assign-keys-directly
   - practice-empty-string-to-null-only-when-unholdable
   - practice-keep-elements-in-supported-list
   - practice-preserve-unrepresentable-numbers-and-object-shape
   - map-multivalue-array-widget
+  - practice-restrict-schema-reference-retrieval
+  - practice-keep-empty-arrays-under-named-keys
 kk_depends_on: []
 kk_confidence: medium
 ---
@@ -25,4 +29,24 @@ The generated container registers `FormGeneratorDrupal::validateWithSchema()` th
 
 `FormValidatorDrupal::validateWithSchema()` checks JSON encodability before `ArrayToStdClass` conversion. Encoding failure sets a container error and returns, so invalid UTF-8, recursion or non-finite values cannot become a valid-looking empty object. Preserve `ArrayToStdClass`'s public fallback of an empty `stdClass` on JSON failure; rejection belongs in the validator (`src/Drupal/FormValidatorDrupal.php:31`; `src/ArrayToStdClass.php:20`; `tests/src/Drupal/FormValidatorDrupalTest.php:371`). Empty converted data becomes `[]` if the schema allows an array, otherwise an empty object, before validation with `CHECK_MODE_TYPE_CAST`.
 
-`buildMappingsElementPaths()` maps JSON pointers to relative form array parents, skipping `removable_element` and the `remove_one`/`add_more` buttons. Mapped errors go on their elements with the title and constraint suffix. Unmapped errors stay plain strings, are joined once, then escaped once by the container's `TranslatableMarkup` `@full_message` placeholder. Pre-rendering or pre-escaping each error would double-escape it (`src/Drupal/FormValidatorDrupal.php:54`, `:95`, `:200`; `tests/src/Drupal/FormValidatorDrupalTest.php:344`).
+`buildMappingsElementPaths()` maps JSON pointers to relative form array parents, skipping `removable_element` and the `remove_one`/`add_more` buttons. Cleaned list values use compact ordinal pointers even when stored form deltas have removal gaps. The mapper counts actual `removable_element` children in order while retaining each child's real `#array_parents`, so an error for item ordinal 1 reaches the second remaining widget. See `tests/src/Kernel/ValidationPlacementTest.php`. Mapped errors go on their elements with the title and constraint suffix. Unmapped errors stay plain strings, are joined once, then escaped once by the container's `TranslatableMarkup` `@full_message` placeholder. Pre-rendering or pre-escaping each error would double-escape it (`src/Drupal/FormValidatorDrupal.php:54`, `:95`, `:200`; `tests/src/Drupal/FormValidatorDrupalTest.php:344`).
+
+Generation, submission validation and optional-blank refinement share `SchemaReferenceResolver::createFactory()`. Unsupported references become a container error without retrieving their targets. The resolver checks schema branches before blank omission can bypass them; see the related reference policy.
+
+<!-- kk:related:start -->
+# Related
+
+- Related: [practice-enum-options-assign-keys-directly](practice-enum-options-assign-keys-directly.md)
+- Related: [practice-empty-string-to-null-only-when-unholdable](practice-empty-string-to-null-only-when-unholdable.md)
+- Related: [practice-keep-elements-in-supported-list](practice-keep-elements-in-supported-list.md)
+- Related: [practice-preserve-unrepresentable-numbers-and-object-shape](practice-preserve-unrepresentable-numbers-and-object-shape.md)
+- Related: [map-multivalue-array-widget](map-multivalue-array-widget.md)
+- Related: [practice-restrict-schema-reference-retrieval](practice-restrict-schema-reference-retrieval.md)
+- Related: [practice-keep-empty-arrays-under-named-keys](practice-keep-empty-arrays-under-named-keys.md)
+<!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [src/Drupal/FormValidatorDrupal.php](../../../src/Drupal/FormValidatorDrupal.php)
+<!-- kk:citations:end -->

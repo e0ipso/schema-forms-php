@@ -2,16 +2,19 @@
 type: practice
 title: 'Run composer test: GrumPHP runs tests, Drupal phpcs and code rules'
 description: >-
-  composer test runs GrumPHP with PHPUnit 11.5 and strict Composer validation; CI separately enforces the coverage floor.
+  composer test runs GrumPHP with PHPUnit 11.5 and strict Composer validation;
+  CI separately enforces the coverage floor.
 tags:
   - tooling
   - testing
   - coding-standards
 kk_schema_version: 3
 kk_id: practice-run-composer-test-grumphp
-kk_derived_from: []
+kk_derived_from:
+  - README.md
 kk_relates_to:
   - map-submission-validation-pipeline
+  - practice-conventional-commits-and-branches
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -22,3 +25,18 @@ The project requires PHPUnit `^11.5`; tests are autoloaded under `SchemaForms\Te
 For coverage with Xdebug, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes `build/logs/clover.xml`. A local `php vendor/bin/phpunit --no-coverage` run exercises tests without a driver but does not verify the coverage gate. CI runs the Composer suite with Xdebug, then `php tests/coverage-checker.php` and `php scripts/check-coverage.php` (`phpunit.xml:8`; `.github/workflows/php.yml:51`).
 
 The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts/check-coverage.php`. The checker reads project statement totals, compares the unrounded ratio, and rejects missing, malformed, empty or inconsistent reports; it also accepts one explicit Clover path. To raise the floor, measure the complete suite with a driver, increase the constant to an attainable floor, and update boundary fixtures in `tests/coverage-checker.php`. Run those dependency-free fixtures with `php tests/coverage-checker.php` (`scripts/check-coverage.php:10`; `README.md:229`).
+
+Task filters skip checks when no matching files are present. The pre-commit hook checks staged files, while `composer test` runs over tracked files. `git_commit_message` runs only in the commit-msg hook. Keep this trigger distinction in README instructions; a green Composer run does not validate a proposed commit message.
+
+<!-- kk:related:start -->
+# Related
+
+- Related: [map-submission-validation-pipeline](map-submission-validation-pipeline.md)
+- Related: [practice-conventional-commits-and-branches](practice-conventional-commits-and-branches.md)
+<!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [README.md](../../../README.md)
+<!-- kk:citations:end -->

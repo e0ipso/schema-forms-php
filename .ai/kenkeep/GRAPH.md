@@ -1,11 +1,11 @@
 ---
 schema_version: 3
-nodes_hash: 'sha256:4e65db5046663e411815cd2ae415c6214a6c31ca63e1dd36b793cb1ba70c471e'
-node_count: 13
+nodes_hash: 'sha256:d88243cb2f7123813280c91304e496d2310dc177342a80a713880930ecc6f23a'
+node_count: 14
 ---
 # kenkeep Graph
 
-Total nodes: 13
+Total nodes: 14
 
 ## map-form-generator-drupal
 
@@ -13,8 +13,8 @@ Total nodes: 13
 - **title:** FormGeneratorDrupal: JSON Schema to Drupal Form API
 - **path:** map-form-generator-drupal.md
 - **tags:** drupal, json-schema, form-api
-- **relates_to:** map-submission-validation-pipeline, map-multivalue-array-widget, practice-keep-elements-in-supported-list
-- **derived_from:** README.md
+- **relates_to:** map-submission-validation-pipeline, map-multivalue-array-widget, practice-keep-elements-in-supported-list, practice-preserve-unrepresentable-numbers-and-object-shape
+- **derived_from:** README.md, src/Drupal/FormGeneratorDrupal.php
 
 ## map-multivalue-array-widget
 
@@ -22,6 +22,8 @@ Total nodes: 13
 - **title:** Multivalue array widget and its form-state storage
 - **path:** map-multivalue-array-widget.md
 - **tags:** drupal, form-api, arrays
+- **relates_to:** map-submission-validation-pipeline, map-form-generator-drupal
+- **derived_from:** src/Drupal/FormGeneratorDrupal.php
 
 ## map-schema-type-element-mapping
 
@@ -30,7 +32,7 @@ Total nodes: 13
 - **path:** map-schema-type-element-mapping.md
 - **tags:** drupal, json-schema, form-api
 - **relates_to:** practice-keep-elements-in-supported-list, practice-enum-options-assign-keys-directly
-- **derived_from:** README.md
+- **derived_from:** README.md, src/Drupal/FormGeneratorDrupal.php
 
 ## map-submission-validation-pipeline
 
@@ -38,7 +40,8 @@ Total nodes: 13
 - **title:** Submission validation: clean, type-cast, validate, map errors
 - **path:** map-submission-validation-pipeline.md
 - **tags:** validation, drupal, json-schema
-- **relates_to:** practice-enum-options-assign-keys-directly, practice-empty-string-to-null-only-when-unholdable, practice-keep-elements-in-supported-list, practice-preserve-unrepresentable-numbers-and-object-shape, map-multivalue-array-widget
+- **relates_to:** practice-enum-options-assign-keys-directly, practice-empty-string-to-null-only-when-unholdable, practice-keep-elements-in-supported-list, practice-preserve-unrepresentable-numbers-and-object-shape, map-multivalue-array-widget, practice-restrict-schema-reference-retrieval, practice-keep-empty-arrays-under-named-keys
+- **derived_from:** src/Drupal/FormValidatorDrupal.php
 
 ## map-ui-schema-controls
 
@@ -55,6 +58,8 @@ Total nodes: 13
 - **title:** Use Conventional Commits and type/kebab branch names
 - **path:** practice-conventional-commits-and-branches.md
 - **tags:** git, release, conventions
+- **relates_to:** practice-run-composer-test-grumphp
+- **derived_from:** grumphp.yml
 
 ## practice-empty-string-to-null-only-when-unholdable
 
@@ -71,6 +76,7 @@ Total nodes: 13
 - **path:** practice-enum-options-assign-keys-directly.md
 - **tags:** drupal, enum, gotcha
 - **relates_to:** map-submission-validation-pipeline, practice-preserve-unrepresentable-numbers-and-object-shape
+- **derived_from:** src/Drupal/FormGeneratorDrupal.php
 
 ## practice-keep-elements-in-supported-list
 
@@ -95,13 +101,22 @@ Total nodes: 13
 - **tags:** type-casting, validation, gotcha
 - **relates_to:** practice-empty-string-to-null-only-when-unholdable, map-submission-validation-pipeline
 
+## practice-restrict-schema-reference-retrieval
+
+- **kind:** practice
+- **title:** Keep schema references inside registered documents
+- **path:** practice-restrict-schema-reference-retrieval.md
+- **tags:** json-schema, validation, security, gotcha
+- **relates_to:** map-form-generator-drupal, map-submission-validation-pipeline, practice-support-both-json-schema-majors
+
 ## practice-run-composer-test-grumphp
 
 - **kind:** practice
 - **title:** Run composer test: GrumPHP runs tests, Drupal phpcs and code rules
 - **path:** practice-run-composer-test-grumphp.md
 - **tags:** tooling, testing, coding-standards
-- **relates_to:** map-submission-validation-pipeline
+- **relates_to:** map-submission-validation-pipeline, practice-conventional-commits-and-branches
+- **derived_from:** README.md
 
 ## practice-support-both-json-schema-majors
 
@@ -109,3 +124,5 @@ Total nodes: 13
 - **title:** Support justinrainbow/json-schema 5.2 and 6.3 side by side
 - **path:** practice-support-both-json-schema-majors.md
 - **tags:** dependencies, json-schema, validation
+- **relates_to:** practice-restrict-schema-reference-retrieval
+- **derived_from:** src/SchemaReferenceResolver.php

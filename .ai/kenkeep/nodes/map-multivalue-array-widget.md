@@ -10,8 +10,11 @@ tags:
   - arrays
 kk_schema_version: 3
 kk_id: map-multivalue-array-widget
-kk_derived_from: []
-kk_relates_to: []
+kk_derived_from:
+  - src/Drupal/FormGeneratorDrupal.php
+kk_relates_to:
+  - map-submission-validation-pipeline
+  - map-form-generator-drupal
 kk_depends_on: []
 kk_confidence: medium
 ---
@@ -22,3 +25,20 @@ The item list lives in form state storage at `['prop_storage', '#parents', ...$p
 `multiValueAfterBuild()` cleans the submitted value with `UserInputCleaner` while input is processed and records the element's `#array_parents`.
 
 When changing this, verify `UserInputCleaner` and `FormValidatorDrupal`. They match the literal keys `removable_element`, `remove_one` and `add_more`, and `cleanRemoveButton()` only unwraps items whose `remove_one` value is a `MarkupInterface`.
+
+`#max_delta` is the last actual item delta, or `NULL` for an empty list. `addMoreAjax()` decorates that existing item only; the empty guard prevents a phantom item. Removing items leaves stored delta gaps, so item count is not the last delta.
+
+The details `#process` list preserves `Details::processGroup()` and `Details::processAjaxForm()` before `multiValueProcess()`. That callback sets the Append button's `#limit_validation_errors` from the widget's final `#parents`, including any parent form key. Each item obtains one sanitized unique ID from `Html::getUniqueId()`, shared by its HTML wrapper, `#wrapper_id` metadata and remove button AJAX target. Keep these values identical; recomputing a unique ID produces a different target.
+
+<!-- kk:related:start -->
+# Related
+
+- Related: [map-submission-validation-pipeline](map-submission-validation-pipeline.md)
+- Related: [map-form-generator-drupal](map-form-generator-drupal.md)
+<!-- kk:related:end -->
+
+<!-- kk:citations:start -->
+# Citations
+
+[1] [src/Drupal/FormGeneratorDrupal.php](../../../src/Drupal/FormGeneratorDrupal.php)
+<!-- kk:citations:end -->
