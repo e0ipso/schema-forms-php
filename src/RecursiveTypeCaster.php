@@ -195,10 +195,24 @@ final class RecursiveTypeCaster {
       return TRUE;
     }
     if (is_string($input)) {
-      // This conversion is guaranteed because of the is_numeric check above.
-      $input = strpos($input, '.') === FALSE
+      $number = (float) $input;
+      if (!is_finite($number)) {
+        return FALSE;
+      }
+      $cast_to_integer = strpos($input, '.') === FALSE;
+      if ($cast_to_integer) {
+        if ($number < PHP_INT_MIN || $number > PHP_INT_MAX) {
+          return FALSE;
+        }
+        // Float rounding can hide overflow at either integer boundary.
+        $at_boundary = $number === (float) PHP_INT_MIN || $number === (float) PHP_INT_MAX;
+        if ($at_boundary && filter_var($input, FILTER_VALIDATE_INT) === FALSE) {
+          return FALSE;
+        }
+      }
+      $input = $cast_to_integer
         ? (int) $input
-        : (float) $input;
+        : $number;
       return TRUE;
     }
     return FALSE;
