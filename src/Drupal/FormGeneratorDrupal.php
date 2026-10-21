@@ -4,10 +4,12 @@ namespace SchemaForms\Drupal;
 
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Component\Utility\Xss;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element\Checkboxes;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Constraints\Factory;
@@ -437,7 +439,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $type = $this->guessSchemaType($element, $ui_schema_data);
     $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
     $form_element = [
-      '#title' => $title,
+      '#title' => Markup::create(Xss::filter($title)),
       '#type' => $type,
       '#prop_name' => $machine_name,
     ];
@@ -741,7 +743,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       // before it checks the enumeration. A schema that lists BOTH null and
       // "" collapses to one option, which no keyed array can avoid.
       $key = $member ?? '';
-      $options[$key] = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
+      $label = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
+      $options[$key] = Markup::create(Xss::filter($label));
     }
     return $options;
   }

@@ -3,6 +3,7 @@
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Component\Utility\Html;
+use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -67,7 +68,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","default":"schema default"}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'textfield',
             '#default_value' => 'schema default',
             '#required' => FALSE,
@@ -83,7 +84,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'textfield',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -98,7 +99,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","required":["bar"],"properties":{"foo":{"type":"string","title":"The Big Foo","format":"email"},"bar":{"type":"number","description":"It is just a bar"}}}',
         [
           'foo' => [
-            '#title' => 'The Big Foo',
+            '#title' => Markup::create('The Big Foo'),
             '#type' => 'email',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -107,7 +108,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#prop_parents' => ['foo'],
           ],
           'bar' => [
-            '#title' => 'Bar',
+            '#title' => Markup::create('Bar'),
             // phpcs:ignore
             '#description' => 'It is just a bar',
             '#type' => 'number',
@@ -124,7 +125,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"integer","description":"How many"}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             // phpcs:ignore
             '#description' => 'How many',
             // Drupal has no 'integer' element, so an integer is a number that
@@ -146,7 +147,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"null"}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'item',
             '#input' => FALSE,
             '#markup' => new TranslatableMarkup(
@@ -166,7 +167,7 @@ class FormGeneratorDrupalTest extends TestCase {
         [
           'foo' => [
             '#markup' => 'The Big Foo',
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#input' => FALSE,
             '#schema_fixed_value' => 'The Big Foo',
             '#prop_name' => 'foo',
@@ -179,7 +180,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"a-foo":{"type":"boolean"}}}',
         [
           'a-foo' => [
-            '#title' => 'A Foo',
+            '#title' => Markup::create('A Foo'),
             '#type' => 'checkbox',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -194,10 +195,10 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"array","items":{"type":"string","enum":["lor-em","ipsum"]}}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
             '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
-            '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#options' => ['lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -211,9 +212,9 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","enum":["lor-em","ipsum"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => ['lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#options' => ['lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -230,9 +231,9 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","enum":["10","12","15","20"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => [10 => '10', 12 => '12', 15 => '15', 20 => '20'],
+            '#options' => [10 => Markup::create('10'), 12 => Markup::create('12'), 15 => Markup::create('15'), 20 => Markup::create('20')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -249,9 +250,9 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":["string","null"],"enum":[null,"lor-em","ipsum"]}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => ['' => '', 'lor-em' => 'Lor Em', 'ipsum' => 'Ipsum'],
+            '#options' => ['' => Markup::create(''), 'lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -268,10 +269,10 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"array","items":{"type":["string","null"],"enum":[null,"lor-em"]}}}}',
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
             '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
-            '#options' => ['' => '', 'lor-em' => 'Lor Em'],
+            '#options' => ['' => Markup::create(''), 'lor-em' => Markup::create('Lor Em')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -323,7 +324,7 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   public static function dataProviderFormGenerationWithUi(): array {
     $multivalue = [
-      '#title' => 'Labels',
+      '#title' => Markup::create('Labels'),
       '#type' => 'details',
       '#prop_name' => 'tag_labels',
       '#default_value' => ['first', 'second'],
@@ -351,7 +352,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '#attributes' => ['style' => 'position: relative;'],
         'removable_element' => [
           '#title' => new TranslatableMarkup('@title (value @number)', [
-            '@title' => 'Labels',
+            '@title' => Markup::create('Labels'),
             '@number' => $delta + 1,
           ]),
           '#title_display' => 'invisible',
@@ -417,7 +418,7 @@ class FormGeneratorDrupalTest extends TestCase {
         ],
         [
           'address' => [
-            '#title' => 'Postal address',
+            '#title' => Markup::create('Postal address'),
             '#type' => 'details',
             // SCHE-0039 will pass this default to the street control too.
             '#default_value' => (object) ['street' => 'schema street'],
@@ -426,7 +427,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#open' => TRUE,
             // A nested required list currently adds no #required key.
             'street' => [
-              '#title' => 'Street address',
+              '#title' => Markup::create('Street address'),
               '#type' => 'textfield',
               '#prop_name' => 'street',
               '#description' => 'Include the house number',
@@ -462,7 +463,7 @@ class FormGeneratorDrupalTest extends TestCase {
         ],
         [
           'disabled' => [
-            '#title' => 'Disabled',
+            '#title' => Markup::create('Disabled'),
             '#type' => 'textfield',
             '#required' => FALSE,
             '#disabled' => TRUE,
@@ -471,7 +472,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#prop_parents' => ['disabled'],
           ],
           'invisible' => [
-            '#title' => 'Invisible',
+            '#title' => Markup::create('Invisible'),
             '#type' => 'textfield',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -487,7 +488,7 @@ class FormGeneratorDrupalTest extends TestCase {
         [],
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'textfield',
             '#default_value' => 'saved value',
             '#required' => FALSE,
@@ -512,7 +513,7 @@ class FormGeneratorDrupalTest extends TestCase {
         ],
         [
           'foo' => [
-            '#title' => 'A title',
+            '#title' => Markup::create('A title'),
             '#type' => 'textfield',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -539,7 +540,7 @@ class FormGeneratorDrupalTest extends TestCase {
         ],
         [
           'foo' => [
-            '#title' => 'Foo',
+            '#title' => Markup::create('Foo'),
             '#type' => 'hidden',
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -548,14 +549,14 @@ class FormGeneratorDrupalTest extends TestCase {
             '#prop_parents' => ['foo'],
           ],
           'bar' => [
-            '#title' => 'Bar',
+            '#title' => Markup::create('Bar'),
             '#type' => 'select',
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
             '#options' => [
-              'uuid1' => 'My Super Option #1',
-              'uuid2' => 'Uuid2',
+              'uuid1' => Markup::create('My Super Option #1'),
+              'uuid2' => Markup::create('Uuid2'),
             ],
             '#prop_name' => 'bar',
             '#prop_parents' => ['bar'],
