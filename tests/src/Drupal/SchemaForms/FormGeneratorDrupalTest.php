@@ -2,6 +2,7 @@
 
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
+use Drupal\Component\Utility\Html;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -62,6 +63,22 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   public static function dataProviderFormGeneration() {
     return [
+      'schema default without current input' => [
+        '{"type":"object","properties":{"foo":{"type":"string","default":"schema default"}}}',
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'textfield',
+            '#default_value' => 'schema default',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
       [
         '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',
         [
@@ -276,15 +293,21 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The JSON string containing the UI schema for the form.
    * @param array $expected_form
    *   The expected form as in Drupal's Form API.
+   * @param array $current_input
+   *   Saved values to prefill the generated controls.
    */
   #[DataProvider('dataProviderFormGenerationWithUi')]
-  public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form) {
+  public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form, array $current_input = []) {
+    Html::resetSeenIds();
     $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
     $expected_form['#tree'] = TRUE;
     $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
-    $context = new Context(['ui_hints' => $ui_schema]);
+    $context = new Context([
+      'ui_hints' => $ui_schema,
+      'current_input' => $current_input,
+    ]);
     $actual_form = $this->sut->transform($data, $context);
     $this->assertEquals(
       $expected_form,
@@ -299,7 +322,184 @@ class FormGeneratorDrupalTest extends TestCase {
    *   The data.
    */
   public static function dataProviderFormGenerationWithUi(): array {
+    $multivalue = [
+      '#title' => 'Labels',
+      '#type' => 'details',
+      '#prop_name' => 'tag_labels',
+      '#default_value' => ['first', 'second'],
+      '#description' => 'Add useful labels',
+      '#placeholder' => 'A label',
+      '#prop_parents' => ['tag_labels'],
+      '#open' => TRUE,
+      '#after_build' => [[FormGeneratorDrupal::class, 'multiValueAfterBuild']],
+      '#cardinality' => -1,
+      // SCHE-0031 will change the count to the last item's index.
+      '#max_delta' => 2,
+      '#prefix' => '<div id="tag-labels-add-more-wrapper">',
+      '#suffix' => '</div>',
+      '#disabled' => FALSE,
+      '#visible' => TRUE,
+      '#required' => FALSE,
+    ];
+    foreach (['first', 'second'] as $delta => $value) {
+      $multivalue[$delta] = [
+        '#type' => 'container',
+        // SCHE-0033 will sanitize these item IDs like the outer wrapper ID.
+        '#prefix' => '<div id="tag_labels-' . $delta . '-container">',
+        '#wrapper_id' => 'tag_labels-' . $delta . '-container',
+        '#suffix' => '</div>',
+        '#attributes' => ['style' => 'position: relative;'],
+        'removable_element' => [
+          '#title' => new TranslatableMarkup('@title (value @number)', [
+            '@title' => 'Labels',
+            '@number' => $delta + 1,
+          ]),
+          '#title_display' => 'invisible',
+          '#description' => '',
+          '#type' => 'textfield',
+          '#prop_name' => (string) $delta,
+          '#default_value' => $value,
+          '#placeholder' => 'A label',
+          '#prop_parents' => ['tag_labels', $delta],
+          '#disabled' => FALSE,
+          '#visible' => TRUE,
+        ],
+        'remove_one' => [
+          '#delta' => $delta,
+          '#type' => 'submit',
+          '#name' => 'tag_labels-' . $delta . '-remove',
+          '#value' => new TranslatableMarkup('⨯'),
+          '#validate' => [],
+          '#prop_parents' => ['tag_labels', $delta],
+          '#attributes' => [
+            'class' => ['field-remove-one-submit'],
+            'style' => 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;',
+            'title' => new TranslatableMarkup('Remove item'),
+          ],
+          '#limit_validation_errors' => [],
+          '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],
+          '#ajax' => [
+            'callback' => [FormGeneratorDrupal::class, 'removeOneAjax'],
+            'wrapper' => 'tag_labels-' . $delta . '-container',
+            'effect' => 'fade',
+          ],
+          '#weight' => 101,
+        ],
+      ];
+    }
+    $multivalue['add_more'] = [
+      '#type' => 'submit',
+      '#name' => 'tag_labels_add_more',
+      '#value' => new TranslatableMarkup('Append an item'),
+      '#attributes' => ['class' => ['field-add-more-submit']],
+      // SCHE-0032 will remove the duplicated property from this path.
+      '#limit_validation_errors' => [['tag_labels', 'tag_labels']],
+      '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
+      '#ajax' => [
+        'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],
+        'wrapper' => 'tag-labels-add-more-wrapper',
+        'effect' => 'fade',
+      ],
+    ];
+
     return [
+      'nested hints and wrapper-only object default' => [
+        '{"type":"object","properties":{"address":{"type":"object","required":["street"],"default":{"street":"schema street"},"properties":{"street":{"type":"string"}}}}}',
+        [
+          'address' => [
+            'ui:title' => 'Postal address',
+            'street' => [
+              'ui:title' => 'Street address',
+              'ui:help' => 'Include the house number',
+              'ui:placeholder' => '12 Main Street',
+            ],
+          ],
+        ],
+        [
+          'address' => [
+            '#title' => 'Postal address',
+            '#type' => 'details',
+            // SCHE-0039 will pass this default to the street control too.
+            '#default_value' => (object) ['street' => 'schema street'],
+            '#prop_name' => 'address',
+            '#prop_parents' => ['address'],
+            '#open' => TRUE,
+            // A nested required list currently adds no #required key.
+            'street' => [
+              '#title' => 'Street address',
+              '#type' => 'textfield',
+              '#prop_name' => 'street',
+              '#description' => 'Include the house number',
+              '#placeholder' => '12 Main Street',
+              '#prop_parents' => ['address', 'street'],
+              '#disabled' => FALSE,
+              '#visible' => TRUE,
+            ],
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#required' => FALSE,
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      'two saved multivalue items with inherited hints' => [
+        '{"type":"object","properties":{"tag_labels":{"type":"array","default":["schema first","schema second"],"items":{"type":"string"}}}}',
+        [
+          'tag_labels' => [
+            'ui:title' => 'Labels',
+            'ui:help' => 'Add useful labels',
+            'ui:placeholder' => 'A label',
+          ],
+        ],
+        ['tag_labels' => $multivalue, '#type' => 'container'],
+        ['tag_labels' => ['first', 'second']],
+      ],
+      'disabled and invisible controls' => [
+        '{"type":"object","properties":{"disabled":{"type":"string"},"invisible":{"type":"string"}}}',
+        [
+          'disabled' => ['ui:enabled' => 0],
+          'invisible' => ['ui:visible' => 0],
+        ],
+        [
+          'disabled' => [
+            '#title' => 'Disabled',
+            '#type' => 'textfield',
+            '#required' => FALSE,
+            '#disabled' => TRUE,
+            '#visible' => TRUE,
+            '#prop_name' => 'disabled',
+            '#prop_parents' => ['disabled'],
+          ],
+          'invisible' => [
+            '#title' => 'Invisible',
+            '#type' => 'textfield',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => FALSE,
+            '#prop_name' => 'invisible',
+            '#prop_parents' => ['invisible'],
+          ],
+          '#type' => 'container',
+        ],
+      ],
+      'current input overrides schema default' => [
+        '{"type":"object","properties":{"foo":{"type":"string","default":"schema default"}}}',
+        [],
+        [
+          'foo' => [
+            '#title' => 'Foo',
+            '#type' => 'textfield',
+            '#default_value' => 'saved value',
+            '#required' => FALSE,
+            '#disabled' => FALSE,
+            '#visible' => TRUE,
+            '#prop_name' => 'foo',
+            '#prop_parents' => ['foo'],
+          ],
+          '#type' => 'container',
+        ],
+        ['foo' => 'saved value'],
+      ],
       [
         '{"type":"object","properties":{"foo":{"type":["string","null"]}}}',
         [
