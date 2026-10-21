@@ -12,6 +12,7 @@ kk_schema_version: 3
 kk_id: practice-support-both-json-schema-majors
 kk_derived_from:
   - src/SchemaReferenceResolver.php
+  - scripts/test-json-schema-5.sh
 kk_relates_to:
   - practice-restrict-schema-reference-retrieval
 kk_depends_on: []
@@ -23,7 +24,7 @@ The known difference is in `$error['constraint']`. In 5.x it is the constraint n
 
 When reading any other field of a validator error or using a validator API, check that it exists in both majors.
 
-`SchemaReferenceResolver::createFactory()` registers both `internal://schema-with-refs/` and its public `SCHEMA_URI`, `internal:/schema-with-refs`. The double-slash alias keeps local reference expansion in memory on older 5.x resolvers, which otherwise treat the single-slash URI as a local file base. Preserve both registrations when changing the restricted resolver. Use an isolated compatible runtime to verify 5.x when the development graph cannot resolve it.
+`SchemaReferenceResolver::createFactory()` registers both `internal://schema-with-refs/` and its public `SCHEMA_URI`, `internal:/schema-with-refs`. The double-slash alias keeps local reference expansion in memory on older 5.x resolvers, which otherwise treat the single-slash URI as a local file base. Preserve both registrations when changing the restricted resolver. Verify 5.x with `bash scripts/test-json-schema-5.sh`, documented in the README testing section. It installs a no-dev runtime pinned to 5.3.4 in a disposable directory under `/var/tmp` (`SCHEMA_COMPAT_TMPDIR` overrides it), and `scripts/json-schema-5-bootstrap.php` becomes the PHPUnit bootstrap, so only the test process loads that runtime. It fails unless the installed version is exactly 5.3.4, `JsonSchema\` and `Shaper\` classes load from the isolated runtime with no fallback to the 6.x toolchain, and `SchemaForms\` classes load from this checkout. Reports and caches go to the workspace. The runner then runs the normal GrumPHP checks against generated copies of `phpunit.xml` and `grumphp.yml`, returns the failing exit status, and keeps the workspace on failure or with `SCHEMA_COMPAT_KEEP=1`. It leaves the development `vendor/` tree, the 6.x lock and the public constraint alone. `SCHEMA_COMPAT_PHPUNIT_CONFIG` and `SCHEMA_COMPAT_GRUMPHP_CONFIG` can narrow the checks for diagnosis; a run that uses them does not verify compatibility.
 
 <!-- kk:related:start -->
 # Related
@@ -35,4 +36,5 @@ When reading any other field of a validator error or using a validator API, chec
 # Citations
 
 [1] [src/SchemaReferenceResolver.php](../../../src/SchemaReferenceResolver.php)
+[2] [scripts/test-json-schema-5.sh](../../../scripts/test-json-schema-5.sh)
 <!-- kk:citations:end -->

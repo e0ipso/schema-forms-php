@@ -41,9 +41,25 @@ final class RecursiveTypeCaster {
    *   The same data with refined types.
    */
   private static function refineValue($data, object $schema, Factory $factory) {
-    $types = $schema->type;
+    if (!isset($schema->type) && !empty($schema->enum) && (is_string($data) || is_int($data))) {
+      $members = [];
+      foreach ($schema->enum as $member) {
+        if (!is_scalar($member) && $member !== NULL) {
+          continue;
+        }
+        // Match rendering keys; the last member wins when keys collide.
+        $key = is_float($member) ? (string) $member : ($member ?? '');
+        $members[$key] = $member;
+      }
+      return array_key_exists($data, $members) ? $members[$data] : $data;
+    }
+    $types = $schema->type ?? [];
     $types = is_array($types) ? $types : [$types];
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
+      // Missing or list-form items give no single item schema to cast against.
+      if (!is_object($schema->items ?? NULL)) {
+        return $data;
+      }
       return array_map(static fn($item) => static::refineValue($item, $schema->items, $factory), $data);
     }
     if ((is_array($data) || is_object($data)) && in_array('object', $types, TRUE)) {

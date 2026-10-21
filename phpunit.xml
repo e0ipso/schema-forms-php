@@ -11,7 +11,9 @@
   <testsuite name="SchemaForms">
     <directory suffix="Test.php">tests</directory>
   </testsuite>
-  <logging/>
+  <logging>
+    <junit outputFile="build/logs/junit.xml"/>
+  </logging>
   <source>
     <include>
       <directory suffix=".php">src</directory>

@@ -3,6 +3,8 @@
 namespace SchemaForms\Tests;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Symfony\Component\Filesystem\Filesystem;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
@@ -115,6 +117,93 @@ final class RepositoryConfigurationTest extends TestCase {
     foreach (['package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'] as $file) {
       $this->assertFileDoesNotExist($this->root() . '/' . $file);
     }
+  }
+
+  /**
+   * SCHE-0064: the real shell runner preserves failures and cleans success.
+   *
+   * Disposable command stand-ins avoid installs and shared vendor mutations.
+   */
+  #[DataProvider('compatibilityExitProvider')]
+  public function testCompatibilityRunnerExitAndCleanup(string $failure, int $expected): void {
+    $directory = sys_get_temp_dir() . '/schema-runner-' . bin2hex(random_bytes(8));
+    mkdir($directory);
+    $php = $directory . '/php';
+    $composer = $directory . '/composer';
+    file_put_contents($php, <<<'SH'
+#!/usr/bin/env bash
+set -eu
+case "$1" in
+  */prepare-json-schema-5.php) mkdir -p "$2/runtime" ;;
+  */bootstrap.php) if [[ "$FIXTURE_FAILURE" == bootstrap ]]; then exit 24; fi ;;
+  */grumphp.phar) if [[ "$FIXTURE_FAILURE" == tests ]]; then exit 25; fi ;;
+esac
+SH);
+    file_put_contents($composer, <<<'SH'
+#!/usr/bin/env bash
+set -eu
+if [[ "$FIXTURE_FAILURE" == install && "$1" == install ]]; then exit 23; fi
+SH);
+    chmod($php, 0700);
+    chmod($composer, 0700);
+    try {
+      $process = new Process(['bash', $this->root() . '/scripts/test-json-schema-5.sh'], $this->root(), [
+        'PHP_BINARY' => $php,
+        'COMPOSER_BINARY' => $composer,
+        'SCHEMA_COMPAT_TMPDIR' => $directory,
+        'SCHEMA_COMPAT_KEEP' => '0',
+        'FIXTURE_FAILURE' => $failure,
+      ], timeout: 30);
+      $this->assertSame($expected, $process->run(), $process->getErrorOutput());
+      preg_match('/Compatibility workspace: (.+)/', $process->getOutput(), $match);
+      $this->assertCount(2, $match);
+      if ($expected === 0) {
+        $this->assertDirectoryDoesNotExist($match[1]);
+        return;
+      }
+      $this->assertDirectoryExists($match[1]);
+      $this->assertStringContainsString('(exit ' . $expected . ')', $process->getErrorOutput());
+    }
+    finally {
+      (new Filesystem())->remove($directory);
+    }
+  }
+
+  public static function compatibilityExitProvider(): array {
+    return ['success' => ['', 0], 'install failure' => ['install', 23], 'bootstrap failure' => ['bootstrap', 24], 'test failure' => ['tests', 25]];
+  }
+
+  /**
+   * SCHE-0064: reject wrong versions and classes loaded outside the runtime.
+   */
+  #[DataProvider('compatibilityGuardProvider')]
+  public function testCompatibilityBootstrapGuards(bool $wrong_version, string $message): void {
+    $directory = sys_get_temp_dir() . '/schema-bootstrap-' . bin2hex(random_bytes(8));
+    mkdir($directory);
+    try {
+      $prepare = new Process([PHP_BINARY, $this->root() . '/scripts/prepare-json-schema-5.php', $directory, $this->root() . '/phpunit.xml', $this->root() . '/grumphp.yml'], $this->root(), timeout: 30);
+      $this->assertSame(0, $prepare->run(), $prepare->getErrorOutput());
+      $manifest = json_decode(file_get_contents($directory . '/runtime/composer.json'), TRUE);
+      $this->assertSame('5.3.4', $manifest['require']['justinrainbow/json-schema']);
+      $this->assertArrayNotHasKey('require-dev', $manifest);
+      $this->assertArrayNotHasKey('autoload', $manifest);
+      mkdir($directory . '/runtime/vendor/composer', 0700, TRUE);
+      $installed = require $this->root() . '/vendor/composer/installed.php';
+      $installed['versions']['justinrainbow/json-schema']['version'] = $wrong_version ? '6.13.1.0' : '5.3.4.0';
+      $installed['versions']['justinrainbow/json-schema']['install_path'] = $directory . '/runtime';
+      file_put_contents($directory . '/runtime/vendor/composer/installed.php', '<?php return ' . var_export($installed, TRUE) . ';');
+      file_put_contents($directory . '/runtime/vendor/autoload.php', '<?php return require ' . var_export($this->root() . '/vendor/autoload.php', TRUE) . ';');
+      $bootstrap = new Process([PHP_BINARY, $directory . '/bootstrap.php'], $this->root(), timeout: 30);
+      $this->assertNotSame(0, $bootstrap->run());
+      $this->assertStringContainsString($message, $bootstrap->getOutput() . $bootstrap->getErrorOutput());
+    }
+    finally {
+      (new Filesystem())->remove($directory);
+    }
+  }
+
+  public static function compatibilityGuardProvider(): array {
+    return ['wrong version' => [TRUE, 'Expected isolated JSON Schema 5.3.4.'], 'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator']];
   }
 
 }

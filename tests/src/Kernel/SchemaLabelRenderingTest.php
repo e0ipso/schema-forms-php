@@ -101,4 +101,19 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
     ];
   }
 
+  /**
+   * SCHE-0038: a const-only schema renders exact escaped text.
+   */
+  public function testUntypedConstantEscapesExactText(): void {
+    $text = '<script>alert("x")</script>&';
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['const' => $text]]];
+    $result = $this->submitSchemaForm($schema, ['schema' => []], [], 'schema');
+    $form = $result->form;
+    $html = (string) $this->container->get('renderer')->renderInIsolation($form);
+    $this->assertStringContainsString('&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;', $html);
+    $this->assertStringNotContainsString('<script>', $html);
+    $this->assertSame($text, $result->values['schema']['fixed']);
+    $this->assertSame([], $result->errors);
+  }
+
 }

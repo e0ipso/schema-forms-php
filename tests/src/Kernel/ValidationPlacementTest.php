@@ -309,4 +309,88 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     ];
   }
 
+  /**
+   * SCHE-0037: special segments retain their actual Form API error paths.
+   */
+  #[DataProvider('specialPropertyProvider')]
+  public function testSpecialPropertyErrors(string $name, string $placement): void {
+    $leaf = (object) ['type' => 'string', 'minLength' => 3];
+    $property = $leaf;
+    $input = [$name => 'x'];
+    $saved = [];
+    $state = new FormState();
+    $path = ['schema', $name];
+    if ($placement === 'nested') {
+      $property = (object) ['type' => 'object', 'properties' => (object) [$name => $leaf]];
+      $input = [$name => [$name => 'x']];
+      $path[] = $name;
+    }
+    if ($placement === 'gapped') {
+      $property = (object) ['type' => 'array', 'items' => (object) ['type' => 'object', 'properties' => (object) [$name => $leaf]]];
+      $input = [$name => [2 => ['removable_element' => [$name => 'x']]]];
+      $saved = [$name => [2 => [$name => 'valid']]];
+      FormGeneratorDrupal::setPropFormState([$name], $name, $state, ['items_indices' => [2]]);
+      $path = [...$path, 2, 'removable_element', $name];
+    }
+    $schema = (object) ['type' => 'object', 'properties' => (object) [$name => $property]];
+    $result = $this->submitSchemaForm($schema, ['schema' => $input], [], 'schema', form_state: $state, current_input: $saved);
+    $this->assertSame([implode('][', $path)], array_keys($result->errors));
+    $this->assertStringContainsString('minLength', implode(' ', $result->errors));
+    $element = $result->form;
+    foreach ($path as $segment) {
+      $element = $element[$segment];
+    }
+    $this->assertSame($path, $element['#parents']);
+  }
+
+  public static function specialPropertyProvider(): array {
+    $cases = [];
+    foreach (['a/b', 'a~b', 'a%b', 'a~/b%'] as $name) {
+      foreach (['flat', 'nested', 'gapped'] as $placement) {
+        $cases[$name . ' ' . $placement] = [$name, $placement];
+      }
+    }
+    return $cases;
+  }
+
+  /**
+   * SCHE-0038/0066: real option keys round trip to the declared JSON values.
+   */
+  #[DataProvider('untypedEnumProvider')]
+  public function testUntypedEnumSubmission(array $enum, string $key, mixed $expected): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['choice' => (object) ['enum' => $enum]]];
+    $result = $this->submitSchemaForm($schema, ['schema' => ['choice' => $key]], [], 'schema');
+    $this->assertArrayHasKey($key, $result->form['schema']['choice']['#options']);
+    $this->assertSame([], $result->errors);
+    $this->assertSame($expected, $result->values['schema']['choice']);
+    $seen = $result->formState->get(GeneratedSchemaForm::VALIDATE_FORM_VALUES);
+    $this->assertSame($expected, $seen['schema']['choice']);
+  }
+
+  public static function untypedEnumProvider(): array {
+    return [
+      'boolean true' => [[FALSE, TRUE], '1', TRUE],
+      'boolean false' => [[FALSE, TRUE], '0', FALSE],
+      'integer zero' => [[0, 12], '0', 0],
+      'integer' => [[0, 12], '12', 12],
+      'fractional number' => [[0.5, 1.75], '1.75', 1.75],
+      'numeric string' => [['0', '12'], '12', '12'],
+      'string' => [['a', 'b'], 'b', 'b'],
+      'mixed boolean' => [['a', TRUE, 2.5], '1', TRUE],
+      'mixed number' => [['a', TRUE, 2.5], '2.5', 2.5],
+      'integer then string collision' => [[1, '1'], '1', '1'],
+      'string then integer collision' => [['1', 1], '1', 1],
+      'boolean then integer collision' => [[TRUE, 1], '1', 1],
+      'integer then boolean collision' => [[1, TRUE], '1', TRUE],
+      'false then string collision' => [[FALSE, '0'], '0', '0'],
+    ];
+  }
+
+  public function testUntypedEnumCheckboxZero(): void {
+    $schema = json_decode('{"type":"object","properties":{"choices":{"type":"array","items":{"enum":[false,12,"a"]}}}}');
+    $result = $this->submitSchemaForm($schema, ['schema' => ['choices' => [12 => '12', 0 => '0']]], [], 'schema');
+    $this->assertSame([], $result->errors);
+    $this->assertSame([FALSE, 12], $result->values['schema']['choices']);
+  }
+
 }
