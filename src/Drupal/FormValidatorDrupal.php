@@ -161,7 +161,9 @@ final class FormValidatorDrupal {
    */
   public static function typeCastRecursive(array $element, FormStateInterface $form_state, object $schema): void {
     $data = $form_state->getValue($element['#parents']);
+    static::markUntouchedSavedNulls($element, count($element['#parents']), $data);
     $data = UserInputCleaner::cleanUserInput($data);
+    $saved_null_paths = static::replacePlaceholders($data);
     try {
       $data = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
     }
@@ -170,7 +172,99 @@ final class FormValidatorDrupal {
       return;
     }
     static::supplyFixedValues($element, $data);
+    // A fixed sub-property must not turn a restored NULL back into an object.
+    foreach ($saved_null_paths as $path) {
+      NestedArray::setValue($data, $path, NULL, TRUE);
+    }
     $form_state->setValueForElement($element, $data);
+  }
+
+  /**
+   * Puts a placeholder where an untouched control holds a saved NULL.
+   *
+   * Multivalue widgets clean their own value while the form is built, which
+   * compacts item deltas, so their items are marked then. The walk therefore
+   * stops at each multivalue widget, after checking the widget itself.
+   *
+   * @param array $element
+   *   The element whose children are walked.
+   * @param int $root_depth
+   *   The number of #parents of the element that holds $data.
+   * @param mixed $data
+   *   The submitted value of that element, updated in place.
+   *
+   * @see \SchemaForms\Drupal\FormGeneratorDrupal::multiValueAfterBuild()
+   */
+  public static function markUntouchedSavedNulls(array $element, int $root_depth, &$data): void {
+    foreach (Element::children($element) as $key) {
+      $child = $element[$key];
+      if (!empty($child['#schema_saved_null']) && static::isUntouched($child)) {
+        $data = is_array($data) ? $data : [];
+        NestedArray::setValue($data, array_slice($child['#parents'], $root_depth), new SavedNull(), TRUE);
+        continue;
+      }
+      if (!array_key_exists('#max_delta', $child)) {
+        static::markUntouchedSavedNulls($child, $root_depth, $data);
+      }
+    }
+  }
+
+  /**
+   * Decides whether a control still submits what it showed for a saved NULL.
+   *
+   * A saved NULL renders as an unchecked checkbox, an empty selection, an empty
+   * text input or a list with no items. Buttons and fixed values do not count.
+   *
+   * @param array $element
+   *   The element.
+   *
+   * @return bool
+   *   TRUE when no control under the element holds a value.
+   */
+  private static function isUntouched(array $element): bool {
+    if (in_array($element['#type'] ?? '', ['submit', 'button'], TRUE) || array_key_exists('#schema_fixed_value', $element)) {
+      return TRUE;
+    }
+    if (!empty($element['#input'])) {
+      $value = $element['#value'] ?? NULL;
+      // An unchecked checkbox has integer 0; a checked one its return value.
+      return ($element['#type'] ?? '') === 'checkbox'
+        ? $value === 0
+        : in_array($value, ['', NULL, []], TRUE);
+    }
+    foreach (Element::children($element) as $key) {
+      if (!static::isUntouched($element[$key])) {
+        return FALSE;
+      }
+    }
+    return TRUE;
+  }
+
+  /**
+   * Replaces saved NULL placeholders with NULL.
+   *
+   * @param mixed $data
+   *   The cleaned submission, updated in place.
+   * @param array $path
+   *   The path of $data. This is an internal variable used for tracking.
+   *
+   * @return array
+   *   The paths of the restored NULL values.
+   */
+  private static function replacePlaceholders(&$data, array $path = []): array {
+    if ($data instanceof SavedNull) {
+      $data = NULL;
+      return [$path];
+    }
+    if (!is_array($data)) {
+      return [];
+    }
+    $paths = [];
+    foreach ($data as $key => &$value) {
+      $paths = [...$paths, ...static::replacePlaceholders($value, [...$path, $key])];
+    }
+    unset($value);
+    return $paths;
   }
 
   /**

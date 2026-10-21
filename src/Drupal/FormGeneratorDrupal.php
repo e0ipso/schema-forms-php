@@ -192,7 +192,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form element.
    */
   private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE, bool $has_current_input = FALSE): array {
-    $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input);
+    $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input, $has_current_input);
     $enabled = $parent_enabled && (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
     $form_element['#prop_parents'] = $prop_parents;
     if (property_exists($json_schema, 'const')) {
@@ -230,7 +230,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       };
     }
     if ($type === 'object') {
-      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled);
+      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled, $has_current_input);
     }
 
     $form_element['#disabled'] = !$enabled;
@@ -245,6 +245,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       if ($has_current_input || property_exists($json_schema, 'default')) {
         $form_element['#schema_fixed_value'] = $has_current_input ? $current_input : $json_schema->default;
       }
+      return $form_element;
+    }
+    // An editable control cannot show NULL, so an untouched one would submit
+    // a blank value instead. Record the saved NULL to restore it on submit.
+    if ($has_current_input && $current_input === NULL && in_array('null', (array) ($json_schema->type ?? []), TRUE)) {
+      $form_element['#schema_saved_null'] = TRUE;
     }
     return $form_element;
   }
@@ -281,6 +287,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if ($form_state->isProcessingInput()) {
       $element_parents = $element['#parents'];
       $data = $form_state->getValue($element_parents);
+      // Mark saved NULL items before cleaning compacts their deltas.
+      FormValidatorDrupal::markUntouchedSavedNulls($element, count($element_parents), $data);
       $clean_data = UserInputCleaner::cleanUserInput($data);
       $form_state->setValue($element_parents, $clean_data);
     }
@@ -489,11 +497,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The schema for the UI refinements.
    * @param mixed $current_input
    *   The current input.
+   * @param bool $has_current_input
+   *   Whether current input is available, including an explicit NULL.
    *
    * @return array
    *   The scaffolded form element.
    */
-  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, $current_input): array {
+  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, $current_input, bool $has_current_input): array {
     $type = $this->guessSchemaType($element, $ui_schema_data);
     $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
     $form_element = [
@@ -501,11 +511,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       '#type' => $type,
       '#prop_name' => $machine_name,
     ];
-    if (!is_null($element->default ?? NULL)) {
-      $form_element['#default_value'] = $element->default;
-    }
-    if (!is_null($current_input)) {
-      $form_element['#default_value'] = $current_input;
+    // Saved input wins over the default, and a saved NULL shows no value.
+    $default_value = $has_current_input ? $current_input : ($element->default ?? NULL);
+    if (!is_null($default_value)) {
+      $form_element['#default_value'] = $default_value;
     }
     $description = $ui_schema_data['ui:help'] ?? $element->description ?? NULL;
     if (!empty($description)) {
@@ -990,11 +999,15 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param bool $enabled
    *   Whether the nested element is enabled. Sub-properties of a disabled
    *   element are disabled too.
+   * @param bool $has_current_input
+   *   Whether current input is available, including an explicit NULL.
    *
    * @return array
    *   The form element.
    */
-  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input, bool $enabled): array {
+  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input, bool $enabled, bool $has_current_input): array {
+    // Inside a saved NULL, every sub-property is saved NULL too.
+    $saved_null = $has_current_input && $current_input === NULL;
     $properties = $json_schema->properties ?? [];
     if (!empty($properties)) {
       $form_element['#type'] = 'details';
@@ -1008,7 +1021,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           $form_state,
           $current_input[$sub_machine_name] ?? NULL,
           $enabled,
-          array_key_exists($sub_machine_name, $current_input ?? [])
+          $saved_null || array_key_exists($sub_machine_name, $current_input ?? [])
         );
       }
     }

@@ -162,7 +162,7 @@ The `Context` accepts three keys, all optional:
 
 - `ui_hints`: the UI schema, as an array keyed by property name.
 - `form_state`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
-- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the element's `#default_value` and wins over the schema's `default`.
+- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the element's `#default_value` and wins over the schema's `default`, and so does `null`. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
 
 ### How schema types become elements
 
