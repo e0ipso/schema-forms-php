@@ -222,7 +222,20 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 
 ## Development
 
-`composer test` runs GrumPHP. It runs PHPUnit, PHP_CodeSniffer with the Drupal and DrupalPractice standards, PHP lint, phpmnd, composer normalize, and YAML and JSON lint.
+`composer test` runs GrumPHP over the tracked files. The tasks in `grumphp.yml` are:
+
+- `git_branch_name`: checks the branch naming convention below.
+- `phpunit`: runs PHPUnit when PHP files are present.
+- `phpcs`: checks Drupal and DrupalPractice standards with two-space indentation. It checks `php`, `module`, `inc`, `install`, `test`, `profile` and `theme` files, excluding tests and dependency directories.
+- `phpmnd`: checks for magic numbers in `php` and `module` files.
+- `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
+- `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
+- `yamllint` and `jsonlint`: check YAML and JSON files.
+- `composer`: runs strict Composer validation, `composer validate --strict`, when `composer.json` or `composer.lock` is present.
+- `composer_normalize`: runs `composer normalize --dry-run` when `composer.json` is present.
+- `shell`: runs `composer audit --no-dev --locked` when JSON or lock files are present. It audits production dependencies in the lock file.
+
+Tasks with file filters skip when no matching files are present. The pre-commit hook uses staged files for these checks. The remaining task, `git_commit_message`, runs only in the commit-msg hook, not under `composer test`.
 
 Coverage uses class-level `#[CoversClass]` attributes so executed private helpers count toward their class. With Xdebug enabled, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes line coverage to `build/logs/clover.xml`. Run `php scripts/check-coverage.php` afterward, or pass a Clover path as its only argument. CI runs this check after `composer test` and fails on coverage below the floor or on a missing or invalid report.
 
@@ -230,4 +243,4 @@ The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts
 
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
 
-GrumPHP also installs git hooks that check commit messages and branch names. Commits follow Conventional Commits (`fix(drupal): ...`, with a subject of 50 characters or fewer). Branches are named `<type>/<kebab-case>`, for example `fix/enum-options`. semantic-release tags a release from the commit messages on every push to `master`.
+GrumPHP installs these git hooks locally. Commits follow Conventional Commits (`fix(drupal): ...`, with a subject of 50 characters or fewer). Branches are named `<type>/<kebab-case>`, for example `fix/enum-options`. semantic-release tags a release from the commit messages on every push to `master`.
