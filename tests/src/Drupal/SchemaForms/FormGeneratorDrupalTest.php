@@ -350,9 +350,8 @@ class FormGeneratorDrupalTest extends TestCase {
     foreach (['first', 'second'] as $delta => $value) {
       $multivalue[$delta] = [
         '#type' => 'container',
-        // SCHE-0033 will sanitize these item IDs like the outer wrapper ID.
-        '#prefix' => '<div id="tag_labels-' . $delta . '-container">',
-        '#wrapper_id' => 'tag_labels-' . $delta . '-container',
+        '#prefix' => '<div id="tag-labels-' . $delta . '-container">',
+        '#wrapper_id' => 'tag-labels-' . $delta . '-container',
         '#suffix' => '</div>',
         '#attributes' => ['style' => 'position: relative;'],
         'removable_element' => [
@@ -386,7 +385,7 @@ class FormGeneratorDrupalTest extends TestCase {
           '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],
           '#ajax' => [
             'callback' => [FormGeneratorDrupal::class, 'removeOneAjax'],
-            'wrapper' => 'tag_labels-' . $delta . '-container',
+            'wrapper' => 'tag-labels-' . $delta . '-container',
             'effect' => 'fade',
           ],
           '#weight' => 101,

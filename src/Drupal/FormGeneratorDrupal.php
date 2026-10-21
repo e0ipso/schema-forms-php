@@ -872,7 +872,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         array_key_exists($delta, $current_input ?? [])
       );
 
-      $container_id = sprintf('%s-%d-container', $id_prefix, $delta);
+      $container_id = Html::getUniqueId(sprintf('%s-%d-container', $id_prefix, $delta));
       $remove_name = sprintf('%s-%d-remove', $id_prefix, $delta);
       $form_element[$delta] = [
         '#type' => 'container',
