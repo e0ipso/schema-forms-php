@@ -155,7 +155,30 @@ final class FormValidatorDrupal {
     $data = $form_state->getValue($element['#parents']);
     $data = UserInputCleaner::cleanUserInput($data);
     $data = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    static::supplyFixedValues($element, $data);
     $form_state->setValueForElement($element, $data);
+  }
+
+  /**
+   * Supplies values for generated elements that collect no browser input.
+   *
+   * Fixed values are already JSON values. Insert them after cleaning and
+   * casting, so NULL is not dropped and constants keep their exact type.
+   *
+   * @param array $element
+   *   The generated element tree.
+   * @param mixed $data
+   *   The prepared submission, updated in place.
+   */
+  private static function supplyFixedValues(array $element, &$data): void {
+    if (array_key_exists('#schema_fixed_value', $element)) {
+      $data = $data ?? [];
+      NestedArray::setValue($data, $element['#prop_parents'], $element['#schema_fixed_value'], TRUE);
+      return;
+    }
+    foreach (Element::children($element) as $key) {
+      static::supplyFixedValues($element[$key], $data);
+    }
   }
 
   /**

@@ -153,7 +153,6 @@ class FormGeneratorDrupalTest extends TestCase {
               'This property cannot be edited: there is no form element for the %type type.',
               ['%type' => 'null']
             ),
-            '#required' => FALSE,
             '#disabled' => TRUE,
             '#visible' => TRUE,
             '#prop_name' => 'foo',
@@ -168,7 +167,8 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#markup' => 'The Big Foo',
             '#title' => 'Foo',
-            '#required' => FALSE,
+            '#input' => FALSE,
+            '#schema_fixed_value' => 'The Big Foo',
             '#prop_name' => 'foo',
             '#prop_parents' => ['foo'],
           ],

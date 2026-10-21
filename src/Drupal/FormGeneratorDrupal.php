@@ -69,7 +69,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     foreach ((array) $props as $key => $prop) {
       // If there is UI context, grab it and pass it along.
       $ui_schema_data = $ui_hints[$key] ?? [];
-      $element[$key] = $this->doTransformOneField($prop, $key, [$key], $ui_schema_data, $form_state, $current_input[$key] ?? NULL);
+      $element[$key] = $this->doTransformOneField($prop, $key, [$key], $ui_schema_data, $form_state, $current_input[$key] ?? NULL, TRUE, array_key_exists($key, $current_input));
     }
     return $this->addValidationRules($element, $context);
   }
@@ -154,17 +154,21 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param bool $parent_enabled
    *   FALSE when an ancestor element is disabled. A disabled ancestor disables
    *   this element whatever its own 'ui:enabled' says.
+   * @param bool $has_current_input
+   *   Whether current input is available, including an explicit NULL.
    *
    * @return array
    *   The form element.
    */
-  private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE): array {
+  private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE, bool $has_current_input = FALSE): array {
     $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input);
     $enabled = $parent_enabled && (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
     $form_element['#prop_parents'] = $prop_parents;
-    if (!empty($json_schema->const)) {
+    if (property_exists($json_schema, 'const')) {
       unset($form_element['#type']);
       $form_element['#markup'] = $json_schema->const;
+      $form_element['#input'] = FALSE;
+      $form_element['#schema_fixed_value'] = $json_schema->const;
       // Not much more to do with constants.
       return $form_element;
     }
@@ -195,6 +199,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $has_widget = !empty($ui_schema_data['ui:widget']);
     if (!$has_widget && !in_array($form_element['#type'] ?? '', self::SUPPORTED_ELEMENT_TYPES, TRUE)) {
       $form_element = $this->transformUnsupported($form_element, $type);
+      if ($has_current_input || property_exists($json_schema, 'default')) {
+        $form_element['#schema_fixed_value'] = $has_current_input ? $current_input : $json_schema->default;
+      }
     }
     return $form_element;
   }
@@ -521,6 +528,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       if (($key[0] ?? '') === '#') {
         continue;
       }
+      if (($element[$key]['#input'] ?? NULL) === FALSE) {
+        continue;
+      }
       $element[$key]['#required'] = in_array($key, $required_prop_names);
     }
     // Drupal runs #element_validate when the container sits under a key, but
@@ -622,7 +632,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // here is the empty string. That string is then type-cast and validated
     // against the property's schema like any other submission, so a property
     // that cannot be rendered would make the whole form unsavable. It has to
-    // stay out of the submitted values entirely.
+    // stay out of the browser's submitted values. Any saved value or schema
+    // default is supplied separately before schema validation.
     $form_element['#input'] = FALSE;
     $form_element['#markup'] = new TranslatableMarkup(
       'This property cannot be edited: there is no form element for the %type type.',
@@ -817,7 +828,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         $ui_schema_data,
         $form_state,
         $current_input[$delta] ?? NULL,
-        $enabled
+        $enabled,
+        array_key_exists($delta, $current_input ?? [])
       );
 
       $container_id = sprintf('%s-%d-container', $id_prefix, $delta);
@@ -906,7 +918,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           $ui_schema_data[$sub_machine_name] ?? [],
           $form_state,
           $current_input[$sub_machine_name] ?? NULL,
-          $enabled
+          $enabled,
+          array_key_exists($sub_machine_name, $current_input ?? [])
         );
       }
     }
