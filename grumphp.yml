@@ -4,7 +4,7 @@ grumphp:
   stop_on_failure: false
   ignore_unstaged_changes: false
   hide_circumvention_tip: false
-  process_timeout: 60
+  process_timeout: 300
   tasks:
     git_commit_message:
       enforce_capitalized_subject: false
