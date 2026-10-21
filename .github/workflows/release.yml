@@ -40,6 +40,7 @@ jobs:
           # semantic-release reads the full tag history to work out the next
           # version; a shallow clone hides it.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Tag a new release
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
