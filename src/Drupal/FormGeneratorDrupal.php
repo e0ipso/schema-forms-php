@@ -785,7 +785,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       // with CHECK_MODE_TYPE_CAST, which casts an absent or NULL value to ''
       // before it checks the enumeration. A schema that lists BOTH null and
       // "" collapses to one option, which no keyed array can avoid.
-      $key = $member ?? '';
+      // String keys preserve fractional values instead of truncating to int.
+      $key = is_float($member) ? (string) $member : ($member ?? '');
       $label = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
       $options[$key] = Markup::create(Xss::filter($label));
     }
