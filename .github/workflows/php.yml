@@ -31,8 +31,6 @@ jobs:
           php-version: ${{ matrix.php-version }}
           extensions: pdo_sqlite
           coverage: xdebug
-      - name: Validate composer.json and composer.lock
-        run: composer validate --strict
 
       - name: Get Composer cache directory
         id: composer-cache-dir

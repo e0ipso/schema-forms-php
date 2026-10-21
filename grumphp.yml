@@ -41,7 +41,8 @@ grumphp:
       ignore_patterns: []
       triggered_by: ['php', 'module', 'inc', 'install', 'profile', 'theme']
     yamllint: ~
-    composer: ~
+    composer:
+      strict: true
     composer_normalize: ~
     jsonlint: ~
     phpparser:
