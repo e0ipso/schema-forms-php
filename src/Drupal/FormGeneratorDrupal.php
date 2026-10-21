@@ -360,7 +360,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     }
 
     // Add a DIV around the delta receiving the Ajax effect.
-    $delta = $element['#max_delta'];
+    $delta = $element['#max_delta'] ?? NULL;
+    if ($delta === NULL || !isset($element[$delta])) {
+      return $element;
+    }
     $element[$delta]['#prefix'] = '<div class="ajax-new-content">' . ($element[$delta]['#prefix'] ?? '');
     $element[$delta]['#suffix'] = ($element[$delta]['#suffix'] ?? '') . '</div>';
 
@@ -801,13 +804,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
     // @todo If we ever support non-infinite multivalues, change this.
     $cardinality = FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
-    // Determine the number of widgets to display.
+    // Determine the widgets to display and the last real delta.
     $indices = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
       ? static::getPropFormState($prop_parents, $machine_name, $form_state)['items_indices'] ?? [0]
       : range(0, $cardinality);
-    $max = $cardinality === FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
-      ? count($indices)
-      : $cardinality - 1;
+    $max = $indices ? end($indices) : NULL;
     $is_multiple = $cardinality !== 1;
     $id_prefix = implode('-', $prop_parents);
     $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');

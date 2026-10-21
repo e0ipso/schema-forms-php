@@ -334,8 +334,7 @@ class FormGeneratorDrupalTest extends TestCase {
       '#open' => TRUE,
       '#after_build' => [[FormGeneratorDrupal::class, 'multiValueAfterBuild']],
       '#cardinality' => -1,
-      // SCHE-0031 will change the count to the last item's index.
-      '#max_delta' => 2,
+      '#max_delta' => 1,
       '#prefix' => '<div id="tag-labels-add-more-wrapper">',
       '#suffix' => '</div>',
       '#disabled' => FALSE,
