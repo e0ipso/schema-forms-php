@@ -32,7 +32,7 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push')
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Release the commit CI validated, not whatever master moved to since.
           # Manual runs have no workflow_run, so they use the dispatched ref.
@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 0
 
       - name: Tag a new release
-        uses: cycjimmy/semantic-release-action@v6.0.0
+        uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         with:
           dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           # semantic-release runs from the action's own node_modules and
