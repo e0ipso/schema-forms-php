@@ -2,8 +2,8 @@
 type: map
 title: 'FormGeneratorDrupal: JSON Schema to Drupal Form API'
 description: >-
-  Drupal entry point: transform() turns a draft-04 object schema plus Context
-  hints into a Form API container.
+  transform() turns draft-04 object schemas into Form API containers whose root
+  #tree preserves nested submission paths.
 tags:
   - drupal
   - json-schema
@@ -12,7 +12,12 @@ kk_schema_version: 3
 kk_id: map-form-generator-drupal
 kk_derived_from:
   - README.md
-kk_relates_to: []
+  - src/Drupal/FormGeneratorDrupal.php
+kk_relates_to:
+  - map-submission-validation-pipeline
+  - map-multivalue-array-widget
+  - practice-keep-elements-in-supported-list
+  - practice-preserve-unrepresentable-numbers-and-object-shape
 kk_depends_on: []
 kk_confidence: high
 ---
@@ -20,12 +25,24 @@ kk_confidence: high
 
 `transform()` checks its input with `JsonSchemaFormValidator`. The schema must validate against `meta-schema-draft4.json` at the repo root and have `type: object`. Any other input throws a `TypeError`. The output passes through `RenderArrayValidator`.
 
-The `Context` takes three optional keys. `ui_hints` is the UI schema keyed by property name. `form_state` is the form's state, which array properties use to keep their item list across rebuilds. `current_input` holds saved values, and a value there becomes `#default_value` ahead of the schema `default`.
+The `Context` takes three optional keys. `ui_hints` is the UI schema keyed by property name. `form_state` is the form's state, which array properties use to keep their item list across rebuilds. `current_input` holds saved values, and a value there becomes `#default_value` ahead of the schema `default`. `doTransform()` recursively normalizes saved arrays and nested `stdClass` values to arrays once at entry, before field offsets are read. When no saved value exists, `doTransformOneField()` normalizes an `array` or `object` schema `default`, including nested `stdClass` values, so the default prefills child controls. Saved values, including explicit NULL and empty arrays or objects, take precedence over the default. `has_current_input` records presence separately from the value, so absence receives a schema default while saved NULL clears it. Nested controls under a saved NULL object also suppress child defaults. The typed compound helpers `transformMultivalue()` and `transformNested()` accept only `?array`, so only a normalized array may reach them; a scalar default on an array, object or union path is dropped rather than passed through (`src/Drupal/FormGeneratorDrupal.php:209`; `testCompoundDefaults()` and `testScalarCompoundDefaults()` in `tests/src/Drupal/SchemaForms/FormGeneratorDrupalTest.php`). This rendering normalization is separate from submitted-object refinement, which preserves object representation in `RecursiveTypeCaster`.
 
-The result is a `container` with one child per root property. The root also carries `#json_schema` (the schema, used later by validation) and `#element_validate => [[$generator, 'validateWithSchema']]`. Every child gets `#prop_name`, `#prop_parents`, `#disabled` and `#visible`. Only the root `required` list sets `#required`, and nested `required` lists are ignored. A property that is only a `$ref` throws a `TypeError` in `guessSchemaType()`, because nothing resolves it.
+The result is a `container` with `#tree => TRUE` and one child per root property. Preserve that root flag even under a key in a parent form whose `#tree` is false: nested objects and multivalue wrappers need schema-shaped paths to avoid flattening and key collisions (`src/Drupal/FormGeneratorDrupal.php:64`; `tests/src/Kernel/ValidationPlacementTest.php:132`). The root also carries `#json_schema` (the schema, used later by validation) and `#element_validate => [[$generator, 'validateWithSchema']]`. Children carry `#prop_name` and `#prop_parents`; ordinary input elements also carry `#disabled` and `#visible`. The root `required` list sets Form API `#required` on ordinary input children. Checkbox and checkboxes controls keep `#required => FALSE` and show a required marker instead, because schema-required means the key must exist, not that a boolean must be true or a selection nonempty. Schema validation enforces array `minItems`; Drupal checkbox requiredness would reject valid false and empty values. Nested required lists govern schema refinement and validation, while non-input fixed values skip Form API required flags. The root also registers the form-level `#validate` bridge for placement as the form itself. `getSchema()` returns the registered schema with normalized reference URIs; referenced properties are not expanded before building controls.
+
+Editable nullable controls holding saved NULL carry `#schema_saved_null`, rather than the immutable `#schema_fixed_value` used for constants and unsupported controls. Submission restores NULL only while those controls still show their empty representation; a real edit is collected normally. See the submission pipeline and `tests/src/Kernel/SavedValuesSubmissionTest.php`.
+
+<!-- kk:related:start -->
+# Related
+
+- Related: [map-submission-validation-pipeline](map-submission-validation-pipeline.md)
+- Related: [map-multivalue-array-widget](map-multivalue-array-widget.md)
+- Related: [practice-keep-elements-in-supported-list](practice-keep-elements-in-supported-list.md)
+- Related: [practice-preserve-unrepresentable-numbers-and-object-shape](practice-preserve-unrepresentable-numbers-and-object-shape.md)
+<!-- kk:related:end -->
 
 <!-- kk:citations:start -->
 # Citations
 
 [1] [README.md](../../../README.md)
+[2] [src/Drupal/FormGeneratorDrupal.php](../../../src/Drupal/FormGeneratorDrupal.php)
 <!-- kk:citations:end -->

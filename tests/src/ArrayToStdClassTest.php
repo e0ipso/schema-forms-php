@@ -2,6 +2,8 @@
 
 namespace SchemaForms\Tests;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\ArrayToStdClass;
 use Shaper\Transformation\TransformationInterface;
@@ -10,9 +12,8 @@ use Shaper\Transformation\TransformationInterface;
  * Unit tests for the \SchemaForms\ArrayToStdClass class.
  *
  * @package SchemaForms
- *
- * @coversDefaultClass \SchemaForms\ArrayToStdClass
  */
+#[CoversClass(ArrayToStdClass::class)]
 class ArrayToStdClassTest extends TestCase {
 
   /**
@@ -28,18 +29,25 @@ class ArrayToStdClassTest extends TestCase {
    * @return array
    *   The data.
    */
-  public function dataProviderTransform(): array {
+  public static function dataProviderTransform(): array {
     return [
       [2, 2],
       [null, null],
-      [$this, (object) []],
+      // An object with only non-public state, as the test case itself was.
       [
-        ['foo' => [1, 3, ['bar' => 'baz']]],
-        (object) ['foo' => [1, 3, (object) ['bar' => 'baz']]],
+        new class() {
+          private string $hidden = 'hidden';
+        },
+        (object) [],
       ],
       [
         ['foo' => [1, 3, ['bar' => 'baz']]],
         (object) ['foo' => [1, 3, (object) ['bar' => 'baz']]],
+      ],
+      // Unencodable input keeps the empty-object fallback (SCHE-0019).
+      [
+        ['foo' => INF],
+        new \stdClass(),
       ],
       [
         [['foo' => 'bar'], 'lorem', ['cowsays' => 'moo']],
@@ -58,9 +66,8 @@ class ArrayToStdClassTest extends TestCase {
 
   /**
    * Tests the transformation.
-   *
-   * @dataProvider dataProviderTransform
    */
+  #[DataProvider('dataProviderTransform')]
   public function testTransform(mixed $data, mixed $expected): void {
     $actual = $this->sut->transform($data);
     $this->assertEquals($expected, $actual);

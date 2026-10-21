@@ -12,9 +12,9 @@ updates:
       actions:
         patterns: ['*']
 
-  # `securitychecker_enlightn` gates the build on the committed lock, so a new
-  # advisory against any dev dependency turns every branch red until the lock
-  # moves. Grouped and monthly to keep that to one PR.
+  # The grumphp shell task runs `composer audit --no-dev --locked`, so the
+  # build fails only on advisories against runtime dependencies. Dev
+  # dependency updates are grouped and monthly to keep them to one PR.
   - package-ecosystem: composer
     directory: /
     schedule:

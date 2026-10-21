@@ -5,7 +5,9 @@ namespace SchemaForms;
 use Shaper\Validator\ValidateableBase;
 
 /**
- * Checks weather or not the passed data is a Drupal render array.
+ * Checks whether the passed data is a Drupal render array.
+ *
+ * @internal
  */
 class RenderArrayValidator extends ValidateableBase {
 
@@ -16,7 +18,7 @@ class RenderArrayValidator extends ValidateableBase {
     if (!is_array($data)) {
       return FALSE;
     }
-    // There is at least one key that has a leading '#'.
+    // A string value is accepted when its key contains '#' anywhere.
     foreach ($data as $key => $val) {
       if (is_string($val)) {
         if (strpos($key, '#') !== FALSE) {

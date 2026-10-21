@@ -1,8 +1,17 @@
 name: Release
 
 on:
-  push:
+  # Release only after the "PHP Composer" workflow (php.yml) finishes on master.
+  workflow_run:
+    workflows: ["PHP Composer"]
+    types: [completed]
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report the next version without tagging or publishing
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -16,24 +25,35 @@ concurrency:
 jobs:
   tag:
     runs-on: ubuntu-latest
+    # php.yml also runs on pull_request, so require a push event: a pull
+    # request whose head branch is named master must not release.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push')
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Release the commit CI validated, not whatever master moved to since.
+          # Manual runs have no workflow_run, so they use the dispatched ref.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           # semantic-release reads the full tag history to work out the next
           # version; a shallow clone hides it.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Tag a new release
-        uses: cycjimmy/semantic-release-action@v6.0.0
+        uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         with:
+          dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           # semantic-release runs from the action's own node_modules and
           # resolves plugins from there, not from this checkout -- so the
           # plugins .releaserc names that semantic-release does not bundle
           # have to be installed into the action's tree. `commit-analyzer`,
-          # `release-notes-generator` and `github` are bundled; `git` and the
-          # conventionalcommits preset are not.
+          # `release-notes-generator` and `github` are bundled; the
+          # conventionalcommits preset is not.
+          # Dependabot does not update these pins; bump them by hand.
           extra_plugins: |
-            @semantic-release/git@^10.0.1
-            conventional-changelog-conventionalcommits@^9.1.0
+            conventional-changelog-conventionalcommits@10.4.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

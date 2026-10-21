@@ -2,6 +2,8 @@
 
 namespace SchemaForms\Tests;
 
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\RenderArrayValidator;
 
@@ -9,9 +11,8 @@ use SchemaForms\RenderArrayValidator;
  * Unit tests for the \SchemaForms\RenderArrayValidator class.
  *
  * @package SchemaForms
- *
- * @coversDefaultClass \SchemaForms\RenderArrayValidator
  */
+#[CoversClass(RenderArrayValidator::class)]
 class RenderArrayValidatorTest extends TestCase {
 
   /**
@@ -31,9 +32,8 @@ class RenderArrayValidatorTest extends TestCase {
 
   /**
    * Tests if the render array is valid.
-   *
-   * @dataProvider dataProviderIsValid
    */
+  #[DataProvider('dataProviderIsValid')]
   public function testIsValid($render_array, bool $expected) {
     $actual = $this->sut->isValid($render_array);
     $this->assertSame($expected, $actual);
@@ -45,7 +45,7 @@ class RenderArrayValidatorTest extends TestCase {
    * @return array
    *   The data.
    */
-  public function dataProviderIsValid() {
+  public static function dataProviderIsValid() {
     return [
       [
         ['#fa' => 'mily'],

@@ -4,19 +4,22 @@ namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Validator;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\ArrayToStdClass;
 use SchemaForms\JsonSchemaFormValidator;
 
 /**
- * @coversDefaultClass \SchemaForms\JsonSchemaFormValidator
+ * Unit tests for the \SchemaForms\JsonSchemaFormValidator class.
  */
+#[CoversClass(JsonSchemaFormValidator::class)]
 class JsonSchemaFormValidatorTest extends TestCase {
 
   /**
-   * @covers ::isValid
-   * @dataProvider dataProviderIsValid
+   * Tests which schemas are valid form schemas.
    */
+  #[DataProvider('dataProviderIsValid')]
   public function testIsValid(array $schema, bool $expected, string $message): void {
     $validator = new JsonSchemaFormValidator(
       new Validator(),
@@ -42,10 +45,21 @@ class JsonSchemaFormValidatorTest extends TestCase {
         'A component declaring no props is a legal schema; YAML decodes '
         . '`properties: {}` to an empty PHP array, which must not be rejected.',
       ],
+      'a root without properties is valid' => [
+        ['type' => 'object'],
+        TRUE,
+        'Regression: isValid() read $data->properties unguarded, so a root '
+        . 'with no properties raised a warning and was rejected.',
+      ],
       'a non-object type is invalid' => [
         ['type' => 'array', 'properties' => []],
         FALSE,
         'The generator only builds a form from an object schema.',
+      ],
+      'a schema invalid against draft-04 is invalid' => [
+        ['type' => 'object', 'required' => 'foo'],
+        FALSE,
+        'Draft-04 requires "required" to be an array of strings.',
       ],
     ];
   }
