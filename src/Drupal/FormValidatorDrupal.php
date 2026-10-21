@@ -14,7 +14,7 @@ use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\SchemaReferenceResolver;
 
 /**
- * Generates Drupal Form API forms from JSON-Schema documents.
+ * Validates Drupal Form API submissions against JSON-Schema documents.
  *
  * @internal
  */

@@ -24,7 +24,7 @@ Two key-coercion defects explain this rule. `array_merge()` renumbers integer ke
 
 For checkbox enums, `transformCheckboxes()` registers `validateCheckboxes()` as an element validator. It uses Drupal `Checkboxes::getCheckedCheckboxes()` to distinguish checked string `'0'` from unchecked integer `0`, then intersects checked keys with `#options` to return a list in schema enum order. Keep this normalization before recursive item casting, which restores each item's schema type. See `src/Drupal/FormGeneratorDrupal.php:685`, `src/RecursiveTypeCaster.php:28`, and `tests/src/Kernel/ValidationPlacementTest.php:99`.
 
-A `null` member becomes the key `''`. That is the right key, because Form API submits `''` for an unselected control and validation uses `CHECK_MODE_TYPE_CAST`. A schema that lists both `null` and `""` gets a single option.
+A `null` member becomes the key `''`, which Form API also submits for an unselected control. A schema that lists both `null` and `""` gets a single option because those members share the same array key.
 
 Convert float members to string keys before direct assignment. PHP truncates a float array key to an integer, so `0.5`, `1.5` and `1.75` must retain keys `"0.5"`, `"1.5"` and `"1.75"` for radios and checkbox enums. Item refinement restores numeric submission types. See `enumOptions()` and the fractional enum cases in `tests/src/Drupal/SchemaForms/FormGeneratorDrupalTest.php` and `tests/src/Kernel/ValidationPlacementTest.php`.
 

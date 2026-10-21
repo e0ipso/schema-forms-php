@@ -289,7 +289,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
-   * Submission handler for the "Add another item" button.
+   * Submission handler for the "Remove item" button.
    *
    * @param array $form
    *   The form.
@@ -327,7 +327,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
-   * Ajax callback for the "Add another item" button.
+   * Ajax callback for the "Remove item" button.
    *
    * This returns the new page content to replace the page content made obsolete
    * by the form submission.
@@ -634,7 +634,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * yet are covered too.
    *
    * @param mixed $schema
-   *   The dereferenced schema, or one of its sub-schemas.
+   *   The registered schema, or one of its sub-schemas.
    * @param string[] $path
    *   The schema path of $schema, as keys from the root.
    * @param bool[] $visited
@@ -663,13 +663,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
-   * Get the dereferenced schema.
+   * Gets the registered schema with normalized reference URIs.
    *
    * @param mixed $data
    *   The schema containing references.
    *
    * @return mixed|object
-   *   The dereferenced schema.
+   *   The registered schema; referenced properties are not expanded.
    */
   private function getSchema($data) {
     $storage = SchemaReferenceResolver::createFactory($data)->getSchemaStorage();
@@ -814,12 +814,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   private function enumOptions(array $members, array $label_mappings): array {
     $options = [];
     foreach ($members as $member) {
-      // PHP has no NULL array key: writing one coerces it to the empty
-      // string. That is not a workaround here, it is the correct key -- Form
-      // API submits '' for an unselected control, and Drupal validates props
-      // with CHECK_MODE_TYPE_CAST, which casts an absent or NULL value to ''
-      // before it checks the enumeration. A schema that lists BOTH null and
-      // "" collapses to one option, which no keyed array can avoid.
+      // PHP coerces a NULL array key to the empty string. Form API also submits
+      // '' for an unselected control. An enum containing both NULL and ''
+      // therefore shares one option key for those members.
       // String keys preserve fractional values instead of truncating to int.
       $key = is_float($member) ? (string) $member : ($member ?? '');
       $label = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
@@ -889,8 +886,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     $title = $form_element['#title'] ?? '';
     $description = $form_element['#description'] ?? '';
     foreach ($indices as $delta) {
-      // For multiple fields, title and description are handled by the wrapping
-      // table.
+      // For multiple fields, the wrapping details element shows the title and
+      // description; each item gets an invisible numbered title.
       $element = $is_multiple
         ? [
           '#title' => new TranslatableMarkup('@title (value @number)', [
