@@ -2,6 +2,8 @@
 
 namespace SchemaForms;
 
+use JsonSchema\Validator;
+
 /**
  * Casts a data structure to its JSON-Schema the best it can.
  *
@@ -34,7 +36,21 @@ final class RecursiveTypeCaster {
       // Handle each property recursively.
       foreach ((array) $data as $key => $value) {
         $sub_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
-        $data[$key] = static::recursiveTypeRefinements($value, $sub_schema);
+        $refined_value = static::recursiveTypeRefinements($value, $sub_schema);
+        // Nullable refinements take precedence over omitting untouched fields.
+        if ($value === '' && $refined_value === '' && !in_array($key, $schema->required ?? [], TRUE)) {
+          $validator = new Validator();
+          $validator->validate($value, $sub_schema);
+          if (!$validator->isValid()) {
+            if (is_object($data)) {
+              unset($data->{$key});
+              continue;
+            }
+            unset($data[$key]);
+            continue;
+          }
+        }
+        $data[$key] = $refined_value;
       }
       return $data;
     }
