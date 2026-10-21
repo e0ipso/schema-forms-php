@@ -29,10 +29,6 @@ final class RecursiveTypeCaster {
       return array_map(static fn($item) => static::recursiveTypeRefinements($item, $schema->items), $data);
     }
     if ((is_array($data) || is_object($data)) && in_array('object', $types, TRUE)) {
-      // If the data is NOT an array or object, then do not do any type casting.
-      if (!is_array($data) && !is_object($data)) {
-        return $data;
-      }
       // Handle each property recursively.
       foreach ((array) $data as $key => $value) {
         $sub_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
@@ -49,6 +45,10 @@ final class RecursiveTypeCaster {
             unset($data[$key]);
             continue;
           }
+        }
+        if (is_object($data)) {
+          $data->{$key} = $refined_value;
+          continue;
         }
         $data[$key] = $refined_value;
       }
