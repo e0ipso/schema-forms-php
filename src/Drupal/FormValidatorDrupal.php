@@ -217,7 +217,12 @@ final class FormValidatorDrupal {
     $parents = $element['#array_parents'] ?? [];
     // Now drop some parents to make everything relative to `/`.
     $parents = array_slice($parents, count($root_parents));
-    $json_pointer = '/' . implode('/', $_json_pointer_parents);
+    // Both supported json-schema majors escape these characters per segment.
+    $escaped_pointer_parents = array_map(
+      static fn ($segment) => strtr((string) $segment, ['/' => '~1', '~' => '~0', '%' => '%25']),
+      $_json_pointer_parents
+    );
+    $json_pointer = '/' . implode('/', $escaped_pointer_parents);
     $_current_mappings[$json_pointer] = $parents;
     $keys = Element::children($element);
     if (empty($keys)) {
