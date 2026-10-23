@@ -13,7 +13,7 @@ use SchemaForms\Tests\Drupal\SchemaForms\FormGeneratorDrupalTest;
 use Shaper\Util\Context;
 
 /**
- * SCHE-0049: untrusted labels retain only the accepted inline HTML.
+ * Untrusted labels retain only the accepted inline HTML.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
 #[RunTestsInSeparateProcesses]
@@ -80,7 +80,7 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
 
 
   /**
-   * SCHE-0029: constant markup escapes text and JSON and renders no input.
+   * Constant markup escapes text and JSON and renders no input.
    */
   #[DataProvider('renderedConstantProvider')]
   public function testRenderedConstants(mixed $value, string $text): void {
@@ -102,7 +102,7 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0038: a const-only schema renders exact escaped text.
+   * A const-only schema renders exact escaped text.
    */
   public function testUntypedConstantEscapesExactText(): void {
     $text = '<script>alert("x")</script>&';

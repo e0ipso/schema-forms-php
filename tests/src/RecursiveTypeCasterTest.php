@@ -60,7 +60,7 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"a":{"type":["string","null"]},"b":{"type":["integer","null"]},"c":{"type":["string","null"]}}}',
         ['a' => '', 'b' => NULL, 'c' => '0'],
       ],
-      // SCHE-0018: unsafe numeric conversions must retain the input string.
+      // Unsafe numeric conversions must retain the input string.
       'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
       'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
       'positive integer overflow' => ['99999999999999999999', '{"type":"integer"}', '99999999999999999999'],
@@ -93,7 +93,7 @@ class RecursiveTypeCasterTest extends TestCase {
   }
 
   /**
-   * SCHE-0020: object writes must preserve stdClass at every nesting level.
+   * Object writes must preserve stdClass at every nesting level.
    */
   public function testStdClassProperties(): void {
     $data = json_decode('{"count":"3","nested":{"ratio":"1.5","optional":""}}');

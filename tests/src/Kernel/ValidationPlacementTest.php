@@ -27,7 +27,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
    * The bridge runs once, before the form's own validateForm().
    *
    * Regression: with the container as the form, Drupal skipped its
-   * #element_validate, so nothing was cast or validated (SCHE-0060).
+   * #element_validate, so nothing was cast or validated.
    */
   #[DataProvider('placementProvider')]
   public function testBridgeRunsOnceInEveryPlacement(?string $parent_key, bool $tree, array $value_parents): void {
@@ -94,7 +94,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0013: checkbox maps become typed lists before schema validation.
+   * Checkbox maps become typed lists before schema validation.
    */
   #[DataProvider('checkboxProvider')]
   public function testCheckboxLists(string $type, array $enum, array $submitted, array $expected): void {
@@ -119,7 +119,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0014: nested required lists and nullable conversion are independent.
+   * Nested required lists and nullable conversion are independent.
    */
   public function testNestedBlankRules(): void {
     $schema = json_decode('{"type":"object","required":["profile"],"properties":{"profile":{"type":"object","required":["needed"],"properties":{"needed":{"type":"string","minLength":1},"optional":{"type":"string","minLength":1},"plain":{"type":"string"},"nullable":{"type":["integer","null"]}}}}}');
@@ -129,7 +129,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0015: a non-tree host preserves nested objects and multivalue paths.
+   * A non-tree host preserves nested objects and multivalue paths.
    */
   public function testNestedMultivalueInNonTreeHost(): void {
     $schema = json_decode('{"type":"object","properties":{"profile":{"type":"object","properties":{"age":{"type":"integer"}}},"scores":{"type":"array","items":{"type":"integer"}}}}');
@@ -145,7 +145,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0017: non-input constants and saved values retain exact JSON types.
+   * Non-input constants and saved values retain exact JSON types.
    */
   #[DataProvider('fixedValueProvider')]
   public function testFixedValues(string $type, mixed $value, bool $constant): void {
@@ -187,7 +187,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
 
 
   /**
-   * SCHE-0026: removed positions do not shift error paths onto another item.
+   * Removed positions do not shift error paths onto another item.
    */
   #[DataProvider('removedDeltaProvider')]
   public function testErrorsAfterRemoval(int $removed, int $invalid): void {
@@ -221,7 +221,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0032: Append retains validation at the final nested value path.
+   * Append retains validation at the final nested value path.
    */
   public function testAppendValidatesExistingItems(): void {
     $schema = json_decode('{"type":"object","properties":{"nested":{"type":"object","properties":{"items":{"type":"array","items":{"type":"string","minLength":3}}}}}}');
@@ -239,7 +239,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0027: presence requirements accept false and empty enum lists.
+   * Presence requirements accept false and empty enum lists.
    */
   #[DataProvider('requiredEmptyProvider')]
   public function testRequiredEmptyValues(string $type, mixed $expected, int $minimum): void {
@@ -283,7 +283,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
 
 
   /**
-   * SCHE-0048: unsupported references become root or container form errors.
+   * Unsupported references become root or container form errors.
    */
   #[DataProvider('rejectedReferenceProvider')]
   public function testRejectedReferenceFormError(string $scheme, ?string $parent): void {
@@ -310,7 +310,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0037: special segments retain their actual Form API error paths.
+   * Special segments retain their actual Form API error paths.
    */
   #[DataProvider('specialPropertyProvider')]
   public function testSpecialPropertyErrors(string $name, string $placement): void {
@@ -354,7 +354,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * SCHE-0038/0066: real option keys round trip to the declared JSON values.
+   * Real option keys round trip to the declared JSON values.
    */
   #[DataProvider('untypedEnumProvider')]
   public function testUntypedEnumSubmission(array $enum, string $key, mixed $expected): void {

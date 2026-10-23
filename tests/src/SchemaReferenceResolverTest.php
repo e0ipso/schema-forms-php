@@ -15,7 +15,7 @@ use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\Tests\Fixture\ReferenceSentinel;
 
 /**
- * SCHE-0048: retrieval stays inside registered schemas and bundled metadata.
+ * Retrieval stays inside registered schemas and bundled metadata.
  */
 #[CoversClass(SchemaReferenceResolver::class)]
 #[CoversClass(FormGeneratorDrupal::class)]

@@ -770,7 +770,7 @@ class FormGeneratorDrupalTest extends TestCase {
 
 
   /**
-   * SCHE-0028: null does not hide an editable member of a union.
+   * Null does not hide an editable member of a union.
    */
   #[DataProvider('nullableTypeProvider')]
   public function testNullFirstTypes(array $types, string $expected): void {
@@ -792,7 +792,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0029: falsy and structured constants are non-input plain text.
+   * Falsy and structured constants are non-input plain text.
    */
   #[DataProvider('constantProvider')]
   public function testEveryConstant(mixed $value, string $text): void {
@@ -821,7 +821,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0030: fractional keys survive in both enum controls.
+   * Fractional keys survive in both enum controls.
    */
   #[DataProvider('fractionalEnumProvider')]
   public function testFractionalEnumOptions(bool $multiple): void {
@@ -841,7 +841,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0031: AJAX wraps the final real delta, including after removal.
+   * AJAX wraps the final real delta, including after removal.
    */
   #[DataProvider('ajaxDeltaProvider')]
   public function testAppendAjaxUsesRealDelta(array $indices): void {
@@ -872,7 +872,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0033: every AJAX reference shares one safe, unique container ID.
+   * Every AJAX reference shares one safe, unique container ID.
    */
   public function testItemIdsAcrossForms(): void {
     $name = 'odd " field';
@@ -893,7 +893,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0034: decoded objects and associative saved values are equivalent.
+   * Decoded objects and associative saved values are equivalent.
    */
   public function testObjectCurrentInput(): void {
     $schema = json_decode('{"type":"object","properties":{"profile":{"type":"object","properties":{"name":{"type":"string","default":"fallback"},"tags":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"}}}}}},"other":{"type":"string","default":"default"}}}');
@@ -909,7 +909,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0038: inferred enum controls and fixed or unsupported schemas.
+   * Enum controls infer types; fixed and unsupported schemas render safely.
    */
   #[DataProvider('enumOnlyControlProvider')]
   public function testEnumOnlyControls(array $enum): void {
@@ -941,7 +941,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0039: compound defaults are normalized before filling descendants.
+   * Compound defaults are normalized before filling descendants.
    */
   #[DataProvider('compoundInputProvider')]
   public function testCompoundDefaults(array $input, array $expected): void {
@@ -971,7 +971,7 @@ class FormGeneratorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0065: scalar defaults cannot reach compound array-only helpers.
+   * Scalar defaults cannot reach compound array-only helpers.
    */
   #[DataProvider('scalarCompoundDefaultProvider')]
   public function testScalarCompoundDefaults(mixed $type, mixed $default): void {

@@ -44,7 +44,7 @@ class ArrayToStdClassTest extends TestCase {
         ['foo' => [1, 3, ['bar' => 'baz']]],
         (object) ['foo' => [1, 3, (object) ['bar' => 'baz']]],
       ],
-      // Unencodable input keeps the empty-object fallback (SCHE-0019).
+      // Unencodable input keeps the empty-object fallback.
       [
         ['foo' => INF],
         new \stdClass(),
