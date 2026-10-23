@@ -341,7 +341,7 @@ class FormValidatorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0016: unmatched messages are joined once without an empty title.
+   * Unmatched messages are joined once without an empty title.
    */
   public function testUnmatchedErrorsAreJoinedAndEscapedOnce(): void {
     $element = self::element(['schema'], '');
@@ -367,7 +367,7 @@ class FormValidatorDrupalTest extends TestCase {
   }
 
   /**
-   * SCHE-0019: values that cannot be JSON encoded must never validate as {}.
+   * Values that cannot be JSON encoded must never validate as {}.
    */
   #[DataProvider('unencodableProvider')]
   public function testUnencodableSubmission(mixed $value): void {

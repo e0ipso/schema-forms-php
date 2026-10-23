@@ -116,7 +116,7 @@ JSON;
   }
 
   /**
-   * SCHE-0014: untouched optional controls must not reject the README form.
+   * Untouched optional controls must not reject the README form.
    */
   public function testMinimumSubmissionOmitsRejectedBlanks(): void {
     $submission = $this->submitSchemaForm($this->schema(), ['schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris', 'password' => '', 'age' => '', 'bio' => '']], $this->uiSchema(), 'schema');
@@ -128,7 +128,7 @@ JSON;
   }
 
   /**
-   * SCHE-0014: the README needs only its two required names.
+   * The README needs only its two required names.
    */
   public function testOnlyRequiredNames(): void {
     $submission = $this->submitSchemaForm($this->schema(), ['schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris']], $this->uiSchema(), 'schema');

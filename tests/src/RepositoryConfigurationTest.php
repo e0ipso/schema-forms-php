@@ -10,7 +10,7 @@ use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Contributor and release configuration regressions from Wave 3.
+ * Tests contributor and release configuration.
  */
 #[CoversNothing]
 final class RepositoryConfigurationTest extends TestCase {
@@ -20,7 +20,7 @@ final class RepositoryConfigurationTest extends TestCase {
   }
 
   /**
-   * SCHE-0035/0063: exercise the real configured commit-msg task.
+   * Exercise the real configured commit-msg task.
    */
   public function testConfiguredCommitConventions(): void {
     $config = Yaml::parseFile($this->root() . '/grumphp.yml');
@@ -68,7 +68,7 @@ final class RepositoryConfigurationTest extends TestCase {
   }
 
   /**
-   * SCHE-0036: the Development section names the configured checks.
+   * The Development section names the configured checks.
    */
   public function testDevelopmentDocumentsEveryTask(): void {
     $config = Yaml::parseFile($this->root() . '/grumphp.yml');
@@ -83,7 +83,7 @@ final class RepositoryConfigurationTest extends TestCase {
   }
 
   /**
-   * SCHE-0051/0052: release configuration avoids persisted checkout tokens.
+   * Release configuration avoids persisted checkout tokens.
    */
   public function testReleaseSupplyChainConfiguration(): void {
     foreach (['php.yml', 'release.yml'] as $workflow) {
@@ -120,7 +120,7 @@ final class RepositoryConfigurationTest extends TestCase {
   }
 
   /**
-   * SCHE-0064: the real shell runner preserves failures and cleans success.
+   * The compatibility runner preserves failures and cleans up after success.
    *
    * Disposable command stand-ins avoid installs and shared vendor mutations.
    */
@@ -174,7 +174,7 @@ SH);
   }
 
   /**
-   * SCHE-0064: reject wrong versions and classes loaded outside the runtime.
+   * Reject wrong versions and classes loaded outside the runtime.
    */
   #[DataProvider('compatibilityGuardProvider')]
   public function testCompatibilityBootstrapGuards(bool $wrong_version, string $message): void {
