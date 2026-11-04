@@ -19,6 +19,7 @@ grumphp:
         - '/(build|ci|chore|docs|feat|fix|perf|refactor|revert|style|test)\/[a-z0-9-]+/'
         - master
         - main
+        - '/^[0-9]+\.x$/'
     phpunit: ~
     phpcs:
       standard:

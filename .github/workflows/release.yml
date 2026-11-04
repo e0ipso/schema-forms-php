@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     branches: [master]
+  # 2.x is a maintenance branch. It releases only when dispatched by hand,
+  # after its CI is green; run with dry_run first to check the version.
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Report the next version without tagging or publishing
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -26,6 +34,7 @@ jobs:
       - name: Tag a new release
         uses: cycjimmy/semantic-release-action@v6.0.0
         with:
+          dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           # semantic-release runs from the action's own node_modules and
           # resolves plugins from there, not from this checkout -- so the
           # plugins .releaserc names that semantic-release does not bundle
