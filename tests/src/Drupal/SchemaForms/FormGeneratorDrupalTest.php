@@ -628,6 +628,56 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->sut->transform(json_decode('{"type":"array","items":{"type":"string"}}'));
   }
 
+  /**
+   * Tests that a rejected schema names the problem in the TypeError.
+   *
+   * Regression: each getInputValidator() call built a new validator, so the
+   * message read the errors of one that never ran and always ended in `[]`.
+   *
+   * @param mixed $data
+   *   The rejected schema input.
+   * @param string $expected
+   *   The error message the TypeError must contain.
+   */
+  #[DataProvider('dataProviderRejectionMessage')]
+  public function testRejectionMessageNamesTheProblem(mixed $data, string $expected): void {
+    try {
+      $this->sut->transform($data);
+      $this->fail('The schema was not rejected.');
+    }
+    catch (\TypeError $e) {
+      $this->assertStringContainsString('received invalid input data', $e->getMessage());
+      $this->assertStringNotContainsString('invalid input data: [].', $e->getMessage());
+      $this->assertStringContainsString($expected, $e->getMessage());
+    }
+  }
+
+  /**
+   * Data provider for testRejectionMessageNamesTheProblem.
+   */
+  public static function dataProviderRejectionMessage(): array {
+    return [
+      'an array schema' => [
+        ['type' => 'object', 'properties' => []],
+        'Array value found, but an object is required',
+      ],
+      'a string root' => [json_decode('{"type":"string"}'), 'enumeration'],
+      'NULL' => [NULL, 'NULL value found, but an object is required'],
+    ];
+  }
+
+  /**
+   * Tests that a serialized generator rebuilds its input validator.
+   */
+  public function testSerializationDropsTheInputValidator(): void {
+    $schema = json_decode('{"type":"object","properties":{"a":{"type":"string"}}}');
+    $this->sut->transform($schema);
+    $serialized = serialize($this->sut);
+    $this->assertStringNotContainsString('JsonSchemaFormValidator', $serialized);
+    $generator = unserialize($serialized);
+    $this->assertArrayHasKey('a', $generator->transform($schema));
+  }
+
 
   /**
    * Tests that property names starting with '#' are rejected.

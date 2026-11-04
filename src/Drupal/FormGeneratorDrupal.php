@@ -50,6 +50,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   ];
 
   /**
+   * The input validator, kept so a rejection message can read its errors.
+   *
+   * Shaper asks for the input validator once to validate and again to build
+   * the TypeError message. A new instance each time would print no errors.
+   *
+   * @var \SchemaForms\JsonSchemaFormValidator|null
+   */
+  private ?JsonSchemaFormValidator $inputValidator = NULL;
+
+  /**
    * Creates the Form API element based on the JSON-Schema input.
    *
    * {@inheritdoc}
@@ -94,7 +104,22 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public function getInputValidator() {
     // Validate the JSON-Schema input.
-    return new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    $this->inputValidator ??= new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    return $this->inputValidator;
+  }
+
+  /**
+   * Keeps the input validator out of serialized forms.
+   *
+   * Validation callbacks reference this generator, so a cached form serializes
+   * it. An unserialized JsonSchemaFormValidator would lose the restricted
+   * reference resolver; a fresh one is built on the next request instead.
+   *
+   * @return string[]
+   *   The names of the properties to serialize.
+   */
+  public function __sleep(): array {
+    return [];
   }
 
   /**
