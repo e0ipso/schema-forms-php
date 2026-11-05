@@ -154,7 +154,7 @@ The public API is `FormGeneratorDrupal` and the `FormGeneratorInterface` it impl
 ]
 ```
 
-The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`. Anything else makes `transform()` throw a `TypeError`. A property name that starts with `#`, at any depth, makes `transform()` throw an `\InvalidArgumentException` naming the property path, because Drupal would read the name as a render property.
+The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`, decoded to objects. Anything else, including an associative array, makes `transform()` throw a `TypeError` whose message lists the validation errors. A property name that starts with `#`, at any depth, makes `transform()` throw an `\InvalidArgumentException` naming the property path, because Drupal would read the name as a render property.
 
 ### Context keys
 
