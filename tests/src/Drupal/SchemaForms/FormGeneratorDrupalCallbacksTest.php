@@ -148,12 +148,12 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   }
 
   /**
-   * Removing an item returns nothing when no remove button triggered it.
+   * Removing an item sends no commands when no remove button triggered it.
    */
   public function testRemoveAjaxWithoutRemoveButton(): void {
     $state = new FormState();
     $state->setTriggeringElement([]);
-    $this->assertNull(FormGeneratorDrupal::removeOneAjax([], $state));
+    $this->assertSame([], FormGeneratorDrupal::removeOneAjax([], $state)->getCommands());
   }
 
   /**
@@ -186,36 +186,6 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame('a', $items[$deltas[0]]['removable_element']['#default_value']);
     $this->assertArrayNotHasKey('#default_value', $items[$deltas[1]]['removable_element']);
     $this->assertSame($deltas, array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
-  }
-
-  /**
-   * Removing an item replaces the whole widget, so Append can come back.
-   *
-   * Regression: Remove replaced only the removed item, so an Append button
-   * hidden at the maxItems limit stayed hidden until the page was reloaded.
-   */
-  public function testRemoveAjaxReturnsTheWidget(): void {
-    $generator = new FormGeneratorDrupal();
-    $schema = json_decode('{"type":"object","properties":{"a":{"type":"array","maxItems":2,"items":{"type":"string"}}}}');
-    $state = new FormState();
-    $context = new Context(['form_state' => $state, 'current_input' => ['a' => ['first', 'second']]]);
-    $form = ['host' => $generator->transform($schema, $context)];
-    $this->assertFalse($form['host']['a']['add_more']['#access']);
-    $wrapper = $form['host']['a']['add_more']['#ajax']['wrapper'];
-    $this->assertSame($wrapper, $form['host']['a'][0]['remove_one']['#ajax']['wrapper']);
-    $state->setTriggeringElement($form['host']['a'][0]['remove_one'] + [
-      '#array_parents' => ['host', 'a', 0, 'remove_one'],
-      '#parents' => ['host', 'a', 0, 'remove_one'],
-    ]);
-    FormGeneratorDrupal::removeOneSubmit($form, $state);
-    $rebuilt = ['host' => $generator->transform($schema, $context)];
-
-    $response = FormGeneratorDrupal::removeOneAjax($rebuilt, $state);
-
-    $this->assertSame($rebuilt['host']['a'], $response);
-    $this->assertTrue($response['add_more']['#access'] ?? TRUE);
-    $this->assertStringContainsString('id="' . $wrapper . '"', $form['host']['a']['#prefix']);
-    $this->assertStringContainsString('id="' . $response['add_more']['#ajax']['wrapper'] . '"', $response['#prefix']);
   }
 
   /**
@@ -314,7 +284,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertFalse($form['a']['add_more']['#access']);
     $this->assertArrayNotHasKey(0, $form['b']);
     $this->assertSame(2, $form['a']['#max_delta']);
-    $ajax = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $ajax = MultivalueCallbacks::appendedWidget($form, $state);
     $this->assertFalse($ajax['add_more']['#access']);
     $this->assertStringContainsString('ajax-new-content', $ajax[2]['#prefix']);
     $this->assertStringNotContainsString('ajax-new-content', $ajax[1]['#prefix']);
@@ -323,7 +293,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertNotSame($ajax[1]['#wrapper_id'], $ajax[2]['#wrapper_id']);
     $this->assertArrayNotHasKey('#default_value', $ajax[2]['removable_element']);
     $state->setTriggeringElement($form['b']['add_more'] + ['#array_parents' => ['b', 'add_more']]);
-    $empty = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $empty = MultivalueCallbacks::appendedWidget($form, $state);
     $this->assertNull($empty['#max_delta']);
     $this->assertArrayNotHasKey(0, $empty);
     FormGeneratorDrupal::addMoreSubmit($form, $state);

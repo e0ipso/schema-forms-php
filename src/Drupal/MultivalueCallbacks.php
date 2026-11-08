@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SchemaForms\Drupal;
 
 use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
 use Drupal\Core\Form\FormStateInterface;
 
@@ -85,9 +86,9 @@ final class MultivalueCallbacks {
   }
 
   /**
-   * Returns the rebuilt widget after a removal.
+   * Responds to a removal with the rebuilt widget.
    *
-   * The whole widget is returned, so an Append button hidden at the item
+   * The whole widget is replaced, so an Append button hidden at the item
    * limit comes back once an item is removed.
    *
    * @param array<int|string, mixed> $form
@@ -95,14 +96,15 @@ final class MultivalueCallbacks {
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array<int|string, mixed>|null
-   *   The widget, or NULL when no Remove button triggered the request.
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response. It is empty when no Remove button triggered the request.
    */
-  public static function removeAjax(array $form, FormStateInterface $form_state): ?array {
-    if (self::triggeringDelta($form_state) === NULL) {
-      return NULL;
+  public static function removeAjax(array $form, FormStateInterface $form_state): AjaxResponse {
+    $delta = self::triggeringDelta($form_state);
+    if ($delta === NULL) {
+      return new AjaxResponse();
     }
-    return self::widget($form, $form_state, 2);
+    return WidgetAjaxResponse::removed(self::widget($form, $form_state, 2), $delta);
   }
 
   /**
@@ -126,9 +128,24 @@ final class MultivalueCallbacks {
   }
 
   /**
-   * Returns the rebuilt widget after an item was appended.
+   * Responds to an appended item with the rebuilt widget.
    *
    * Finite widgets are replaced too, so a hidden Append button disappears.
+   *
+   * @param array<int|string, mixed> $form
+   *   The rebuilt form.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   *
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response.
+   */
+  public static function appendAjax(array $form, FormStateInterface $form_state): AjaxResponse {
+    return WidgetAjaxResponse::appended(self::appendedWidget($form, $form_state));
+  }
+
+  /**
+   * Gets the rebuilt widget after an item was appended.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
@@ -138,7 +155,7 @@ final class MultivalueCallbacks {
    * @return array<int|string, mixed>
    *   The widget, with the new item wrapped for the AJAX effect.
    */
-  public static function appendAjax(array $form, FormStateInterface $form_state): array {
+  public static function appendedWidget(array $form, FormStateInterface $form_state): array {
     $widget = self::widget($form, $form_state, 1);
     $delta = $widget[RenderKeys::MAX_DELTA] ?? NULL;
     if (!is_int($delta) || !is_array($widget[$delta] ?? NULL)) {

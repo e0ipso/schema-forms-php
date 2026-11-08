@@ -219,7 +219,7 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertNotSame($form['a'][0]['#wrapper_id'], $form['a'][1]['#wrapper_id']);
     $this->assertNotSame($form['a'][1]['#wrapper_id'], $form['b'][0]['#wrapper_id']);
     $result->formState->setTriggeringElement($form['a']['add_more']);
-    $ajax = FormGeneratorDrupal::addMoreAjax($form, $result->formState);
+    $ajax = MultivalueCallbacks::appendedWidget($form, $result->formState);
     $this->assertFalse($ajax['add_more']['#access']);
     $this->assertStringContainsString('ajax-new-content', $ajax[1]['#prefix']);
     $this->assertSame($ajax['add_more']['#ajax']['wrapper'], $ajax[1]['remove_one']['#ajax']['wrapper']);

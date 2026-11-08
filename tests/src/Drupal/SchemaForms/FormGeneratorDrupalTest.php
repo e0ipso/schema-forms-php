@@ -980,7 +980,7 @@ class FormGeneratorDrupalTest extends TestCase {
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $form = $this->sut->transform($schema, new Context(['form_state' => $state]));
     $state->setTriggeringElement(['#array_parents' => ['items', 'add_more']]);
-    $result = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $result = MultivalueCallbacks::appendedWidget($form, $state);
     $this->assertSame(array_keys($form['items']), array_keys($result));
     if (!$indices) {
       $this->assertSame($form['items'], $result);

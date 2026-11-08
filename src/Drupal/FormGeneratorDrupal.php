@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Form\FormStateInterface;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Exception\ExceptionInterface;
@@ -227,19 +228,20 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
-   * Returns the rebuilt widget; the #ajax callback of Remove buttons.
+   * Replaces the widget after a removal; the #ajax callback of Remove buttons.
    *
-   * Form API calls it; callers build forms with transform().
+   * Form API calls it; callers build forms with transform(). The response
+   * also announces the removal and moves focus to a remaining control.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array<int|string, mixed>|null
-   *   The widget, or NULL when no Remove button triggered the request.
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response. It is empty when no Remove button triggered the request.
    */
-  public static function removeOneAjax(array $form, FormStateInterface $form_state): ?array {
+  public static function removeOneAjax(array $form, FormStateInterface $form_state): AjaxResponse {
     return MultivalueCallbacks::removeAjax($form, $form_state);
   }
 
@@ -258,19 +260,20 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
-   * Returns the rebuilt widget; the #ajax callback of Append buttons.
+   * Replaces the widget after an append; the #ajax callback of Append buttons.
    *
-   * Form API calls it; callers build forms with transform().
+   * Form API calls it; callers build forms with transform(). The response
+   * also announces the new item and moves focus into it.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array<int|string, mixed>
-   *   The widget.
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response.
    */
-  public static function addMoreAjax(array $form, FormStateInterface $form_state): array {
+  public static function addMoreAjax(array $form, FormStateInterface $form_state): AjaxResponse {
     return MultivalueCallbacks::appendAjax($form, $form_state);
   }
 
