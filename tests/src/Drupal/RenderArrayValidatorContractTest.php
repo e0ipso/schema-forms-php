@@ -1,9 +1,10 @@
 <?php
 
-namespace SchemaForms\Tests;
+namespace SchemaForms\Tests\Drupal;
 
 use PHPUnit\Framework\Attributes\CoversClass;
-use SchemaForms\RenderArrayValidator;
+use SchemaForms\Drupal\RenderArrayValidator;
+use SchemaForms\Tests\ValidatorContractTestCase;
 use Shaper\Validator\ValidateableInterface;
 
 /**
