@@ -69,6 +69,16 @@ class RecursiveTypeCasterTest extends TestCase {
       // Numeric strings become the number they spell.
       'number casts a decimal string to float' => ['1.5', '{"type":"number"}', 1.5],
       'plain integer casts a numeric string' => ['3', '{"type":"integer"}', 3],
+      // An exponent without a dot keeps a fraction and casts a whole number.
+      'number keeps a negative exponent fraction' => ['1e-3', '{"type":"number"}', 0.001],
+      'number casts a whole exponent to integer' => ['1E3', '{"type":"number"}', 1000],
+      'number keeps a negative fraction exponent' => ['-2e-1', '{"type":"number"}', -0.2],
+      'integer keeps a negative exponent fraction' => ['1e-3', '{"type":"integer"}', 0.001],
+      'integer casts a whole exponent' => ['1E3', '{"type":"integer"}', 1000],
+      'integer keeps a negative fraction exponent' => ['-2e-1', '{"type":"integer"}', -0.2],
+      'number keeps a dotted whole number a float' => ['1.0', '{"type":"number"}', 1.0],
+      'number casts a plain integer string' => ['12', '{"type":"number"}', 12],
+      'exponent integer overflow' => ['1e20', '{"type":"integer"}', '1e20'],
       // A list is refined item by item with the `items` sub-schema.
       'list items are refined individually' => [
         ['1', '2', '3'],

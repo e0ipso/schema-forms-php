@@ -233,7 +233,8 @@ final class RecursiveTypeCaster {
       if (!is_finite($number)) {
         return FALSE;
       }
-      $cast_to_integer = strpos($input, '.') === FALSE;
+      // An exponent can spell a fraction without a dot, such as "1e-3".
+      $cast_to_integer = strpos($input, '.') === FALSE && floor($number) === $number;
       if ($cast_to_integer) {
         if ($number < PHP_INT_MIN || $number > PHP_INT_MAX) {
           return FALSE;
