@@ -529,6 +529,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => FALSE,
+            '#access' => FALSE,
             '#prop_name' => 'invisible',
             '#prop_parents' => ['invisible'],
           ],

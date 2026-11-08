@@ -73,6 +73,11 @@ final class FieldBuilder {
     }
     $element['#disabled'] = !$context->enabled;
     $element['#visible'] = (bool) ($context->hints['ui:visible'] ?? TRUE);
+    if (!$element['#visible']) {
+      // Core never reads #visible. Form API submits an inaccessible element's
+      // default value and ignores its input, so the saved value survives.
+      $element['#access'] = FALSE;
+    }
     if ($saved_scalar && $type === $guessed) {
       $element = UnsupportedElement::apply($element, $type, ValidationMessages::mismatchedSavedValue($type));
       $element[RenderKeys::FIXED_VALUE] = $context->currentInput;
