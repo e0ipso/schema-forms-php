@@ -21,20 +21,20 @@ final class ErrorElementMapper {
    *   The generated root container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   * @param array<int, array<string, mixed>> $errors
+   * @param list<array<mixed>> $errors
    *   The errors the JSON Schema validator reported.
    */
-  public static function setErrors(array $root, FormStateInterface $form_state, array $errors): void {
+  public function setErrors(array $root, FormStateInterface $form_state, array $errors): void {
     if ($errors === []) {
       return;
     }
     $targets = self::elementsByPointer($root);
     $mapped = array_filter(
       $errors,
-      static fn (array $error): bool => isset($targets[$error['pointer'] ?? ''])
+      static fn (array $error): bool => isset($targets[self::pointerOf($error)])
     );
     foreach ($mapped as $error) {
-      $target = $targets[$error['pointer']];
+      $target = $targets[self::pointerOf($error)];
       $form_state->setError($target, ValidationMessages::elementViolation($target['#title'] ?? '', self::violation($error)));
     }
     $unmapped = array_diff_key($errors, $mapped);
@@ -42,6 +42,20 @@ final class ErrorElementMapper {
       return;
     }
     $form_state->setError($root, ValidationMessages::invalidData(array_values(array_map([self::class, 'violation'], $unmapped))));
+  }
+
+  /**
+   * Reads the JSON pointer of an error.
+   *
+   * @param array<mixed> $error
+   *   The error the JSON Schema validator reported.
+   *
+   * @return string
+   *   The pointer, or '' when the error has none.
+   */
+  private static function pointerOf(array $error): string {
+    $pointer = $error['pointer'] ?? '';
+    return is_string($pointer) ? $pointer : '';
   }
 
   /**
@@ -82,14 +96,15 @@ final class ErrorElementMapper {
   /**
    * Describes a violation.
    *
-   * @param array<string, mixed> $error
+   * @param array<mixed> $error
    *   The error the JSON Schema validator reported.
    *
    * @return \Drupal\Component\Render\MarkupInterface|string
    *   The description.
    */
   private static function violation(array $error): MarkupInterface|string {
-    return ValidationMessages::violation((string) $error['message'], self::constraintName($error));
+    $message = $error['message'] ?? '';
+    return ValidationMessages::violation(is_scalar($message) ? (string) $message : '', self::constraintName($error));
   }
 
   /**
@@ -100,7 +115,7 @@ final class ErrorElementMapper {
    * `['name' => <name>, 'params' => [...]]`. This library supports
    * `^5.2 || ^6.3`, so both shapes reach here and neither may be assumed.
    *
-   * @param array<string, mixed> $error
+   * @param array<mixed> $error
    *   The error the JSON Schema validator reported.
    *
    * @return string|null

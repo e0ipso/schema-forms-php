@@ -27,7 +27,7 @@ final class FormValidatorDrupal {
    *   The form schema.
    */
   public static function validateWithSchema(array $element, FormStateInterface $form_state, object $schema): void {
-    SubmissionValidator::validate($element, $form_state, $schema);
+    (new SubmissionValidator())->validate($element, $form_state, $schema);
   }
 
   /**
@@ -41,7 +41,7 @@ final class FormValidatorDrupal {
    *   The data schema.
    */
   public static function typeCastRecursive(array $element, FormStateInterface $form_state, object $schema): void {
-    SubmissionPreparer::prepare($element, $form_state, $schema);
+    (new SubmissionPreparer())->prepare($element, $form_state, $schema);
   }
 
 }

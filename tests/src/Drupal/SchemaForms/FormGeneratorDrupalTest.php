@@ -3,14 +3,32 @@
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Component\Utility\Html;
-use Drupal\Core\Render\Element\Details;
 use Drupal\Core\Form\FormState;
+use Drupal\Core\Render\Element\Details;
 use Drupal\Core\Render\Markup;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SchemaForms\Drupal\ButtonNames;
+use SchemaForms\Drupal\ElementScaffold;
+use SchemaForms\Drupal\EnumElements;
+use SchemaForms\Drupal\FieldBuilder;
+use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\FormTreeBuilder;
+use SchemaForms\Drupal\Labels;
+use SchemaForms\Drupal\MultivalueCallbacks;
+use SchemaForms\Drupal\MultivalueWidgetBuilder;
+use SchemaForms\Drupal\RenderChildren;
+use SchemaForms\Drupal\RequiredMarker;
+use SchemaForms\Drupal\SavedInput;
+use SchemaForms\Drupal\SchemaPreparer;
+use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\UnsupportedElement;
+use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetState;
+use SchemaForms\Drupal\WidgetStateStorage;
 use Shaper\Util\Context;
 
 /**
@@ -19,6 +37,24 @@ use Shaper\Util\Context;
  * @package SchemaForms
  */
 #[CoversClass(FormGeneratorDrupal::class)]
+#[CoversClass(ButtonNames::class)]
+#[CoversClass(ElementScaffold::class)]
+#[CoversClass(EnumElements::class)]
+#[CoversClass(FieldBuilder::class)]
+#[CoversClass(FieldContext::class)]
+#[CoversClass(FormTreeBuilder::class)]
+#[CoversClass(Labels::class)]
+#[CoversClass(MultivalueCallbacks::class)]
+#[CoversClass(MultivalueWidgetBuilder::class)]
+#[CoversClass(RenderChildren::class)]
+#[CoversClass(RequiredMarker::class)]
+#[CoversClass(SavedInput::class)]
+#[CoversClass(SchemaPreparer::class)]
+#[CoversClass(SchemaTypes::class)]
+#[CoversClass(UnsupportedElement::class)]
+#[CoversClass(WidgetButton::class)]
+#[CoversClass(WidgetState::class)]
+#[CoversClass(WidgetStateStorage::class)]
 class FormGeneratorDrupalTest extends TestCase {
 
   /**

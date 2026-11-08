@@ -1,17 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Drupal;
 
-use Drupal\Component\Utility\Html;
-use Drupal\Component\Utility\NestedArray;
-use Drupal\Component\Utility\Xss;
-use Drupal\Core\Field\FieldStorageDefinitionInterface;
-use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Render\Element\Checkboxes;
-use Drupal\Core\Render\Element\Details;
-use Drupal\Core\Render\Markup;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Exception\ExceptionInterface;
 use JsonSchema\Validator;
@@ -21,91 +14,91 @@ use SchemaForms\RenderArrayValidator;
 use SchemaForms\SchemaReferenceResolver;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;
+use Shaper\Validator\ValidateableInterface;
 
 /**
  * Generates Drupal Form API forms from JSON-Schema documents.
+ *
+ * Call transform() to build a form. The public methods other than
+ * transform(), getInputValidator() and getOutputValidator() are Form API
+ * callbacks that the generated render arrays name; they are internal.
+ *
+ * @api
  */
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {
-
-  /**
-   * The Form API element types this generator produces on purpose.
-   *
-   * Any other value means a JSON-Schema type reached '#type' unchanged, and no
-   * JSON-Schema type is a Drupal element: ElementInfoManager::getInfo() returns
-   * an empty array for an unknown type, so the element renders as an empty
-   * string with no exception, no warning and no log entry. The property then
-   * looks exactly like one the schema never declared. Such an element is
-   * replaced by an explanation instead.
-   *
-   * @see \SchemaForms\Drupal\FormGeneratorDrupal::transformUnsupported()
-   */
-  private const SUPPORTED_ELEMENT_TYPES = [
-    'checkbox',
-    'checkboxes',
-    'details',
-    'email',
-    'number',
-    'radios',
-    'textfield',
-  ];
 
   /**
    * The input validator, kept so a rejection message can read its errors.
    *
    * Shaper asks for the input validator once to validate and again to build
    * the TypeError message. A new instance each time would print no errors.
-   *
-   * @var \SchemaForms\JsonSchemaFormValidator|null
    */
   private ?JsonSchemaFormValidator $inputValidator = NULL;
 
   /**
-   * Creates the Form API element based on the JSON-Schema input.
+   * Creates the generator.
    *
-   * {@inheritdoc}
+   * @param \SchemaForms\Drupal\SchemaPreparer $schemas
+   *   Registers the schema and checks its property names.
+   * @param \SchemaForms\Drupal\FormTreeBuilder $tree
+   *   Builds the generated container.
+   * @param \SchemaForms\Drupal\SubmissionPreparer $preparer
+   *   Cleans and casts submitted values.
+   * @param \SchemaForms\Drupal\SubmissionValidator $validator
+   *   Validates the prepared values against the schema.
    */
-  public function doTransform($data, ?Context $context = NULL) {
-    $context = $context ?: new Context();
-    $form_state = $context['form_state'] ?? new FormState();
+  public function __construct(
+    private readonly SchemaPreparer $schemas = new SchemaPreparer(),
+    private readonly FormTreeBuilder $tree = new FormTreeBuilder(),
+    private readonly SubmissionPreparer $preparer = new SubmissionPreparer(),
+    private readonly SubmissionValidator $validator = new SubmissionValidator(),
+  ) {}
+
+  /**
+   * Builds the generated container; call transform() instead.
+   *
+   * Shaper declares this method protected. It stays public here because it
+   * always was, but transform() is the entry point: it also validates the
+   * schema and the result.
+   *
+   * @param mixed $data
+   *   The decoded schema.
+   * @param \Shaper\Util\Context|null $context
+   *   The options: 'ui_hints', 'form_state' and 'current_input'.
+   *
+   * @return array<int|string, mixed>
+   *   The generated container.
+   *
+   * @internal
+   */
+  public function doTransform($data, ?Context $context = NULL): array {
     try {
-      $schema = $this->getSchema($data);
+      $schema = $this->schemas->prepare($data);
     }
     catch (ExceptionInterface $e) {
-      return $this->addValidationRules([
+      return $this->withValidation([
         '#type' => 'container',
         '#tree' => TRUE,
-        '#json_schema' => $data,
+        RenderKeys::SCHEMA => $data,
         '#markup' => ValidationMessages::unsupportedReference(),
       ]);
     }
-    $visited = [];
-    $this->rejectRenderPropertyNames($schema, [], $visited);
-    // A root object schema may omit 'properties'; that is an empty form.
-    $props = $schema->properties ?? new \stdClass();
-    // Store the schema for the validation callbacks to access.
-    $element = [
-      '#type' => 'container',
-      '#tree' => TRUE,
-      '#json_schema' => $schema,
-    ];
-    $ui_hints = $context['ui_hints'] ?? [];
-    // Normalize decoded objects once, before passing saved values to fields.
-    $current_input = $this->normalizeInput($context['current_input'] ?? []);
-    foreach ((array) $props as $key => $prop) {
-      // If there is UI context, grab it and pass it along.
-      $ui_schema_data = $ui_hints[$key] ?? [];
-      $element[$key] = $this->doTransformOneField($prop, $key, [$key], $ui_schema_data, $form_state, $current_input[$key] ?? NULL, TRUE, array_key_exists($key, $current_input));
-    }
-    return $this->addValidationRules(ButtonNames::deduplicate($element));
+    return $this->withValidation($this->tree->build($schema, $context ?? new Context()));
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getInputValidator() {
-    // Validate the JSON-Schema input.
+  public function getInputValidator(): ValidateableInterface {
     $this->inputValidator ??= new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
     return $this->inputValidator;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getOutputValidator(): ValidateableInterface {
+    return new RenderArrayValidator();
   }
 
   /**
@@ -119,57 +112,67 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The names of the properties to serialize.
    */
   public function __sleep(): array {
-    return [];
+    return ['schemas', 'tree', 'preparer', 'validator'];
   }
 
   /**
-   * {@inheritdoc}
-   */
-  public function getOutputValidator() {
-    return new RenderArrayValidator();
-  }
-
-  /**
-   * Validation callback against the schema.
+   * Validates a generated container against its schema.
    *
-   * @param array $element
-   *   The element.
+   * The #element_validate callback of the generated container.
+   *
+   * @param array<int|string, mixed> $element
+   *   The generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @internal
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
-    $schema = $element['#json_schema'] ?? [];
-    if (empty($schema)) {
+    $schema = $element[RenderKeys::SCHEMA] ?? NULL;
+    if (!is_object($schema)) {
       return;
     }
+    try {
+      // One restricted factory serves casting and validation alike.
+      $factory = SchemaReferenceResolver::createFactory($schema);
+    }
+    catch (ExceptionInterface $e) {
+      $form_state->setError($element, ValidationMessages::unsupportedReference());
+      return;
+    }
+    $registered = SchemaReferenceResolver::registeredSchema($factory);
     // Validation reads the value preparation stored, so it checks exactly
     // what the submit handlers receive.
-    if (SubmissionPreparer::prepare($element, $form_state, $schema)) {
-      SubmissionValidator::validate($element, $form_state, $schema);
+    if ($this->preparer->prepare($element, $form_state, $registered, $factory)) {
+      $this->validator->validate($element, $form_state, $registered, $factory);
     }
   }
 
   /**
-   * Form-level validation callback, for a container that is the form itself.
+   * Validates a generated container that is the form itself.
    *
-   * The form's values also hold Drupal's own keys, such as form_build_id and
-   * form_id, and the values of elements the module added next to the
-   * generated ones. Only the schema's properties are validated, so those
-   * keys cannot fail a schema that forbids additional properties. The other
-   * values are put back afterwards.
+   * The form-level #validate callback of the generated container. The form's
+   * values also hold Drupal's own keys, such as form_build_id and form_id,
+   * and the values of elements the module added next to the generated ones.
+   * Only the schema's properties are validated, so those keys cannot fail a
+   * schema that forbids additional properties. The other values are put
+   * back afterwards.
    *
-   * @param array $form
-   *   The form, which is the generated root container.
+   * @param array<int|string, mixed> $form
+   *   The form, which is the generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @internal
    */
   public function validateFormWithSchema(array &$form, FormStateInterface $form_state): void {
-    $schema = $form['#json_schema'] ?? NULL;
+    $schema = $form[RenderKeys::SCHEMA] ?? NULL;
     if (!is_object($schema)) {
       return;
     }
     $values = $form_state->getValues();
-    $schema_keys = array_flip(array_keys((array) ($schema->properties ?? [])));
+    $properties = $schema->properties ?? [];
+    $schema_keys = array_flip(array_keys(is_object($properties) || is_array($properties) ? (array) $properties : []));
     $form_state->setValues(array_intersect_key($values, $schema_keys));
     try {
       $this->validateWithSchema($form, $form_state);
@@ -180,1032 +183,173 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
-   * Normalizes compound saved values and defaults for child field lookups.
-   *
-   * @param mixed $value
-   *   The input value.
-   *
-   * @return mixed
-   *   The value with decoded objects recursively converted to arrays.
-   */
-  private function normalizeInput($value) {
-    if (!is_array($value) && !$value instanceof \stdClass) {
-      return $value;
-    }
-    return array_map([$this, 'normalizeInput'], (array) $value);
-  }
-
-  /**
-   * Creates a Drupal form element from a property definition.
-   *
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param string $machine_name
-   *   The machine name for the form element. Used for fallback metadata.
-   * @param array $prop_parents
-   *   The parents.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   * @param mixed $current_input
-   *   The current input.
-   * @param bool $parent_enabled
-   *   FALSE when an ancestor element is disabled. A disabled ancestor disables
-   *   this element whatever its own 'ui:enabled' says.
-   * @param bool $has_current_input
-   *   Whether current input is available, including an explicit NULL.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE, bool $has_current_input = FALSE): array {
-    $guessed_type = $this->guessSchemaType($json_schema, $ui_schema_data);
-    // A saved scalar cannot fill a compound control, but a union type may
-    // offer a control that shows it.
-    $saved_scalar = $has_current_input && in_array($guessed_type, ['array', 'object'], TRUE) && !is_array($current_input) && $current_input !== NULL;
-    $type = $saved_scalar ? $this->scalarType($json_schema, $current_input) ?? $guessed_type : $guessed_type;
-    $form_element = $this->scaffoldFormElement($json_schema, $type, $machine_name, $ui_schema_data, $current_input, $has_current_input);
-    $enabled = $parent_enabled && (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
-    $form_element['#prop_parents'] = $prop_parents;
-    if (property_exists($json_schema, 'const')) {
-      unset($form_element['#type']);
-      $form_element['#plain_text'] = is_string($json_schema->const)
-        ? $json_schema->const
-        : json_encode($json_schema->const, JSON_THROW_ON_ERROR);
-      $form_element['#input'] = FALSE;
-      $form_element['#schema_fixed_value'] = $json_schema->const;
-      // Not much more to do with constants.
-      return $form_element;
-    }
-    // Saved input wins over the default, including an explicit NULL.
-    if (!$has_current_input && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
-      $default_input = $this->normalizeInput($json_schema->default);
-      // A union may select a compound widget but supply a scalar default.
-      $current_input = is_array($default_input) ? $default_input : NULL;
-    }
-    $form_element['#disabled'] = !$enabled;
-    $visible = (bool) ($ui_schema_data['ui:visible'] ?? TRUE);
-    $form_element['#visible'] = $visible;
-    if ($saved_scalar && $type === $guessed_type) {
-      $form_element = $this->transformUnsupported($form_element, $type, ValidationMessages::mismatchedSavedValue($type));
-      $form_element['#schema_fixed_value'] = $current_input;
-      return $form_element;
-    }
-    // Form API options are keyed by member, and only scalars make keys.
-    $editable_enum = !$this->hasStructuredEnumMember($json_schema, $type);
-    if ($editable_enum) {
-      $form_element = $this->buildByType($form_element, $json_schema, $type, $machine_name, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled, $has_current_input);
-    }
-    // A 'ui:widget' names a Form API element the caller picked deliberately, so
-    // it is taken at face value. Everything else has to be an element this
-    // generator built on purpose; see SUPPORTED_ELEMENT_TYPES.
-    $has_widget = !empty($ui_schema_data['ui:widget']);
-    if (!$editable_enum || (!$has_widget && !in_array($form_element['#type'] ?? '', self::SUPPORTED_ELEMENT_TYPES, TRUE))) {
-      $form_element = $this->transformUnsupported($form_element, $type);
-      if ($has_current_input || property_exists($json_schema, 'default')) {
-        $form_element['#schema_fixed_value'] = $has_current_input ? $current_input : $json_schema->default;
-      }
-      return $form_element;
-    }
-    // An editable control cannot show NULL, so an untouched one would submit
-    // a blank value instead. Record the saved NULL to restore it on submit.
-    if ($has_current_input && $current_input === NULL && in_array('null', (array) ($json_schema->type ?? []), TRUE)) {
-      $form_element['#schema_saved_null'] = TRUE;
-    }
-    return $form_element;
-  }
-
-  /**
-   * Builds the control for a schema type.
-   *
-   * @param array $form_element
-   *   The scaffolded form element.
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param string $type
-   *   The schema type the control is built for.
-   * @param string $machine_name
-   *   The machine name for the form element.
-   * @param array $prop_parents
-   *   The parents.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   * @param mixed $current_input
-   *   The current input.
-   * @param bool $enabled
-   *   Whether the element is enabled.
-   * @param bool $has_current_input
-   *   Whether current input is available, including an explicit NULL.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function buildByType(array $form_element, $json_schema, string $type, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $enabled, bool $has_current_input): array {
-    if ($type === 'string' && !empty($json_schema->format) && $json_schema->format === 'email') {
-      $form_element = $this->transformEmail($form_element);
-    }
-    $label_mappings = $ui_schema_data['ui:enum']['labels']['mappings'] ?? [];
-    $label_mappings = (array) $label_mappings;
-    if (!empty($json_schema->enum)) {
-      $form_element = $this->transformRadios($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
-    }
-    if ($type === 'array') {
-      // Draft-04 makes 'items' optional and also allows a list of schemas.
-      // Neither gives one schema for every item, so no item control exists.
-      $form_element = match (TRUE) {
-        !is_object($json_schema->items ?? NULL) => $this->transformUnsupported($form_element, $type),
-        empty($json_schema->items->enum) => $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data, $enabled),
-        default => $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings),
-      };
-    }
-    if ($type === 'object') {
-      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled, $has_current_input);
-    }
-    return $form_element;
-  }
-
-  /**
-   * Decides whether an enum the control would offer has a structured member.
-   *
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param string $type
-   *   The schema type the control is built for.
-   *
-   * @return bool
-   *   TRUE when an array or object member makes options impossible.
-   */
-  private function hasStructuredEnumMember($json_schema, string $type): bool {
-    $members = [
-      ...(is_array($json_schema->enum ?? NULL) ? $json_schema->enum : []),
-      ...($type === 'array' && is_array($json_schema->items->enum ?? NULL) ? $json_schema->items->enum : []),
-    ];
-    return array_filter($members, static fn ($member): bool => is_array($member) || is_object($member)) !== [];
-  }
-
-  /**
-   * Finds the scalar type of a union that holds a saved value.
-   *
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param mixed $value
-   *   The saved scalar.
-   *
-   * @return string|null
-   *   The type whose control shows the value, or NULL when none does.
-   */
-  private function scalarType($json_schema, $value): ?string {
-    $candidates = match (TRUE) {
-      is_string($value) => ['string'],
-      is_int($value) => ['integer', 'number'],
-      is_float($value) => ['number'],
-      is_bool($value) => ['boolean'],
-      default => [],
-    };
-    $types = array_values(array_intersect($candidates, (array) ($json_schema->type ?? [])));
-    return $types[0] ?? NULL;
-  }
-
-  /**
    * Limits Append validation to the widget's final form value path.
    *
-   * @param array $element
-   *   The multivalue element with its Form API parents assigned.
+   * The #process callback of multivalue widgets.
    *
-   * @return array
-   *   The processed element.
+   * @param array<int|string, mixed> $element
+   *   The widget, with its Form API parents assigned.
+   *
+   * @return array<int|string, mixed>
+   *   The widget.
+   *
+   * @internal
    */
   public static function multiValueProcess(array $element): array {
-    $element['add_more']['#limit_validation_errors'] = [$element['#parents']];
-    return $element;
+    return MultivalueCallbacks::process($element);
   }
 
   /**
-   * After-build handler for field elements in a form.
+   * Cleans the widget value and records where the widget was built.
    *
-   * This stores the final location of the field within the form structure so
-   * that flagErrors() can assign validation errors to the right form element.
+   * The #after_build callback of multivalue widgets.
    *
-   * @param array $element
-   *   The element.
+   * @param array<int|string, mixed> $element
+   *   The widget.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array
-   *   The form element.
+   * @return array<int|string, mixed>
+   *   The widget.
+   *
+   * @internal
    */
-  public static function multiValueAfterBuild(array $element, FormStateInterface $form_state) {
-    // Each widget cleans its own value here, before any ancestor's after-build
-    // runs, so the schema bridge and the submit handlers of buttons that skip
-    // it both receive a plain item list.
-    if ($form_state->isProcessingInput()) {
-      $element_parents = $element['#parents'];
-      $form_state->setValue($element_parents, UserInputCleaner::cleanUserInput($form_state->getValue($element_parents), $element));
-    }
-
-    $prop_parents = $element['#prop_parents'];
-    $prop_name = $element['#prop_name'];
-
-    $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
-    $prop_state['array_parents'] = $element['#array_parents'];
-    static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
-
-    return $element;
+  public static function multiValueAfterBuild(array $element, FormStateInterface $form_state): array {
+    return MultivalueCallbacks::afterBuild($element, $form_state);
   }
 
   /**
-   * Submission handler for the "Remove item" button.
+   * Removes an item; the #submit callback of Remove buttons.
    *
-   * @param array $form
+   * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @internal
    */
   public static function removeOneSubmit(array $form, FormStateInterface $form_state): void {
-    $button = $form_state->getTriggeringElement();
-    $delta = $button['#delta'] ?? NULL;
-    if (is_null($delta)) {
-      return;
-    }
-
-    // Go two levels up in the form, to the container.
-    $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -2));
-    $prop_name = $element['#prop_name'];
-    $form_parents = $button['#parents'];
-    // Pop the last element 'remove_one' to address the element container.
-    array_pop($form_parents);
-
-    $prop_state = static::getPropFormState($element['#prop_parents'] ?? [], $prop_name, $form_state);
-    $indices = $prop_state['items_indices'] ?? [];
-    if (in_array($delta, $indices, TRUE)) {
-      // A removed delta is never given to a new item, which would otherwise
-      // show the removed item's saved value.
-      $prop_state['next_delta'] = static::nextDelta($prop_state);
-      $prop_state['items_indices'] = array_filter($indices, static fn ($index): bool => $index !== $delta);
-      static::setPropFormState(
-        $element['#prop_parents'] ?? [],
-        $prop_name,
-        $form_state,
-        $prop_state
-      );
-    }
-
-    $form_state->setRebuild();
+    MultivalueCallbacks::removeSubmit($form, $form_state);
   }
 
   /**
-   * Ajax callback for the "Remove item" button.
+   * Returns the rebuilt widget; the #ajax callback of Remove buttons.
    *
-   * The whole widget is returned, so an Append button hidden at the item
-   * limit comes back once an item is removed.
-   *
-   * @param array $form
-   *   The form.
+   * @param array<int|string, mixed> $form
+   *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array|null
-   *   The rebuilt widget, or NULL when no remove button triggered the request.
+   * @return array<int|string, mixed>|null
+   *   The widget, or NULL when no Remove button triggered the request.
+   *
+   * @internal
    */
-  public static function removeOneAjax(array $form, FormStateInterface $form_state) {
-    $button = $form_state->getTriggeringElement();
-    $delta = $button['#delta'] ?? NULL;
-    if (is_null($delta)) {
-      return NULL;
-    }
-    // Go two levels up in the form, to the widgets container.
-    return NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -2));
+  public static function removeOneAjax(array $form, FormStateInterface $form_state): ?array {
+    return MultivalueCallbacks::removeAjax($form, $form_state);
   }
 
   /**
-   * Submission handler for the "Add another item" button.
+   * Appends an item; the #submit callback of Append buttons.
    *
-   * @param array $form
+   * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @internal
    */
   public static function addMoreSubmit(array $form, FormStateInterface $form_state): void {
-    $button = $form_state->getTriggeringElement();
-
-    // Go one level up in the form, to the widgets container.
-    $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -1));
-    $prop_name = $element['#prop_name'];
-    $prop_parents = $element['#prop_parents'];
-
-    // Increment the items count.
-    $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
-    $form_state->setRebuild();
-    if (static::isFull($element['#cardinality'] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED, $prop_state['items_indices'] ?? [])) {
-      return;
-    }
-    $next_index = static::nextDelta($prop_state);
-    $prop_state['items_indices'][] = $next_index;
-    if (isset($prop_state['next_delta'])) {
-      $prop_state['next_delta'] = $next_index + 1;
-    }
-    static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
+    MultivalueCallbacks::appendSubmit($form, $form_state);
   }
 
   /**
-   * Picks the delta of the next appended item.
+   * Returns the rebuilt widget; the #ajax callback of Append buttons.
    *
-   * @param array $prop_state
-   *   The widget state.
-   *
-   * @return int
-   *   A delta above every delta the widget has used, including removed ones.
-   */
-  private static function nextDelta(array $prop_state): int {
-    $indices = $prop_state['items_indices'] ?? [];
-    $after_last = $indices === [] ? 0 : max($indices) + 1;
-    return max($after_last, $prop_state['next_delta'] ?? 0);
-  }
-
-  /**
-   * Gets the multivalue cardinality from the array schema.
-   *
-   * @param mixed $json_schema
-   *   The JSON Schema for the array.
-   *
-   * @return int
-   *   The integer maxItems when it is at least 1, otherwise unlimited.
-   */
-  private static function cardinality($json_schema): int {
-    $max_items = $json_schema->maxItems ?? NULL;
-    return is_int($max_items) && $max_items >= 1
-      ? $max_items
-      : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
-  }
-
-  /**
-   * Decides whether a multivalue widget holds as many items as it may.
-   *
-   * @param int $cardinality
-   *   The widget cardinality.
-   * @param array $indices
-   *   The item deltas. Removals leave gaps, so they are counted.
-   *
-   * @return bool
-   *   TRUE when no further item may be appended.
-   */
-  private static function isFull(int $cardinality, array $indices): bool {
-    return $cardinality !== FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
-      && count($indices) >= $cardinality;
-  }
-
-  /**
-   * Ajax callback for the "Add another item" button.
-   *
-   * This returns the new page content to replace the page content made obsolete
-   * by the form submission.
-   *
-   * @param array $form
-   *   The form.
+   * @param array<int|string, mixed> $form
+   *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array|mixed|void
-   *   The element.
+   * @return array<int|string, mixed>
+   *   The widget.
+   *
+   * @internal
    */
-  public static function addMoreAjax(array $form, FormStateInterface $form_state) {
-    $button = $form_state->getTriggeringElement();
-
-    // Go one level up in the form, to the widgets container.
-    $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -1));
-
-    // Finite widgets are replaced too, so a hidden Append button disappears.
-    // Add a DIV around the delta receiving the Ajax effect.
-    $delta = $element['#max_delta'] ?? NULL;
-    if ($delta === NULL || !isset($element[$delta])) {
-      return $element;
-    }
-    $element[$delta]['#prefix'] = '<div class="ajax-new-content">' . ($element[$delta]['#prefix'] ?? '');
-    $element[$delta]['#suffix'] = ($element[$delta]['#suffix'] ?? '') . '</div>';
-
-    return $element;
+  public static function addMoreAjax(array $form, FormStateInterface $form_state): array {
+    return MultivalueCallbacks::appendAjax($form, $form_state);
   }
 
   /**
-   * Get the prop form state.
+   * Turns checked keys into a list; the #element_validate of checkboxes.
    *
-   * @param array $parents
-   *   The parents.
-   * @param string $prop_name
-   *   The prop name.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array|mixed|null
-   *   The state.
-   */
-  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state) {
-    return NestedArray::getValue($form_state->getStorage(), static::getWidgetStateParents($parents, $prop_name));
-  }
-
-  /**
-   * Sets the prop form state.
-   *
-   * @param array $parents
-   *   The parents.
-   * @param string $prop_name
-   *   The prop name.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   * @param array $prop_state
-   *   The state to set.
-   */
-  public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state): void {
-    $parents_state = static::getWidgetStateParents($parents, $prop_name);
-    NestedArray::setValue($form_state->getStorage(), $parents_state, $prop_state);
-  }
-
-  /**
-   * Returns the location of processing information within $form_state.
-   *
-   * @param array $parents
-   *   The array of #parents where the widget lives in the form.
-   * @param string $prop_name
-   *   The field name.
-   *
-   * @return array
-   *   The location of processing information within $form_state.
-   */
-  protected static function getWidgetStateParents(array $parents, string $prop_name) {
-    // Prop processing data is placed at
-    // $form_state->get(['prop_storage', '#parents', ...$parents..., '#props',
-    // $prop_name]), to avoid clashes between prop names and $parents parts.
-    return array_merge(['prop_storage', '#parents'], $parents, [
-      '#props',
-      $prop_name,
-    ]);
-  }
-
-  /**
-   * Creates a scaffold for the form element.
-   *
-   * @param mixed $element
-   *   The parsed element from the schema.
-   * @param string $type
-   *   The schema type the control is built for.
-   * @param string $machine_name
-   *   The machine name for the form element. Used for fallback metadata.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   * @param mixed $current_input
-   *   The current input.
-   * @param bool $has_current_input
-   *   Whether current input is available, including an explicit NULL.
-   *
-   * @return array
-   *   The scaffolded form element.
-   */
-  private function scaffoldFormElement($element, string $type, string $machine_name, array $ui_schema_data, $current_input, bool $has_current_input): array {
-    $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
-    $form_element = [
-      '#title' => Markup::create(Xss::filter($title)),
-      '#type' => $type,
-      '#prop_name' => $machine_name,
-    ];
-    // Saved input wins over the default, and a saved NULL shows no value.
-    $default_value = $has_current_input ? $current_input : ($element->default ?? NULL);
-    if (!is_null($default_value)) {
-      $form_element['#default_value'] = $default_value;
-    }
-    $description = $ui_schema_data['ui:help'] ?? $element->description ?? NULL;
-    if (!empty($description)) {
-      $form_element['#description'] = $description;
-    }
-    $placeholder = $ui_schema_data['ui:placeholder'] ?? NULL;
-    if (!empty($placeholder)) {
-      $form_element['#placeholder'] = $placeholder;
-    }
-    // Basic transformations based on type.
-    if ($type === 'boolean') {
-      $form_element['#type'] = 'checkbox';
-    }
-    if ($type === 'string') {
-      $form_element['#type'] = 'textfield';
-    }
-    if ($type === 'integer') {
-      // Drupal has no 'integer' element. A number input whose step is one is
-      // the native spelling of the constraint: the browser rejects a fractional
-      // value before the form is submitted, and the value still arrives as an
-      // integer because RecursiveTypeCaster::tryCastingNumber() casts a numeric
-      // string with no decimal separator to int.
-      $form_element['#type'] = 'number';
-      $form_element['#step'] = 1;
-    }
-    return $form_element;
-  }
-
-  /**
-   * Guesses the JSON property type based on the schema element.
-   *
-   * @param mixed $element
-   *   The parsed element from the schema.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   *
-   * @return string
-   *   The JSON property type.
-   */
-  private function guessSchemaType($element, array $ui_schema_data): string {
-    if (!empty($ui_schema_data['ui:widget'])) {
-      return $ui_schema_data['ui:widget'];
-    }
-    if (!isset($element->type) && !empty($element->enum)) {
-      $members = $element->enum;
-      $count = count($members);
-      if (count(array_filter($members, 'is_int')) === $count) {
-        return 'integer';
-      }
-      if (count(array_filter($members, static fn($member) => is_int($member) || is_float($member))) === $count) {
-        return 'number';
-      }
-      if (count(array_filter($members, 'is_bool')) === $count) {
-        return 'boolean';
-      }
-      if (count(array_filter($members, 'is_array')) === $count) {
-        return 'array';
-      }
-      if (count(array_filter($members, 'is_object')) === $count) {
-        return 'object';
-      }
-      // String-only and mixed enums both use string controls.
-      return 'string';
-    }
-    $type = $element->type ?? 'unknown';
-    if (is_array($type)) {
-      // Use the first type other than 'null', or 'null' if none remains.
-      $type = current(array_filter($type, function ($item) {
-        return $item !== 'null';
-      })) ?: 'null';
-    }
-    return $type;
-  }
-
-  /**
-   * Turns a machine name into a human readable name.
-   *
-   * @param string $machine_name
-   *   The machine name.
-   *
-   * @return string
-   *   The human readable name.
-   */
-  private function machineNameToHumanName($machine_name) {
-    return ucwords(strtr($machine_name, ['_' => ' ', '-' => ' ']));
-  }
-
-  /**
-   * Adds the necessary validation rules to the form.
-   *
-   * @param array $element
-   *   The form element to alter.
-   *
-   * @return array
-   *   The modified form.
-   */
-  private function addValidationRules(array $element): array {
-    $required_prop_names = $element['#json_schema']->required ?? [];
-    // Add the required fields.
-    foreach (array_keys($element) as $key) {
-      if (($key[0] ?? '') === '#') {
-        continue;
-      }
-      if (($element[$key]['#input'] ?? NULL) === FALSE) {
-        continue;
-      }
-      $required = in_array($key, $required_prop_names);
-      // Schema required means presence, so unchecked values remain valid.
-      if (in_array($element[$key]['#type'] ?? '', ['checkbox', 'checkboxes'], TRUE)) {
-        $element[$key]['#required'] = FALSE;
-        if ($required) {
-          $element[$key]['#label_attributes']['class'][] = 'form-required';
-          // Composite checkboxes render their title inside a legend instead.
-          if ($element[$key]['#type'] === 'checkboxes') {
-            $element[$key]['#title'] = Markup::create('<span class="form-required">' . $element[$key]['#title'] . '</span>');
-          }
-        }
-        continue;
-      }
-      $element[$key]['#required'] = $required;
-    }
-    // Drupal runs #element_validate when the container sits under a key, but
-    // not on the form itself: there it runs only the form-level #validate
-    // handlers, and it ignores #validate on any other element. Each placement
-    // therefore runs the bridge exactly once. FormBuilder::prepareForm()
-    // appends the form's own ::validateForm after the #validate handler.
-    $element['#element_validate'] = [[$this, 'validateWithSchema']];
-    $element['#validate'] = [[$this, 'validateFormWithSchema']];
-    return $element;
-  }
-
-  /**
-   * Rejects schema property names that Drupal would read as render properties.
-   *
-   * Property names become render-array keys. A name such as '#process' or
-   * '#element_validate' would make Drupal call whatever the schema puts there,
-   * and '#type' or '#tree' would corrupt the form. The schema is checked as a
-   * whole before any element is built, so array items that are not rendered
-   * yet are covered too.
-   *
-   * @param mixed $schema
-   *   The registered schema, or one of its sub-schemas.
-   * @param string[] $path
-   *   The schema path of $schema, as keys from the root.
-   * @param bool[] $visited
-   *   The object IDs of the sub-schemas already checked, so that a schema
-   *   object graph with cycles cannot recurse forever.
-   *
-   * @throws \InvalidArgumentException
-   *   When a property name starts with '#'.
-   */
-  private function rejectRenderPropertyNames($schema, array $path, array &$visited): void {
-    if (!is_object($schema) || isset($visited[spl_object_id($schema)])) {
-      return;
-    }
-    $visited[spl_object_id($schema)] = TRUE;
-    foreach ((array) ($schema->properties ?? []) as $name => $sub_schema) {
-      $sub_path = [...$path, 'properties', (string) $name];
-      if (str_starts_with((string) $name, '#')) {
-        throw new \InvalidArgumentException(sprintf(
-          'Schema property "%s" starts with "#", which Drupal reserves for render properties.',
-          implode('.', $sub_path)
-        ));
-      }
-      $this->rejectRenderPropertyNames($sub_schema, $sub_path, $visited);
-    }
-    $this->rejectRenderPropertyNames($schema->items ?? NULL, [...$path, 'items'], $visited);
-  }
-
-  /**
-   * Gets the registered schema with normalized reference URIs.
-   *
-   * @param mixed $data
-   *   The schema containing references.
-   *
-   * @return mixed|object
-   *   The registered schema; referenced properties are not expanded.
-   */
-  private function getSchema($data) {
-    $storage = SchemaReferenceResolver::createFactory($data)->getSchemaStorage();
-    return $storage->getSchema(SchemaReferenceResolver::SCHEMA_URI);
-  }
-
-  /**
-   * Builds the form element for the email case.
-   *
-   * @param array $form_element
-   *   The form element.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformEmail(array $form_element): array {
-    $form_element['#type'] = 'email';
-    return $form_element;
-  }
-
-  /**
-   * Builds the form element for a type with no Form API counterpart.
-   *
-   * Emitting nothing is not an option: a property with no control and no
-   * message is indistinguishable from a property the schema never declared,
-   * which is how an unsupported type stays unnoticed until somebody compares
-   * the generated form against the schema by hand.
-   *
-   * @param array $form_element
-   *   The form element.
-   * @param string $type
-   *   The type that could not be turned into a control.
-   * @param \Drupal\Core\StringTranslation\TranslatableMarkup|null $reason
-   *   The explanation, when it is not the missing element for the type.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformUnsupported(array $form_element, string $type, ?TranslatableMarkup $reason = NULL): array {
-    $form_element['#type'] = 'item';
-    // 'item' collects a value by default, and the only value it could collect
-    // here is the empty string. That string is then type-cast and validated
-    // against the property's schema like any other submission, so a property
-    // that cannot be rendered would make the whole form unsavable. It has to
-    // stay out of the browser's submitted values. Any saved value or schema
-    // default is supplied separately before schema validation.
-    $form_element['#input'] = FALSE;
-    $form_element['#markup'] = $reason ?? new TranslatableMarkup(
-      'This property cannot be edited: there is no form element for the %type type.',
-      ['%type' => $type]
-    );
-    $form_element['#disabled'] = TRUE;
-    unset($form_element['#default_value'], $form_element['#placeholder']);
-    return $form_element;
-  }
-
-  /**
-   * Builds the form element for the radios case.
-   *
-   * @param string|null $uiwidget
-   *   The type of widget to use.
-   * @param array $form_element
-   *   The form element.
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $label_mappings
-   *   Mappings for the labels.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformRadios(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
-    $form_element['#type'] = $uiwidget ?? 'radios';
-    $form_element['#options'] = $this->enumOptions($json_schema->enum, $label_mappings);
-    return $form_element;
-  }
-
-  /**
-   * Builds the form element for the checkboxes case.
-   *
-   * @param string|null $uiwidget
-   *   The type of widget to use.
-   * @param array $form_element
-   *   The form element.
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $label_mappings
-   *   An associative array to map options to human-readable labels.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformCheckboxes(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
-    $form_element['#type'] = $uiwidget ?? 'checkboxes';
-    $form_element['#options'] = $this->enumOptions($json_schema->items->enum, $label_mappings);
-    $form_element['#element_validate'][] = [static::class, 'validateCheckboxes'];
-    return $form_element;
-  }
-
-  /**
-   * Normalizes selected checkbox keys before schema type casting.
-   *
-   * @param array $element
+   * @param array<int|string, mixed> $element
    *   The checkboxes element.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @internal
    */
   public static function validateCheckboxes(array &$element, FormStateInterface $form_state): void {
-    // Integer 0 marks an unchecked option; the string '0' is a checked key.
-    $checked = array_fill_keys(Checkboxes::getCheckedCheckboxes($element['#value']), TRUE);
-    // Follow the schema's option order, regardless of submission order.
-    $values = array_keys(array_intersect_key($element['#options'], $checked));
-    $form_state->setValueForElement($element, $values);
+    EnumElements::validateCheckboxes($element, $form_state);
   }
 
   /**
-   * Builds an '#options' array out of the members of an enum.
+   * Gets the stored state of a multivalue widget.
    *
-   * Shared by the radios and the checkboxes cases, which differ only in where
-   * they read the enum from. Both used to inline an array_reduce() whose
-   * closure declared `string $opt` and merged single-element arrays, and each
-   * of those two details was a separate defect:
-   *
-   * 1. `null` is a legal enum member -- it is how a JSON Schema spells "no
-   *    choice made", and it is what `type: ["string", "null"]` props use. The
-   *    `string` declaration turned it into a TypeError that took down the
-   *    whole form rather than one option.
-   * 2. array_merge() RENUMBERS integer keys. PHP coerces the numeric-string
-   *    key '10' to int 10 on the way into the array, array_merge() then
-   *    reassigns it sequentially, and an enum of ["10", "12", "15"] ends up
-   *    offering the keys 0, 1, 2 while still displaying the original labels.
-   *    Every such value failed validation on submission, because the key is
-   *    what the browser sends back and 0 is not in the enumeration. Assigning
-   *    the key directly preserves it: int 10 renders as value="10".
-   *
-   * @param array $members
-   *   The enum members, as decoded from the schema.
-   * @param array $label_mappings
-   *   An associative array to map options to human-readable labels.
-   *
-   * @return array
-   *   The options, keyed by the value Form API will submit.
-   */
-  private function enumOptions(array $members, array $label_mappings): array {
-    $options = [];
-    foreach ($members as $member) {
-      // PHP coerces a NULL array key to the empty string. Form API also submits
-      // '' for an unselected control. An enum containing both NULL and ''
-      // therefore shares one option key for those members.
-      // String keys preserve fractional values instead of truncating to int.
-      $key = is_float($member) ? (string) $member : ($member ?? '');
-      $label = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
-      $options[$key] = Markup::create(Xss::filter($label));
-    }
-    return $options;
-  }
-
-  /**
-   * Builds the form element for the multi-value case.
-   *
-   * @param array $prop_parents
-   *   The prop parents array.
-   * @param string $machine_name
-   *   The machine name.
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   * @param array|null $current_input
-   *   The current input.
-   * @param array $form_element
-   *   The form element.
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   * @param bool $enabled
-   *   Whether the multivalue element is enabled. Items of a disabled element
-   *   are disabled too.
    *
-   * @return array
-   *   The form element.
+   * @return mixed
+   *   The stored array, with 'items_indices' and 'array_parents', or NULL.
+   *
+   * @internal
    */
-  private function transformMultivalue(array $prop_parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, $json_schema, array $ui_schema_data, bool $enabled): array {
-    // Store field information in $form_state.
-    if (!static::getPropFormState($prop_parents, $machine_name, $form_state)) {
-      $count = count($current_input ?: []);
-      $prop_state = [
-        'items_indices' => $count ? range(0, $count - 1) : [],
-        'array_parents' => [],
-      ];
-      static::setPropFormState($prop_parents, $machine_name, $form_state, $prop_state);
-    }
-
-    $cardinality = static::cardinality($json_schema);
-    // Determine the widgets to display and the last real delta. Saved items
-    // beyond maxItems stay, so that validation reports them.
-    $indices = static::getPropFormState($prop_parents, $machine_name, $form_state)['items_indices'] ?? [0];
-    $max = $indices ? end($indices) : NULL;
-    $id_prefix = implode('-', $prop_parents);
-    $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
-    $form_element['#type'] = 'details';
-    $form_element['#open'] = TRUE;
-    // Keep the details element's default processing before setting the path.
-    $form_element['#process'] = [
-      [Details::class, 'processGroup'],
-      [Details::class, 'processAjaxForm'],
-      [static::class, 'multiValueProcess'],
-    ];
-    $form_element['#after_build'][] = [static::class, 'multiValueAfterBuild'];
-    $form_element['#cardinality'] = $cardinality;
-    $form_element['#max_delta'] = $max;
-    $form_element['#prefix'] = '<div id="' . $wrapper_id . '">';
-    $form_element['#suffix'] = '</div>';
-    $title = $form_element['#title'] ?? '';
-    foreach ($indices as $delta) {
-      // The wrapping details element shows the title and description, even
-      // when maxItems is 1; each item gets an invisible numbered title.
-      $element = [
-        '#title' => new TranslatableMarkup('@title (value @number)', [
-          '@title' => $title,
-          '@number' => $delta + 1,
-        ]),
-        '#title_display' => 'invisible',
-        '#description' => '',
-      ];
-      // Add a new empty item if it doesn't exist yet at this delta.
-      $new_prop_parents = [...$prop_parents, $delta];
-      $element += $this->doTransformOneField(
-        $json_schema->items,
-        (string) $delta,
-        $new_prop_parents,
-        $ui_schema_data,
-        $form_state,
-        $current_input[$delta] ?? NULL,
-        $enabled,
-        array_key_exists($delta, $current_input ?? [])
-      );
-
-      $container_id = Html::getUniqueId(sprintf('%s-%d-container', $id_prefix, $delta));
-      $remove_name = ButtonNames::remove($new_prop_parents);
-      $form_element[$delta] = [
-        '#type' => 'container',
-        '#prefix' => '<div id="' . $container_id . '">',
-        '#wrapper_id' => $container_id,
-        '#suffix' => '</div>',
-        '#attributes' => [
-          'style' => 'position: relative;',
-        ],
-        'removable_element' => $element,
-        'remove_one' => [
-          '#delta' => $delta,
-          '#type' => 'submit',
-          '#name' => $remove_name,
-          '#value' => new TranslatableMarkup('⨯'),
-          '#validate' => [],
-          '#prop_parents' => $new_prop_parents,
-          '#attributes' => [
-            'class' => ['field-remove-one-submit'],
-            'style' => 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;',
-            'title' => new TranslatableMarkup('Remove item'),
-          ],
-          '#limit_validation_errors' => [],
-          '#submit' => [[static::class, 'removeOneSubmit']],
-          '#ajax' => [
-            'callback' => [static::class, 'removeOneAjax'],
-            'wrapper' => $wrapper_id,
-            'effect' => 'fade',
-          ],
-          '#weight' => 101,
-        ],
-      ];
-    }
-
-    $form_element['add_more'] = [
-      '#type' => 'submit',
-      '#name' => ButtonNames::append($prop_parents),
-      '#value' => new TranslatableMarkup('Append an item'),
-      '#attributes' => ['class' => ['field-add-more-submit']],
-      '#submit' => [[static::class, 'addMoreSubmit']],
-      '#ajax' => [
-        'callback' => [static::class, 'addMoreAjax'],
-        'wrapper' => $wrapper_id,
-        'effect' => 'fade',
-      ],
-    ];
-    if (static::isFull($cardinality, $indices)) {
-      // An inaccessible button cannot trigger a submission either.
-      $form_element['add_more']['#access'] = FALSE;
-    }
-    return $form_element;
+  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state): mixed {
+    return WidgetStateStorage::get($form_state, $parents, $prop_name);
   }
 
   /**
-   * Gets the UI hints of a sub-property from its parent's hints.
+   * Stores the state of a multivalue widget.
    *
-   * The parent's own hints share the array with its children's, so a child
-   * named like a hint, such as "ui:title", has no hints of its own.
-   *
-   * @param array $ui_schema_data
-   *   The parent's UI hints.
-   * @param string $name
-   *   The sub-property name.
-   *
-   * @return array
-   *   The sub-property's UI hints.
-   */
-  private function childHints(array $ui_schema_data, string $name): array {
-    $hints = str_starts_with($name, 'ui:') ? NULL : ($ui_schema_data[$name] ?? NULL);
-    return is_array($hints) ? $hints : [];
-  }
-
-  /**
-   * Builds the form element for the nested case.
-   *
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $form_element
-   *   The form element.
-   * @param array $parents
-   *   The parents.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   * @param array|null $current_input
-   *   The current input.
-   * @param bool $enabled
-   *   Whether the nested element is enabled. Sub-properties of a disabled
-   *   element are disabled too.
-   * @param bool $has_current_input
-   *   Whether current input is available, including an explicit NULL.
+   * @param array<mixed> $prop_state
+   *   The state to store.
    *
-   * @return array
-   *   The form element.
+   * @internal
    */
-  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input, bool $enabled, bool $has_current_input): array {
-    // Inside a saved NULL, every sub-property is saved NULL too.
-    $saved_null = $has_current_input && $current_input === NULL;
-    $properties = $json_schema->properties ?? [];
-    if (!empty($properties)) {
-      $form_element['#type'] = 'details';
-      $form_element['#open'] = TRUE;
-      foreach ($properties as $sub_machine_name => $sub_json_schema) {
-        $form_element[$sub_machine_name] = $this->doTransformOneField(
-          $sub_json_schema,
-          $sub_machine_name,
-          [...$parents, $sub_machine_name],
-          $this->childHints($ui_schema_data, (string) $sub_machine_name),
-          $form_state,
-          $current_input[$sub_machine_name] ?? NULL,
-          $enabled,
-          $saved_null || array_key_exists($sub_machine_name, $current_input ?? [])
-        );
-      }
-    }
-    return $form_element;
+  public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state): void {
+    WidgetStateStorage::set($form_state, $parents, $prop_name, $prop_state);
+  }
+
+  /**
+   * Adds the schema validation callbacks to a generated container.
+   *
+   * Drupal runs #element_validate when the container sits under a key, but
+   * not on the form itself: there it runs only the form-level #validate
+   * handlers, and it ignores #validate on any other element. Each placement
+   * therefore runs the bridge exactly once. FormBuilder::prepareForm()
+   * appends the form's own ::validateForm after the #validate handler.
+   *
+   * @param array<int|string, mixed> $element
+   *   The generated container.
+   *
+   * @return array<int|string, mixed>
+   *   The container.
+   */
+  private function withValidation(array $element): array {
+    $element['#element_validate'] = [[$this, 'validateWithSchema']];
+    $element['#validate'] = [[$this, 'validateFormWithSchema']];
+    return $element;
   }
 
 }

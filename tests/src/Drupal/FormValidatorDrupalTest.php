@@ -13,15 +13,35 @@ use Drupal\Core\StringTranslation\TranslationInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\ElementDataPaths;
+use SchemaForms\Drupal\ElementScaffold;
+use SchemaForms\Drupal\EnumElements;
 use SchemaForms\Drupal\ErrorElementMapper;
+use SchemaForms\Drupal\FieldBuilder;
+use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\FormTreeBuilder;
 use SchemaForms\Drupal\FormValidatorDrupal;
+use SchemaForms\Drupal\JsonShape;
+use SchemaForms\Drupal\Labels;
+use SchemaForms\Drupal\MultivalueCallbacks;
 use SchemaForms\Drupal\MultivalueWidget;
+use SchemaForms\Drupal\MultivalueWidgetBuilder;
+use SchemaForms\Drupal\PreservedValues;
+use SchemaForms\Drupal\RenderChildren;
+use SchemaForms\Drupal\RequiredMarker;
+use SchemaForms\Drupal\SavedInput;
+use SchemaForms\Drupal\SchemaPreparer;
+use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\SubmissionPreparer;
 use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\Drupal\SubmittedValue;
+use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\ValidationMessages;
+use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetState;
+use SchemaForms\Drupal\WidgetStateStorage;
 
 /**
  * Unit tests for the \SchemaForms\Drupal\FormValidatorDrupal class.
@@ -41,6 +61,26 @@ use SchemaForms\Drupal\ValidationMessages;
 #[CoversClass(MultivalueWidget::class)]
 #[CoversClass(SubmittedValue::class)]
 #[CoversClass(ValidationMessages::class)]
+#[CoversClass(PreservedValues::class)]
+#[CoversClass(RenderChildren::class)]
+#[CoversClass(JsonShape::class)]
+#[CoversClass(ButtonNames::class)]
+#[CoversClass(ElementScaffold::class)]
+#[CoversClass(EnumElements::class)]
+#[CoversClass(FieldBuilder::class)]
+#[CoversClass(FieldContext::class)]
+#[CoversClass(FormTreeBuilder::class)]
+#[CoversClass(Labels::class)]
+#[CoversClass(MultivalueCallbacks::class)]
+#[CoversClass(MultivalueWidgetBuilder::class)]
+#[CoversClass(RequiredMarker::class)]
+#[CoversClass(SavedInput::class)]
+#[CoversClass(SchemaPreparer::class)]
+#[CoversClass(SchemaTypes::class)]
+#[CoversClass(UnsupportedElement::class)]
+#[CoversClass(WidgetButton::class)]
+#[CoversClass(WidgetState::class)]
+#[CoversClass(WidgetStateStorage::class)]
 final class FormValidatorDrupalTest extends TestCase {
 
   /**
@@ -409,6 +449,29 @@ final class FormValidatorDrupalTest extends TestCase {
       ['data][label' => self::elementError('Label', 'Must be at least 3 characters long [JSON Schema violation of "minLength"]')],
       self::renderedErrors($form_state)
     );
+  }
+
+  /**
+   * The generator runs with collaborators its caller constructs.
+   */
+  public function testGeneratorWithExplicitCollaborators(): void {
+    $generator = new FormGeneratorDrupal(
+      new SchemaPreparer(),
+      new FormTreeBuilder(new FieldBuilder(new MultivalueWidgetBuilder())),
+      new SubmissionPreparer(new PreservedValues()),
+      new SubmissionValidator(new ErrorElementMapper()),
+    );
+    $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer","const":3},"label":{"type":"string","minLength":3}}}');
+    $element = $generator->transform($schema);
+    $this->assertSame('textfield', $element['label']['#type']);
+    $element = self::element(['data'], 'Data', [
+      'count' => self::element(['data', 'count'], 'Count') + ['#schema_fixed_value' => 3],
+      'label' => self::element(['data', 'label'], 'Label'),
+    ]) + ['#json_schema' => $element['#json_schema']];
+    $form_state = self::formState(['data' => ['label' => 'ab']]);
+    $generator->validateWithSchema($element, $form_state);
+    $this->assertSame(['label' => 'ab', 'count' => 3], $form_state->getValue('data'));
+    $this->assertSame(['data][label'], array_keys(self::renderedErrors($form_state)));
   }
 
   /**

@@ -7,13 +7,49 @@ use Drupal\Core\Render\Markup;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SchemaForms\Drupal\ButtonNames;
+use SchemaForms\Drupal\ElementScaffold;
+use SchemaForms\Drupal\EnumElements;
+use SchemaForms\Drupal\FieldBuilder;
+use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\FormTreeBuilder;
+use SchemaForms\Drupal\Labels;
+use SchemaForms\Drupal\MultivalueCallbacks;
+use SchemaForms\Drupal\MultivalueWidgetBuilder;
+use SchemaForms\Drupal\RenderChildren;
+use SchemaForms\Drupal\RequiredMarker;
+use SchemaForms\Drupal\SavedInput;
+use SchemaForms\Drupal\SchemaPreparer;
+use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\UnsupportedElement;
+use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetState;
+use SchemaForms\Drupal\WidgetStateStorage;
 use Shaper\Util\Context;
 
 /**
  * Exercises multivalue callbacks with generated widgets and real form state.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
+#[CoversClass(ButtonNames::class)]
+#[CoversClass(ElementScaffold::class)]
+#[CoversClass(EnumElements::class)]
+#[CoversClass(FieldBuilder::class)]
+#[CoversClass(FieldContext::class)]
+#[CoversClass(FormTreeBuilder::class)]
+#[CoversClass(Labels::class)]
+#[CoversClass(MultivalueCallbacks::class)]
+#[CoversClass(MultivalueWidgetBuilder::class)]
+#[CoversClass(RenderChildren::class)]
+#[CoversClass(RequiredMarker::class)]
+#[CoversClass(SavedInput::class)]
+#[CoversClass(SchemaPreparer::class)]
+#[CoversClass(SchemaTypes::class)]
+#[CoversClass(UnsupportedElement::class)]
+#[CoversClass(WidgetButton::class)]
+#[CoversClass(WidgetState::class)]
+#[CoversClass(WidgetStateStorage::class)]
 final class FormGeneratorDrupalCallbacksTest extends TestCase {
 
   /**
@@ -187,19 +223,25 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
    * Invalid or absent limits retain the documented unlimited fallback.
    */
   #[DataProvider('cardinalityProvider')]
-  public function testCardinalitySelection(object $schema, int $expected): void {
-    // Invalid schemas can be rejected upstream, so test this pure policy here.
-    $method = new \ReflectionMethod(FormGeneratorDrupal::class, 'cardinality');
-    $this->assertSame($expected, $method->invoke(NULL, $schema));
+  public function testCardinalitySelection(mixed $max_items, int $expected, bool $valid): void {
+    $property = (object) ['type' => 'array', 'items' => (object) ['type' => 'string']];
+    if ($max_items !== 'missing') {
+      $property->maxItems = $max_items;
+    }
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['list' => $property]];
+    $generator = new FormGeneratorDrupal();
+    // transform() rejects an invalid limit, so build those without it.
+    $form = $valid ? $generator->transform($schema) : $generator->doTransform($schema);
+    $this->assertSame($expected, $form['list']['#cardinality']);
   }
 
   public static function cardinalityProvider(): array {
-    $cases = ['missing' => [(object) [], -1]];
-    foreach ([NULL, 0, -1, 2.5, '2', 2.0, FALSE] as $value) {
-      $cases[json_encode($value, JSON_PRESERVE_ZERO_FRACTION)] = [(object) ['maxItems' => $value], -1];
+    $cases = ['missing' => ['missing', -1, TRUE], 'zero' => [0, -1, TRUE]];
+    foreach ([NULL, -1, 2.5, '2', 2.0, FALSE] as $value) {
+      $cases[json_encode($value, JSON_PRESERVE_ZERO_FRACTION)] = [$value, -1, FALSE];
     }
-    $cases['one'] = [(object) ['maxItems' => 1], 1];
-    $cases['two'] = [(object) ['maxItems' => 2], 2];
+    $cases['one'] = [1, 1, TRUE];
+    $cases['two'] = [2, 2, TRUE];
     return $cases;
   }
 

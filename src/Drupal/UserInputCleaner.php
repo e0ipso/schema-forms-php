@@ -106,7 +106,7 @@ final class UserInputCleaner {
     if ($item === NULL && !self::isItemContainer($entry)) {
       return $entry;
     }
-    return is_array($entry) ? ($entry['removable_element'] ?? NULL) : NULL;
+    return is_array($entry) ? ($entry[RenderKeys::ITEM] ?? NULL) : NULL;
   }
 
   /**
@@ -179,8 +179,8 @@ final class UserInputCleaner {
    *   The clean values.
    */
   private static function cleanWithoutElement(array $data): array {
-    $has_append_button = ($data['add_more'] ?? NULL) instanceof MarkupInterface;
-    $values = $has_append_button ? array_diff_key($data, ['add_more' => TRUE]) : $data;
+    $has_append_button = ($data[RenderKeys::APPEND_BUTTON] ?? NULL) instanceof MarkupInterface;
+    $values = $has_append_button ? array_diff_key($data, [RenderKeys::APPEND_BUTTON => TRUE]) : $data;
     $containers = array_filter($values, [self::class, 'isItemContainer']);
     $is_widget = $has_append_button || ($values !== [] && count($containers) === count($values));
     if ($is_widget) {
@@ -218,8 +218,8 @@ final class UserInputCleaner {
    */
   private static function isItemContainer(mixed $item): bool {
     return is_array($item)
-      && array_key_exists('removable_element', $item)
-      && ($item['remove_one'] ?? NULL) instanceof MarkupInterface;
+      && array_key_exists(RenderKeys::ITEM, $item)
+      && ($item[RenderKeys::REMOVE_BUTTON] ?? NULL) instanceof MarkupInterface;
   }
 
 }

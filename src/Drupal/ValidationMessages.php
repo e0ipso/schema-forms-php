@@ -30,6 +30,19 @@ final class ValidationMessages {
   }
 
   /**
+   * Explains that a property has no control.
+   *
+   * @param string $type
+   *   The schema type no Form API element exists for.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslatableMarkup
+   *   The message.
+   */
+  public static function unsupportedType(string $type): TranslatableMarkup {
+    return new TranslatableMarkup('This property cannot be edited: there is no form element for the %type type.', ['%type' => $type]);
+  }
+
+  /**
    * Explains that a saved value does not fit the control for its type.
    *
    * @param string $type
@@ -88,7 +101,7 @@ final class ValidationMessages {
    */
   public static function elementViolation(mixed $title, MarkupInterface|string $violation): TranslatableMarkup {
     return new TranslatableMarkup('%element: @message', [
-      '%element' => $title,
+      '%element' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
       '@message' => $violation,
     ]);
   }

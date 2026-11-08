@@ -32,9 +32,9 @@ final class JsonShape {
     if (!is_array($data)) {
       return $data;
     }
-    $schema = is_object($schema) ? $schema : NULL;
+    $schema = $schema instanceof \stdClass ? $schema : NULL;
     if (!self::isObject($data, $schema)) {
-      $items = $schema?->items ?? NULL;
+      $items = $schema === NULL ? NULL : ($schema->items ?? NULL);
       return array_map(static fn (mixed $item): mixed => self::fromSchema($item, $items), $data);
     }
     $object = new \stdClass();
@@ -49,14 +49,14 @@ final class JsonShape {
    *
    * @param array<int|string, mixed> $data
    *   The array.
-   * @param object|null $schema
+   * @param \stdClass|null $schema
    *   The schema of the array, if known.
    *
    * @return bool
    *   TRUE when the array is an object.
    */
-  private static function isObject(array $data, ?object $schema): bool {
-    $types = (array) ($schema?->type ?? []);
+  private static function isObject(array $data, ?\stdClass $schema): bool {
+    $types = $schema === NULL ? [] : (array) ($schema->type ?? []);
     if (in_array('object', $types, TRUE) && !in_array('array', $types, TRUE)) {
       return TRUE;
     }
@@ -69,7 +69,7 @@ final class JsonShape {
    * Generated forms only render declared properties, so other names keep
    * the shape json_encode() gives them.
    *
-   * @param object|null $schema
+   * @param \stdClass|null $schema
    *   The object schema, if known.
    * @param string $name
    *   The property name.
@@ -77,8 +77,8 @@ final class JsonShape {
    * @return mixed
    *   The property schema, or NULL.
    */
-  private static function propertySchema(?object $schema, string $name): mixed {
-    $properties = $schema?->properties ?? NULL;
+  private static function propertySchema(?\stdClass $schema, string $name): mixed {
+    $properties = $schema === NULL ? NULL : ($schema->properties ?? NULL);
     return is_object($properties) ? ($properties->{$name} ?? NULL) : NULL;
   }
 

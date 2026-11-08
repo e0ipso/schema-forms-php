@@ -34,7 +34,8 @@ final class SubmittedValue {
     $complete_state = $form_state instanceof SubformStateInterface
       ? $form_state->getCompleteFormState()
       : $form_state;
-    return $complete_state->getValue($element['#parents']);
+    $parents = $element['#parents'] ?? [];
+    return $complete_state->getValue(is_array($parents) || is_string($parents) ? $parents : []);
   }
 
 }

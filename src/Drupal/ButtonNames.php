@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SchemaForms\Drupal;
 
 use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Render\Element;
 
 /**
  * Names the buttons of multivalue widgets.
@@ -88,11 +87,13 @@ final class ButtonNames {
    */
   private static function buttons(array $element, array $path): array {
     $own = array_filter([self::appendButton($element, $path), self::removeButton($element, $path)]);
-    $children = array_map(
-      static fn (int|string $key): array => is_array($element[$key]) ? self::buttons($element[$key], [...$path, $key]) : [],
-      Element::children($element)
+    $children = RenderChildren::of($element);
+    $nested = array_map(
+      static fn (array $child, int|string $key): array => self::buttons($child, [...$path, $key]),
+      $children,
+      array_keys($children)
     );
-    return [...array_values($own), ...array_merge(...$children)];
+    return [...array_values($own), ...array_merge(...$nested)];
   }
 
   /**
@@ -107,11 +108,12 @@ final class ButtonNames {
    *   The button, or NULL when the element is not a widget.
    */
   private static function appendButton(array $element, array $path): ?WidgetButton {
-    $name = $element['add_more']['#name'] ?? NULL;
+    $button = $element[RenderKeys::APPEND_BUTTON] ?? NULL;
+    $name = is_array($button) ? ($button['#name'] ?? NULL) : NULL;
     if (!MultivalueWidget::is($element) || !is_string($name)) {
       return NULL;
     }
-    return new WidgetButton([...$path, 'add_more'], self::segments($element['#prop_parents'] ?? []), $name, FALSE);
+    return new WidgetButton([...$path, RenderKeys::APPEND_BUTTON], self::segments($element[RenderKeys::PROP_PARENTS] ?? []), $name, FALSE);
   }
 
   /**
@@ -130,7 +132,7 @@ final class ButtonNames {
     if (!MultivalueWidget::isButton($element) || !isset($element['#delta']) || !is_string($name)) {
       return NULL;
     }
-    return new WidgetButton($path, self::segments($element['#prop_parents'] ?? []), $name, TRUE);
+    return new WidgetButton($path, self::segments($element[RenderKeys::PROP_PARENTS] ?? []), $name, TRUE);
   }
 
   /**

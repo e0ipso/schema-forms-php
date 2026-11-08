@@ -8,11 +8,31 @@ use Drupal\Core\Render\Element;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\ElementDataPaths;
+use SchemaForms\Drupal\ElementScaffold;
+use SchemaForms\Drupal\EnumElements;
+use SchemaForms\Drupal\FieldBuilder;
+use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\FormTreeBuilder;
+use SchemaForms\Drupal\JsonShape;
+use SchemaForms\Drupal\Labels;
+use SchemaForms\Drupal\MultivalueCallbacks;
 use SchemaForms\Drupal\MultivalueWidget;
+use SchemaForms\Drupal\MultivalueWidgetBuilder;
+use SchemaForms\Drupal\PreservedValues;
+use SchemaForms\Drupal\RenderChildren;
+use SchemaForms\Drupal\RequiredMarker;
+use SchemaForms\Drupal\SavedInput;
+use SchemaForms\Drupal\SchemaPreparer;
+use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\SubmissionPreparer;
+use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\UserInputCleaner;
+use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetState;
+use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 
 /**
@@ -23,6 +43,26 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 #[CoversClass(ElementDataPaths::class)]
 #[CoversClass(MultivalueWidget::class)]
 #[CoversClass(UserInputCleaner::class)]
+#[CoversClass(PreservedValues::class)]
+#[CoversClass(RenderChildren::class)]
+#[CoversClass(JsonShape::class)]
+#[CoversClass(MultivalueCallbacks::class)]
+#[CoversClass(WidgetState::class)]
+#[CoversClass(WidgetStateStorage::class)]
+#[CoversClass(ButtonNames::class)]
+#[CoversClass(ElementScaffold::class)]
+#[CoversClass(EnumElements::class)]
+#[CoversClass(FieldBuilder::class)]
+#[CoversClass(FieldContext::class)]
+#[CoversClass(FormTreeBuilder::class)]
+#[CoversClass(Labels::class)]
+#[CoversClass(MultivalueWidgetBuilder::class)]
+#[CoversClass(RequiredMarker::class)]
+#[CoversClass(SavedInput::class)]
+#[CoversClass(SchemaPreparer::class)]
+#[CoversClass(SchemaTypes::class)]
+#[CoversClass(UnsupportedElement::class)]
+#[CoversClass(WidgetButton::class)]
 #[RunTestsInSeparateProcesses]
 final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
 
