@@ -186,7 +186,7 @@ final class FieldBuilder {
       return UnsupportedElement::apply($element, $type);
     }
     if (empty($items->enum) || !is_array($items->enum)) {
-      return $this->multivalue->build($element, $context, $items, $this);
+      return $this->multivalue->build($element, $context, $items, $this->build(...));
     }
     return EnumElements::checkboxes($element, $items->enum, $context->hints);
   }
