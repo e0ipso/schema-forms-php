@@ -126,7 +126,7 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertSame([['host', 'a']], $widget['add_more']['#limit_validation_errors']);
     foreach (array_filter(Element::children($widget), 'is_int') as $delta) {
       $this->assertSame(['host', 'a', $delta, 'removable_element'], $widget[$delta]['removable_element']['#parents']);
-      $this->assertSame($widget[$delta]['#wrapper_id'], $widget[$delta]['remove_one']['#ajax']['wrapper']);
+      $this->assertSame($widget['add_more']['#ajax']['wrapper'], $widget[$delta]['remove_one']['#ajax']['wrapper']);
       $this->assertStringContainsString($widget[$delta]['#wrapper_id'], $widget[$delta]['#prefix']);
     }
   }
@@ -182,7 +182,7 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $ajax = FormGeneratorDrupal::addMoreAjax($form, $result->formState);
     $this->assertFalse($ajax['add_more']['#access']);
     $this->assertStringContainsString('ajax-new-content', $ajax[1]['#prefix']);
-    $this->assertSame($ajax[1]['#wrapper_id'], $ajax[1]['remove_one']['#ajax']['wrapper']);
+    $this->assertSame($ajax['add_more']['#ajax']['wrapper'], $ajax[1]['remove_one']['#ajax']['wrapper']);
   }
 
 }

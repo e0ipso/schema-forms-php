@@ -386,7 +386,7 @@ class FormGeneratorDrupalTest extends TestCase {
           '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],
           '#ajax' => [
             'callback' => [FormGeneratorDrupal::class, 'removeOneAjax'],
-            'wrapper' => 'tag-labels-' . $delta . '-container',
+            'wrapper' => 'tag-labels-add-more-wrapper',
             'effect' => 'fade',
           ],
           '#weight' => 101,
@@ -935,7 +935,7 @@ class FormGeneratorDrupalTest extends TestCase {
         $id = $item['#wrapper_id'];
         $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]+$/D', $id);
         $this->assertSame('<div id="' . $id . '">', $item['#prefix']);
-        $this->assertSame($id, $item['remove_one']['#ajax']['wrapper']);
+        $this->assertSame($form[$name]['add_more']['#ajax']['wrapper'], $item['remove_one']['#ajax']['wrapper']);
         $ids[] = $id;
       }
     }

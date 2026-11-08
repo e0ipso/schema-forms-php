@@ -438,11 +438,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // Pop the last element 'remove_one' to address the element container.
     array_pop($form_parents);
 
-    // Decrement the items count.
     $prop_state = static::getPropFormState($element['#prop_parents'] ?? [], $prop_name, $form_state);
-    // If the index is set, then remove it.
-    if (isset($prop_state['items_indices'][$delta])) {
-      unset($prop_state['items_indices'][$delta]);
+    $indices = $prop_state['items_indices'] ?? [];
+    if (in_array($delta, $indices, TRUE)) {
+      // A removed delta is never given to a new item, which would otherwise
+      // show the removed item's saved value.
+      $prop_state['next_delta'] = static::nextDelta($prop_state);
+      $prop_state['items_indices'] = array_filter($indices, static fn ($index): bool => $index !== $delta);
       static::setPropFormState(
         $element['#prop_parents'] ?? [],
         $prop_name,
@@ -457,16 +459,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Ajax callback for the "Remove item" button.
    *
-   * This returns the new page content to replace the page content made obsolete
-   * by the form submission.
+   * The whole widget is returned, so an Append button hidden at the item
+   * limit comes back once an item is removed.
    *
    * @param array $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array|mixed|void
-   *   The element.
+   * @return array|null
+   *   The rebuilt widget, or NULL when no remove button triggered the request.
    */
   public static function removeOneAjax(array $form, FormStateInterface $form_state) {
     $button = $form_state->getTriggeringElement();
@@ -474,11 +476,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if (is_null($delta)) {
       return NULL;
     }
-    return [
-      '#prefix' => '<div class="ajax-new-content recently-deleted-element"><em>',
-      '#markup' => new translatableMarkup('- Deleted -'),
-      '#suffix' => '</em></div>',
-    ];
+    // Go two levels up in the form, to the widgets container.
+    return NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -2));
   }
 
   /**
@@ -503,11 +502,27 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if (static::isFull($element['#cardinality'] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED, $prop_state['items_indices'] ?? [])) {
       return;
     }
-    $next_index = empty($prop_state['items_indices'])
-      ? 0
-      : end($prop_state['items_indices']) + 1;
+    $next_index = static::nextDelta($prop_state);
     $prop_state['items_indices'][] = $next_index;
+    if (isset($prop_state['next_delta'])) {
+      $prop_state['next_delta'] = $next_index + 1;
+    }
     static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
+  }
+
+  /**
+   * Picks the delta of the next appended item.
+   *
+   * @param array $prop_state
+   *   The widget state.
+   *
+   * @return int
+   *   A delta above every delta the widget has used, including removed ones.
+   */
+  private static function nextDelta(array $prop_state): int {
+    $indices = $prop_state['items_indices'] ?? [];
+    $after_last = $indices === [] ? 0 : max($indices) + 1;
+    return max($after_last, $prop_state['next_delta'] ?? 0);
   }
 
   /**
@@ -1100,7 +1115,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           '#submit' => [[static::class, 'removeOneSubmit']],
           '#ajax' => [
             'callback' => [static::class, 'removeOneAjax'],
-            'wrapper' => $container_id,
+            'wrapper' => $wrapper_id,
             'effect' => 'fade',
           ],
           '#weight' => 101,
