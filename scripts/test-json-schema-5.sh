@@ -31,4 +31,7 @@ printf 'Compatibility workspace: %s\n' "$work"
   "$composer_bin" audit --no-dev --locked --no-interaction
 )
 "$php_bin" "$work/bootstrap.php"
-"$php_bin" "$root/vendor/bin/grumphp.phar" run "$@" --no-interaction --config="$work/grumphp.yml"
+# Keep the path a separate argument. A PHP wrapper that runs in a container
+# mounts the directories of absolute-path arguments only; when it misses this
+# one, GrumPHP silently falls back to the project's grumphp.yml and tests 6.x.
+"$php_bin" "$root/vendor/bin/grumphp.phar" run "$@" --no-interaction --config "$work/grumphp.yml"

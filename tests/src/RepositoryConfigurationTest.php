@@ -158,9 +158,18 @@ final class RepositoryConfigurationTest extends TestCase {
 #!/usr/bin/env bash
 set -eu
 case "$1" in
-  */prepare-json-schema-5.php) mkdir -p "$2/runtime" ;;
+  */prepare-json-schema-5.php) mkdir -p "$2/runtime" && touch "$2/grumphp.yml" ;;
   */bootstrap.php) if [[ "$FIXTURE_FAILURE" == bootstrap ]]; then exit 24; fi ;;
-  */grumphp.phar) if [[ "$FIXTURE_FAILURE" == tests ]]; then exit 25; fi ;;
+  */grumphp.phar)
+    # A container wrapper only sees a config path given as its own argument.
+    config=''
+    for argument in "$@"; do
+      if [[ "$argument" == --config=* ]]; then exit 26; fi
+      if [[ "$config" == next ]]; then config=$argument; fi
+      if [[ "$argument" == --config ]]; then config=next; fi
+    done
+    if [[ ! -f "$config" ]]; then exit 27; fi
+    if [[ "$FIXTURE_FAILURE" == tests ]]; then exit 25; fi ;;
 esac
 SH);
     file_put_contents($composer, <<<'SH'
