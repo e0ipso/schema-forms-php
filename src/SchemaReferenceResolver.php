@@ -110,12 +110,11 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    */
   public function retrieve($uri, $baseUri = NULL) {
     $resolved = self::resolveUri($uri, $baseUri);
-    $metadata_path = dirname(__DIR__) . '/meta-schema-draft4.json';
     // Registered schemas are served by SchemaStorage without a retrieval. Only
     // these exact metadata URIs may reach disk. Never pass a target to a
     // generic retriever, even when its scheme is file or internal.
     if (!in_array($resolved, [
-      'file://' . $metadata_path,
+      self::metaSchemaUri(),
       'http://json-schema.org/draft-04/schema',
       'http://json-schema.org/draft-04/schema#',
       'https://json-schema.org/draft-04/schema',
@@ -123,7 +122,30 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     ], TRUE)) {
       throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
-    return json_decode(file_get_contents($metadata_path), FALSE, 512, JSON_THROW_ON_ERROR);
+    return json_decode(file_get_contents(self::metaSchemaPath()), FALSE, 512, JSON_THROW_ON_ERROR);
+  }
+
+  /**
+   * Returns the file URI of the bundled draft-04 meta-schema.
+   *
+   * The retriever allows this exact URI, so every reference to the bundled
+   * file must be built here.
+   *
+   * @return string
+   *   The URI.
+   */
+  public static function metaSchemaUri(): string {
+    return 'file://' . self::metaSchemaPath();
+  }
+
+  /**
+   * Returns the path of the bundled draft-04 meta-schema.
+   *
+   * @return string
+   *   The path, the only file the retriever reads.
+   */
+  private static function metaSchemaPath(): string {
+    return dirname(__DIR__) . '/meta-schema-draft4.json';
   }
 
   /**

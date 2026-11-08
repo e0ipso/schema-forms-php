@@ -17,8 +17,7 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
    * {@inheritdoc}
    */
   public function __construct(Validator $validator, $mode = NULL) {
-    $new_schema = ['$ref' => sprintf('file://%s/meta-schema-draft4.json', dirname(__DIR__))];
-    parent::__construct($new_schema, $validator, $mode);
+    parent::__construct(['$ref' => SchemaReferenceResolver::metaSchemaUri()], $validator, $mode);
   }
 
   /**

@@ -66,6 +66,16 @@ class JsonSchemaFormValidatorTest extends TestCase {
   }
 
   /**
+   * The validator checks schemas against the bundled meta-schema.
+   */
+  public function testMetaSchemaReference(): void {
+    $validator = new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()));
+    $uri = 'file://' . dirname(__DIR__, 2) . '/meta-schema-draft4.json';
+    $this->assertSame($uri, SchemaReferenceResolver::metaSchemaUri());
+    $this->assertSame(json_encode(['$ref' => $uri]), $validator->toJSON());
+  }
+
+  /**
    * An unserialized validator keeps the restricted resolver and check mode.
    */
   public function testUnserializedValidatorStaysRestricted(): void {
