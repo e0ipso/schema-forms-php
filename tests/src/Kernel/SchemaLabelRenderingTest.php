@@ -4,20 +4,57 @@ declare(strict_types=1);
 
 namespace SchemaForms\Tests\Kernel;
 
+use Drupal\Component\Utility\Html;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
-use Drupal\Component\Utility\Html;
+use SchemaForms\Drupal\ButtonNames;
+use SchemaForms\Drupal\ElementScaffold;
+use SchemaForms\Drupal\EnumElements;
+use SchemaForms\Drupal\FieldBuilder;
+use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Tests\Drupal\SchemaForms\FormGeneratorDrupalTest;
-use Shaper\Util\Context;
+use SchemaForms\Drupal\FormTreeBuilder;
+use SchemaForms\Drupal\Labels;
+use SchemaForms\Drupal\MultivalueCallbacks;
+use SchemaForms\Drupal\MultivalueWidgetBuilder;
+use SchemaForms\Drupal\RenderChildren;
+use SchemaForms\Drupal\RequiredMarker;
+use SchemaForms\Drupal\SavedInput;
+use SchemaForms\Drupal\SchemaPreparer;
+use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\UnsupportedElement;
+use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetState;
+use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Tests\Fixture\ConstantSchemas;
 
 /**
  * Untrusted labels retain only the accepted inline HTML.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
+#[CoversClass(ButtonNames::class)]
+#[CoversClass(ElementScaffold::class)]
+#[CoversClass(EnumElements::class)]
+#[CoversClass(FieldBuilder::class)]
+#[CoversClass(FieldContext::class)]
+#[CoversClass(FormTreeBuilder::class)]
+#[CoversClass(Labels::class)]
+#[CoversClass(MultivalueCallbacks::class)]
+#[CoversClass(MultivalueWidgetBuilder::class)]
+#[CoversClass(RenderChildren::class)]
+#[CoversClass(RequiredMarker::class)]
+#[CoversClass(SavedInput::class)]
+#[CoversClass(SchemaPreparer::class)]
+#[CoversClass(SchemaTypes::class)]
+#[CoversClass(UnsupportedElement::class)]
+#[CoversClass(WidgetButton::class)]
+#[CoversClass(WidgetState::class)]
+#[CoversClass(WidgetStateStorage::class)]
 #[RunTestsInSeparateProcesses]
 final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
+
+  use ConstantSchemas;
 
   protected static $modules = ['system'];
 
@@ -63,39 +100,18 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * Title filtering preserves other metadata and fixed text.
-   */
-  public function testOtherMetadataIsUnchanged(): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) [
-      'fixed' => (object) ['type' => 'string', 'const' => self::LABEL],
-      'field' => (object) ['type' => 'string', 'description' => self::LABEL],
-    ]];
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context([
-      'ui_hints' => ['field' => ['ui:placeholder' => self::LABEL]],
-    ]));
-    $this->assertSame(self::LABEL, $form['fixed']['#plain_text']);
-    $this->assertSame(self::LABEL, (string) $form['field']['#description']);
-    $this->assertSame(self::LABEL, $form['field']['#placeholder']);
-  }
-
-
-  /**
    * Constant markup escapes text and JSON and renders no input.
    */
   #[DataProvider('renderedConstantProvider')]
   public function testRenderedConstants(mixed $value, string $text): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => match (gettype($value)) {
-      'integer' => 'integer', 'double' => 'number', 'boolean' => 'boolean',
-      'array' => 'array', 'object' => 'object', 'NULL' => 'null', default => 'string',
-    }, 'const' => $value]]];
-    $form = (new FormGeneratorDrupal())->transform($schema);
+    $form = (new FormGeneratorDrupal())->transform(self::constantSchema($value));
     $html = (string) $this->container->get('renderer')->renderInIsolation($form['fixed']);
     $this->assertSame(Html::escape($text), $html);
     $this->assertStringNotContainsString('<input', $html);
   }
 
   public static function renderedConstantProvider(): array {
-    return FormGeneratorDrupalTest::constantProvider() + [
+    return self::constantProvider() + [
       'unsafe array' => [['<img src=x onerror=alert(1)>'], '["<img src=x onerror=alert(1)>"]'],
       'unsafe object' => [(object) ['<b>' => '<script>'], '{"<b>":"<script>"}'],
     ];

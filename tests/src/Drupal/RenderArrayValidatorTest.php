@@ -1,14 +1,14 @@
 <?php
 
-namespace SchemaForms\Tests;
+namespace SchemaForms\Tests\Drupal;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\RenderArrayValidator;
+use SchemaForms\Drupal\RenderArrayValidator;
 
 /**
- * Unit tests for the \SchemaForms\RenderArrayValidator class.
+ * Unit tests for the \SchemaForms\Drupal\RenderArrayValidator class.
  *
  * @package SchemaForms
  */
@@ -18,7 +18,7 @@ class RenderArrayValidatorTest extends TestCase {
   /**
    * The validator.
    *
-   * @var \SchemaForms\RenderArrayValidator
+   * @var \SchemaForms\Drupal\RenderArrayValidator
    */
   private $sut;
 

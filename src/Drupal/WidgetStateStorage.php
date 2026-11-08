@@ -1,0 +1,128 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SchemaForms\Drupal;
+
+use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Form\FormStateInterface;
+
+/**
+ * Keeps the state of multivalue widgets in form state storage.
+ *
+ * The state of a widget is placed at
+ * ['prop_storage', '#parents', ...$parents, '#props', $prop_name], so that a
+ * property name never clashes with a segment of another widget's parents.
+ * The widgets of a namespaced container keep theirs under
+ * ['prop_storage', '#namespaces', $namespace], followed by the same keys.
+ *
+ * @internal
+ */
+final class WidgetStateStorage {
+
+  /**
+   * Reads the stored state of a widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if it has one.
+   *
+   * @return mixed
+   *   The stored array, or NULL when nothing is stored.
+   */
+  public static function get(FormStateInterface $form_state, array $parents, string $prop_name, ?string $namespace = NULL): mixed {
+    return NestedArray::getValue($form_state->getStorage(), self::parents($parents, $prop_name, $namespace));
+  }
+
+  /**
+   * Stores the state of a widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
+   * @param array<mixed> $state
+   *   The array to store.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if it has one.
+   */
+  public static function set(FormStateInterface $form_state, array $parents, string $prop_name, array $state, ?string $namespace = NULL): void {
+    NestedArray::setValue($form_state->getStorage(), self::parents($parents, $prop_name, $namespace), $state);
+  }
+
+  /**
+   * Reads the typed state of a built widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param array<int|string, mixed> $widget
+   *   The widget element.
+   *
+   * @return \SchemaForms\Drupal\WidgetState
+   *   The state.
+   */
+  public static function load(FormStateInterface $form_state, array $widget): WidgetState {
+    return WidgetState::fromStorage(self::get($form_state, ...self::location($widget)));
+  }
+
+  /**
+   * Stores the typed state of a built widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param array<int|string, mixed> $widget
+   *   The widget element.
+   * @param \SchemaForms\Drupal\WidgetState $state
+   *   The state.
+   */
+  public static function save(FormStateInterface $form_state, array $widget, WidgetState $state): void {
+    [$parents, $prop_name, $namespace] = self::location($widget);
+    self::set($form_state, $parents, $prop_name, $state->toStorage(), $namespace);
+  }
+
+  /**
+   * Reads where a built widget keeps its state.
+   *
+   * @param array<int|string, mixed> $widget
+   *   The widget element.
+   *
+   * @return array{0: array<mixed>, 1: string, 2: string|null}
+   *   The schema path, the property name and the namespace.
+   */
+  private static function location(array $widget): array {
+    $parents = $widget[RenderKeys::PROP_PARENTS] ?? [];
+    $prop_name = $widget[RenderKeys::PROP_NAME] ?? '';
+    $namespace = $widget[RenderKeys::NAMESPACE] ?? NULL;
+    return [
+      is_array($parents) ? $parents : [],
+      is_scalar($prop_name) ? (string) $prop_name : '',
+      is_string($namespace) ? $namespace : NULL,
+    ];
+  }
+
+  /**
+   * Builds the storage location of a widget's state.
+   *
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if it has one.
+   *
+   * @return array<mixed>
+   *   The keys into form state storage.
+   */
+  private static function parents(array $parents, string $prop_name, ?string $namespace): array {
+    $container = $namespace === NULL ? [] : ['#namespaces', $namespace];
+    return ['prop_storage', ...$container, '#parents', ...$parents, '#props', $prop_name];
+  }
+
+}

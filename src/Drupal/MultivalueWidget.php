@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
-use Drupal\Core\Render\Element;
-
 /**
  * Reads the structure of a generated multivalue widget.
  *
@@ -16,7 +14,7 @@ use Drupal\Core\Render\Element;
  *
  * @internal
  *
- * @see \SchemaForms\Drupal\FormGeneratorDrupal::transformMultivalue()
+ * @see \SchemaForms\Drupal\MultivalueWidgetBuilder
  */
 final class MultivalueWidget {
 
@@ -30,7 +28,7 @@ final class MultivalueWidget {
    *   TRUE for a multivalue widget.
    */
   public static function is(array $element): bool {
-    return array_key_exists('#max_delta', $element);
+    return array_key_exists(RenderKeys::MAX_DELTA, $element);
   }
 
   /**
@@ -59,10 +57,10 @@ final class MultivalueWidget {
    */
   public static function item(array $widget, int|string $delta): ?array {
     $container = $widget[$delta] ?? NULL;
-    if (!is_array($container) || self::isButton($container) || !is_array($container['removable_element'] ?? NULL)) {
+    if (!is_array($container) || self::isButton($container) || !is_array($container[RenderKeys::ITEM] ?? NULL)) {
       return NULL;
     }
-    return $container['removable_element'];
+    return $container[RenderKeys::ITEM];
   }
 
   /**
@@ -76,7 +74,7 @@ final class MultivalueWidget {
    *   each one is its index in the stored list.
    */
   public static function storedItems(array $widget): array {
-    $deltas = Element::children($widget);
+    $deltas = RenderChildren::keys($widget);
     $items = array_map(
       static fn (int|string $delta): ?array => self::item($widget, $delta),
       array_combine($deltas, $deltas)
@@ -103,9 +101,9 @@ final class MultivalueWidget {
    */
   public static function isNeverFilled(array $item): bool {
     return self::is($item)
-      && $item['#max_delta'] === NULL
+      && $item[RenderKeys::MAX_DELTA] === NULL
       && !array_key_exists('#default_value', $item)
-      && empty($item['#schema_saved_null']);
+      && empty($item[RenderKeys::SAVED_NULL]);
   }
 
 }

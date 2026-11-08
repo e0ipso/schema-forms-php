@@ -8,6 +8,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormValidatorDrupal;
+use SchemaForms\Drupal\SchemaPreparer;
+use SchemaForms\Drupal\SubmissionPreparer;
+use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\Tests\Fixture\ReferenceSentinel;
 
@@ -17,6 +20,9 @@ use SchemaForms\Tests\Fixture\ReferenceSentinel;
 #[CoversClass(FormGeneratorDrupal::class)]
 #[CoversClass(FormValidatorDrupal::class)]
 #[CoversClass(SchemaReferenceResolver::class)]
+#[CoversClass(SchemaPreparer::class)]
+#[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SubmissionValidator::class)]
 final class SchemaReferenceRetrievalTest extends TestCase {
 
   /**
@@ -43,7 +49,12 @@ final class SchemaReferenceRetrievalTest extends TestCase {
         }
         $form = ['#parents' => ['schema'], '#array_parents' => ['schema']];
         $state = (new FormState())->setUserInput([])->setValues(['schema' => ['field' => 'valid']]);
-        FormValidatorDrupal::validateWithSchema($form, $state, $schema);
+        if ($entry === 'casting') {
+          FormValidatorDrupal::typeCastRecursive($form, $state, $schema);
+        }
+        if ($entry === 'submission') {
+          FormValidatorDrupal::validateWithSchema($form, $state, $schema);
+        }
         $this->assertSame(['schema'], array_keys($state->getErrors()));
         $error = $state->getErrors()['schema'];
         $this->assertStringContainsString('unsupported reference', $error->getUntranslatedString());
@@ -59,7 +70,7 @@ final class SchemaReferenceRetrievalTest extends TestCase {
   public static function externalReferenceProvider(): array {
     $cases = [];
     foreach (['file', 'http', 'https'] as $scheme) {
-      foreach (['generation', 'submission'] as $entry) {
+      foreach (['generation', 'casting', 'submission'] as $entry) {
         $cases[$scheme . ' ' . $entry] = [$scheme, $entry];
       }
     }

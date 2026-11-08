@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
-use Drupal\Core\Render\Element;
-
 /**
  * Pairs generated elements with the paths of their values.
  *
@@ -95,13 +93,14 @@ final class ElementDataPaths {
         $items
       );
     }
-    $keys = array_filter(
-      Element::children($element),
-      static fn (int|string $key): bool => !MultivalueWidget::isButton($element[$key])
+    $children = array_filter(
+      RenderChildren::of($element),
+      static fn (array $child): bool => !MultivalueWidget::isButton($child)
     );
     return array_map(
-      static fn (int|string $key): ElementDataPath => new ElementDataPath([...$path, $key], $element[$key]),
-      array_values($keys)
+      static fn (int|string $key, array $child): ElementDataPath => new ElementDataPath([...$path, $key], $child),
+      array_keys($children),
+      array_values($children)
     );
   }
 
