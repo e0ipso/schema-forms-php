@@ -102,7 +102,7 @@ final class ReferenceChecker {
       $this->visit($this->storage->getSchema($target));
     }
     foreach (self::SCHEMA_MAPS as $keyword) {
-      $this->visit(array_values((array) ($schema->{$keyword} ?? [])));
+      $this->visit((array) ($schema->{$keyword} ?? []));
     }
     foreach (self::SCHEMA_VALUES as $keyword) {
       $this->visit($schema->{$keyword} ?? NULL);
