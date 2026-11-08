@@ -63,7 +63,7 @@ compat_check_installed($installed, $installed_path);
 $runtime_path = __DIR__ . '/runtime/vendor/composer/installed.php';
 $runtime = require $runtime_path;
 compat_check_installed($runtime, $runtime_path);
-// Composer normalizes a three-part version such as 5.2.0 to 5.2.0.0.
+// Composer normalizes a three-part version such as 5.3.0 to 5.3.0.0.
 if (($runtime['versions']['justinrainbow/json-schema']['version'] ?? NULL) !== $json_schema_version . '.0') {
   throw new RuntimeException('Expected isolated JSON Schema ' . $json_schema_version . '.');
 }

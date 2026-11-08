@@ -218,14 +218,14 @@ SH);
       $this->assertSame(0, $prepare->run(), $prepare->getErrorOutput());
       $manifest = json_decode(file_get_contents($directory . '/runtime/composer.json'), TRUE);
       // The runner pins the lowest JSON Schema 5 release composer.json allows.
-      $this->assertSame('5.2.0', $manifest['require']['justinrainbow/json-schema']);
+      $this->assertSame('5.3.0', $manifest['require']['justinrainbow/json-schema']);
       $project = json_decode(file_get_contents($this->root() . '/composer.json'), TRUE);
-      $this->assertStringStartsWith('^5.2 ', $project['require']['justinrainbow/json-schema']);
+      $this->assertStringStartsWith('^5.3 ', $project['require']['justinrainbow/json-schema']);
       $this->assertArrayNotHasKey('require-dev', $manifest);
       $this->assertArrayNotHasKey('autoload', $manifest);
       mkdir($directory . '/runtime/vendor/composer', 0700, TRUE);
       $installed = require $this->root() . '/vendor/composer/installed.php';
-      $installed['versions']['justinrainbow/json-schema']['version'] = $wrong_version ? '6.13.1.0' : '5.2.0.0';
+      $installed['versions']['justinrainbow/json-schema']['version'] = $wrong_version ? '6.13.1.0' : '5.3.0.0';
       $installed['versions']['justinrainbow/json-schema']['install_path'] = $directory . '/runtime';
       file_put_contents($directory . '/runtime/vendor/composer/installed.php', '<?php return ' . var_export($installed, TRUE) . ';');
       file_put_contents($directory . '/runtime/vendor/autoload.php', '<?php return require ' . var_export($this->root() . '/vendor/autoload.php', TRUE) . ';');
@@ -260,7 +260,7 @@ SH);
   }
 
   public static function compatibilityGuardProvider(): array {
-    return ['wrong version' => [TRUE, 'Expected isolated JSON Schema 5.2.0.'], 'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator']];
+    return ['wrong version' => [TRUE, 'Expected isolated JSON Schema 5.3.0.'], 'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator']];
   }
 
 }

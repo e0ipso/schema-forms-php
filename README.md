@@ -239,6 +239,7 @@ Semantic versioning covers the public API named under Usage. The GitHub release 
 
 - The schema you pass in is no longer changed. Its `$ref` strings used to be rewritten to internal storage URIs.
 - Composer refuses `marc-mabe/php-enum` releases before 4.4.0, which PHP 8 reports with a warning on every load.
+- `justinrainbow/json-schema` must be 5.3.0 or later in the 5.x line (`^5.3 || ^6.3`). Up to 5.2.10, every validation raises a `strlen()` deprecation on PHP 8.3, and PHP 8.4 deprecates the implicitly nullable parameters that every 5.2 release declares.
 
 ## Security
 
@@ -270,7 +271,7 @@ Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms thr
 
 ### CI-only checks
 
-Besides the main suite and the JSON Schema 5.2 run, `.github/workflows/php.yml` runs these jobs on PHP 8.3. None of their tools is in `composer.json`.
+Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` runs these jobs on PHP 8.3. None of their tools is in `composer.json`.
 
 - Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
@@ -279,7 +280,7 @@ Besides the main suite and the JSON Schema 5.2 run, `.github/workflows/php.yml` 
 
 ### JSON Schema compatibility
 
-Run `composer test` with the normal development installation for JSON Schema 6.x. To run the same GrumPHP checks and complete PHPUnit suite against JSON Schema 5.2.0, the lowest release `composer.json` allows, use:
+Run `composer test` with the normal development installation for JSON Schema 6.x. To run the same GrumPHP checks and complete PHPUnit suite against JSON Schema 5.3.0, the lowest 5.x release `composer.json` allows, use:
 
 ```sh
 bash scripts/test-json-schema-5.sh

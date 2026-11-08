@@ -62,7 +62,7 @@ jobs:
           php scripts/check-coverage.php
 
   json-schema-5:
-    name: JSON Schema 5.2
+    name: JSON Schema 5.3
     runs-on: ubuntu-latest
 
     steps:
@@ -94,7 +94,7 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       # Runs the full GrumPHP suite with the JSON Schema 5 production runtime.
-      - name: Run test suite against JSON Schema 5.2
+      - name: Run test suite against JSON Schema 5.3
         env:
           SIMPLETEST_DB: 'sqlite://localhost/:memory:'
         run: bash scripts/test-json-schema-5.sh
