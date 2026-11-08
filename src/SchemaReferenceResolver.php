@@ -36,15 +36,65 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     $storage = new SchemaStorage($retriever);
     $factory = new Factory($storage, $retriever);
     if ($schema !== NULL) {
+      // Storage rewrites references in place, so register a copy and leave
+      // the caller's schema as it was.
+      $registered = self::copySchema($schema, new \WeakMap());
       // Older releases treat a single-slash internal URI as a local file base.
       // Expand local references with a URI both supported majors recognize,
       // then retain the original storage key for explicitly registered refs.
-      $storage->addSchema('internal://schema-with-refs/', $schema);
-      $storage->addSchema(self::SCHEMA_URI, $schema);
+      $storage->addSchema('internal://schema-with-refs/', $registered);
+      $storage->addSchema(self::SCHEMA_URI, $registered);
       $visited = [];
-      self::checkReferences($schema, $storage, $visited);
+      self::checkReferences($registered, $storage, $visited);
     }
     return $factory;
+  }
+
+  /**
+   * Returns the schema registered by createFactory(), references expanded.
+   *
+   * Its subschemas can be validated on their own with the same factory,
+   * because every reference in them names its document.
+   *
+   * @param \JsonSchema\Constraints\Factory $factory
+   *   A factory returned by createFactory() for a schema.
+   *
+   * @return object
+   *   The registered copy of the schema.
+   */
+  public static function registeredSchema(Factory $factory): object {
+    return $factory->getSchemaStorage()->getSchema(self::SCHEMA_URI);
+  }
+
+  /**
+   * Copies the decoded objects and arrays of a schema.
+   *
+   * Objects other than stdClass are not schema data and stay shared.
+   *
+   * @param mixed $value
+   *   The schema or one of its members.
+   * @param \WeakMap $copies
+   *   Copies already made, so shared and cyclic members keep their shape.
+   *
+   * @return mixed
+   *   The copy.
+   */
+  private static function copySchema(mixed $value, \WeakMap $copies): mixed {
+    if (is_array($value)) {
+      return array_map(static fn(mixed $member): mixed => self::copySchema($member, $copies), $value);
+    }
+    if (!$value instanceof \stdClass) {
+      return $value;
+    }
+    if (isset($copies[$value])) {
+      return $copies[$value];
+    }
+    $copy = clone $value;
+    $copies[$value] = $copy;
+    foreach ($copy as &$member) {
+      $member = self::copySchema($member, $copies);
+    }
+    return $copy;
   }
 
   /**

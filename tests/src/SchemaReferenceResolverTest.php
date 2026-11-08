@@ -106,6 +106,21 @@ final class SchemaReferenceResolverTest extends TestCase {
     ];
   }
 
+  /**
+   * Registration and refinement leave the caller's schema unchanged.
+   */
+  public function testCallerSchemaIsNotRewritten(): void {
+    $json = '{"type":"object","definitions":{"label":{"type":"string","minLength":2}},"properties":{"field":{"type":"string","allOf":[{"$ref":"#/definitions/label"}]},"list":{"type":"array","items":{"$ref":"#/definitions/label"}}}}';
+    $schema = json_decode($json);
+    $factory = SchemaReferenceResolver::createFactory($schema);
+    $this->assertEquals(json_decode($json), $schema);
+    $registered = SchemaReferenceResolver::registeredSchema($factory);
+    $this->assertNotSame($schema, $registered);
+    $this->assertSame('internal://schema-with-refs/#/definitions/label', $registered->properties->field->allOf[0]->{'$ref'});
+    $this->assertSame([], RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema));
+    $this->assertEquals(json_decode($json), $schema);
+  }
+
   #[DataProvider('metadataProvider')]
   public function testBundledMetadata(string $uri): void {
     $schema = (object) ['$ref' => $uri];

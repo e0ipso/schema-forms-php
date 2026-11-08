@@ -24,7 +24,9 @@ final class RecursiveTypeCaster {
    *   The same data with refined types.
    */
   public static function recursiveTypeRefinements($data, object $schema) {
-    return static::refineValue($data, $schema, SchemaReferenceResolver::createFactory($schema));
+    $factory = SchemaReferenceResolver::createFactory($schema);
+    // Walk the registered copy: its references resolve from any subschema.
+    return static::refineValue($data, SchemaReferenceResolver::registeredSchema($factory), $factory);
   }
 
   /**
