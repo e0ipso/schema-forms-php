@@ -177,6 +177,8 @@ case "$1" in
   */prepare-json-schema-5.php) mkdir -p "$2/runtime" && touch "$2/grumphp.yml" ;;
   */bootstrap.php) if [[ "$FIXTURE_FAILURE" == bootstrap ]]; then exit 24; fi ;;
   */grumphp.phar)
+    # GrumPHP reads a file list from a piped stdin and waits for it to close.
+    if [[ -p /dev/stdin ]]; then exit 28; fi
     # A container wrapper only sees a config path given as its own argument.
     config=''
     for argument in "$@"; do
