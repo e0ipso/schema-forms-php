@@ -29,12 +29,34 @@ use Shaper\Validator\ValidateableInterface;
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {
 
   /**
+   * How many accepted schemas one generator remembers.
+   *
+   * A form usually builds one schema; the limit bounds memory when a
+   * long-lived generator builds many.
+   */
+  private const CHECKED_SCHEMA_LIMIT = 16;
+
+  /**
    * The input validator, kept so a rejection message can read its errors.
    *
    * Shaper asks for the input validator once to validate and again to build
    * the TypeError message. A new instance each time would print no errors.
    */
   private ?JsonSchemaFormValidator $inputValidator = NULL;
+
+  /**
+   * Schemas that passed the input validation, keyed by their fingerprint.
+   *
+   * Every AJAX rebuild transforms the same schema again, and validating it
+   * against the meta-schema, then registering it and walking its references,
+   * would repeat the same work each time. Each value is the registered copy
+   * once doTransform() has made it. The map belongs to this instance, so a
+   * long-running worker never shares it between requests, and it is not
+   * serialized with the form.
+   *
+   * @var array<string, \stdClass|null>
+   */
+  private array $checkedSchemas = [];
 
   /**
    * Creates the generator.
@@ -73,7 +95,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public function doTransform($data, ?Context $context = NULL): array {
     try {
-      $schema = $this->schemas->prepare($data);
+      $schema = $this->prepare($data);
     }
     catch (ExceptionInterface $e) {
       return $this->withValidation([
@@ -84,6 +106,25 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       ]);
     }
     return $this->withValidation($this->tree->build($schema, $context ?? new Context()));
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * A schema this generator already accepted is not validated again.
+   */
+  public function conformsToExpectedInputShape($data, ?Context $context = NULL): bool {
+    $fingerprint = self::fingerprint($data);
+    if ($fingerprint !== NULL && array_key_exists($fingerprint, $this->checkedSchemas)) {
+      return TRUE;
+    }
+    if (!$this->getInputValidator()->isValid($data)) {
+      return FALSE;
+    }
+    if ($fingerprint !== NULL) {
+      $this->remember($fingerprint, NULL);
+    }
+    return TRUE;
   }
 
   /**
@@ -332,6 +373,66 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
     WidgetStateStorage::set($form_state, $parents, $prop_name, $prop_state, $namespace);
+  }
+
+  /**
+   * Registers a schema, reusing the copy made for an accepted schema.
+   *
+   * @param mixed $data
+   *   The decoded schema.
+   *
+   * @return \stdClass
+   *   The registered copy.
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   When the schema references a document outside itself.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
+   * @throws \InvalidArgumentException
+   *   When the schema is not an object or a property name starts with '#'.
+   */
+  private function prepare(mixed $data): \stdClass {
+    $fingerprint = self::fingerprint($data);
+    // Only a schema that passed the input validation is kept: doTransform()
+    // is public, and a direct call must not mark a schema as valid.
+    if ($fingerprint === NULL || !array_key_exists($fingerprint, $this->checkedSchemas)) {
+      return $this->schemas->prepare($data);
+    }
+    $schema = $this->checkedSchemas[$fingerprint] ?? $this->schemas->prepare($data);
+    $this->remember($fingerprint, $schema);
+    return $schema;
+  }
+
+  /**
+   * Records an accepted schema, dropping the oldest beyond the limit.
+   *
+   * @param string $fingerprint
+   *   The schema fingerprint.
+   * @param \stdClass|null $schema
+   *   The registered copy, or NULL until doTransform() makes it.
+   */
+  private function remember(string $fingerprint, ?\stdClass $schema): void {
+    unset($this->checkedSchemas[$fingerprint]);
+    $this->checkedSchemas[$fingerprint] = $schema;
+    $this->checkedSchemas = array_slice($this->checkedSchemas, -self::CHECKED_SCHEMA_LIMIT, NULL, TRUE);
+  }
+
+  /**
+   * Fingerprints a decoded schema by value.
+   *
+   * @param mixed $data
+   *   The decoded schema.
+   *
+   * @return string|null
+   *   The fingerprint, or NULL when the value cannot be serialized.
+   */
+  private static function fingerprint(mixed $data): ?string {
+    try {
+      return hash('xxh128', serialize($data));
+    }
+    catch (\Exception $e) {
+      return NULL;
+    }
   }
 
   /**
