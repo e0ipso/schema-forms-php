@@ -27,7 +27,8 @@ final class EnumMemberMatcher {
    */
   public static function match(string|int $data, mixed $enum): mixed {
     $members = [];
-    foreach (self::members($enum) as $member) {
+    // A decoded map lists its members as properties.
+    foreach (is_array($enum) || is_object($enum) ? (array) $enum : [] as $member) {
       if (!is_scalar($member) && $member !== NULL) {
         continue;
       }
@@ -36,22 +37,6 @@ final class EnumMemberMatcher {
       $members[$key] = $member;
     }
     return array_key_exists($data, $members) ? $members[$data] : $data;
-  }
-
-  /**
-   * Lists the members of a keyword value that holds a list or a map.
-   *
-   * @param mixed $value
-   *   The keyword value.
-   *
-   * @return array<mixed>
-   *   Its members, or nothing when the value is a scalar.
-   */
-  private static function members(mixed $value): array {
-    if (is_object($value)) {
-      return get_object_vars($value);
-    }
-    return is_array($value) ? $value : [];
   }
 
 }

@@ -30,30 +30,15 @@ final class PropertySchemaResolver {
     if (is_object($declared)) {
       return $declared;
     }
-    foreach (self::patternSchemas($schema) as $pattern => $pattern_schema) {
+    // A scalar keyword value casts to a list of one non-object, which is
+    // skipped like any member that is not a schema.
+    foreach ((array) ($schema->patternProperties ?? []) as $pattern => $pattern_schema) {
       if (is_object($pattern_schema) && self::matchesPattern((string) $pattern, $name)) {
         return $pattern_schema;
       }
     }
     $additional = $schema->additionalProperties ?? NULL;
     return is_object($additional) ? $additional : NULL;
-  }
-
-  /**
-   * Lists the pattern property schemas of an object schema.
-   *
-   * @param object $schema
-   *   The object schema.
-   *
-   * @return array<mixed>
-   *   The schemas keyed by pattern; empty when the keyword is not a map.
-   */
-  private static function patternSchemas(object $schema): array {
-    $patterns = $schema->patternProperties ?? [];
-    if (is_object($patterns)) {
-      return get_object_vars($patterns);
-    }
-    return is_array($patterns) ? $patterns : [];
   }
 
   /**
