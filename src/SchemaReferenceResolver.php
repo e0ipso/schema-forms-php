@@ -178,9 +178,13 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *   When the base URI has no scheme.
    */
   private static function resolveUri(mixed $uri, mixed $base_uri): string {
-    $is_absolute = is_string($base_uri)
-      && (preg_match('|^[^/]+://|u', $base_uri) === 1 || filter_var($base_uri, FILTER_VALIDATE_URL) !== FALSE);
-    if ($base_uri !== NULL && !$is_absolute) {
+    if ($base_uri !== NULL && !is_string($base_uri)) {
+      throw new UnsupportedReferenceException('External schema retrieval is disabled.');
+    }
+    $is_relative = is_string($base_uri)
+      && preg_match('|^[^/]+://|u', $base_uri) !== 1
+      && filter_var($base_uri, FILTER_VALIDATE_URL) === FALSE;
+    if ($is_relative) {
       throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
     return (string) (new UriResolver())->resolve(is_scalar($uri) ? (string) $uri : '', $base_uri);
