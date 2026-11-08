@@ -84,7 +84,7 @@ class JsonSchemaFormValidatorTest extends TestCase {
       new Validator(SchemaReferenceResolver::createFactory()),
       Constraint::CHECK_MODE_TYPE_CAST
     );
-    $restored = unserialize(serialize($validator));
+    $restored = unserialize(serialize($validator), ['allowed_classes' => [JsonSchemaFormValidator::class]]);
     $this->assertInstanceOf(JsonSchemaFormValidator::class, $restored);
     $inner = (fn () => $this->validator)->call($restored);
     $retriever = (fn () => $this->factory->getUriRetriever())->call($inner);

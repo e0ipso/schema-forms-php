@@ -15,8 +15,16 @@ $fixtures = [
   'above floor' => [$clover($metrics('100', '80')), TRUE, '80.00%'],
   'unrounded below floor' => [$clover($metrics('100000', '44999')), FALSE, '45.00%'],
   'zero covered lines' => [$clover($metrics('100', '0')), FALSE, '0.00%'],
-  'project totals only' => [$clover('<file>' . $metrics('100', '100') . '</file>' . $metrics('100', '44')), FALSE, '44.00%'],
-  'line counts only' => [$clover('<metrics statements="100" coveredstatements="44" elements="100" coveredelements="100"/>'), FALSE, '44.00%'],
+  'project totals only' => [
+    $clover('<file>' . $metrics('100', '100') . '</file>' . $metrics('100', '44')),
+    FALSE,
+    '44.00%',
+  ],
+  'line counts only' => [
+    $clover('<metrics statements="100" coveredstatements="44" elements="100" coveredelements="100"/>'),
+    FALSE,
+    '44.00%',
+  ],
   'missing report' => [NULL, FALSE, 'Cannot read Clover report'],
   'malformed report' => ['<coverage>', FALSE, 'Invalid Clover XML'],
   'missing metrics' => [$clover(''), FALSE, 'Expected one project-level'],
