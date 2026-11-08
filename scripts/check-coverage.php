@@ -33,7 +33,7 @@ if ($report === FALSE) {
 }
 
 $metrics = $report->xpath('/coverage/project/metrics');
-if (count($metrics) !== 1) {
+if (!is_array($metrics) || count($metrics) !== 1) {
   throw new RuntimeException('Expected one project-level Clover metrics element.');
 }
 $statements = (string) $metrics[0]['statements'];

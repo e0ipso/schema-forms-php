@@ -226,6 +226,27 @@ SH);
     }
   }
 
+  /**
+   * The preparation script fails loudly on bad arguments and failed writes.
+   */
+  #[DataProvider('preparationFailureProvider')]
+  public function testPreparationFailures(int $arguments, string $message): void {
+    $directory = sys_get_temp_dir() . '/schema-prepare-' . bin2hex(random_bytes(8));
+    // The work directory does not exist, so creating runtime/ inside it fails.
+    $command = array_slice([PHP_BINARY, $this->root() . '/scripts/prepare-json-schema-5.php', $directory . '/missing', $this->root() . '/phpunit.xml', $this->root() . '/grumphp.yml'], 0, $arguments + 2);
+    $process = new Process($command, $this->root(), timeout: 30);
+    $this->assertNotSame(0, $process->run());
+    $this->assertStringContainsString($message, $process->getOutput() . $process->getErrorOutput());
+    $this->assertDirectoryDoesNotExist($directory);
+  }
+
+  public static function preparationFailureProvider(): array {
+    return [
+      'missing arguments' => [2, 'Usage: php scripts/prepare-json-schema-5.php'],
+      'missing work directory' => [3, 'Cannot create '],
+    ];
+  }
+
   public static function compatibilityGuardProvider(): array {
     return ['wrong version' => [TRUE, 'Expected isolated JSON Schema 5.3.4.'], 'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator']];
   }
