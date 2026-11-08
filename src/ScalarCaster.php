@@ -26,17 +26,10 @@ final class ScalarCaster {
    */
   public static function cast(mixed $data, array $types, object $schema): mixed {
     // The first cast that succeeds wins, so the order matters.
-    $casts = [
-      static fn(mixed &$value): bool => self::tryCastingNumber($value, $types),
-      static fn(mixed &$value): bool => self::tryCastingBoolean($value, $types),
-      static fn(mixed &$value): bool => self::tryCastingNull($value, $types, $schema),
-      static fn(mixed &$value): bool => self::tryCastingString($value, $types),
-    ];
-    foreach ($casts as $cast) {
-      if ($cast($data)) {
-        return $data;
-      }
-    }
+    self::tryCastingNumber($data, $types)
+      || self::tryCastingBoolean($data, $types)
+      || self::tryCastingNull($data, $types, $schema)
+      || self::tryCastingString($data, $types);
     return $data;
   }
 

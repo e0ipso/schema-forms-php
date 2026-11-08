@@ -10,22 +10,22 @@ use JsonSchema\Validator;
 /**
  * Casts a data structure to its JSON-Schema the best it can.
  *
- * Walks lists and objects with their item and property schemas, omits
- * optional blanks the schema rejects, and leaves scalars to ScalarCaster and
- * EnumMemberMatcher.
+ * Walks lists and objects with their item and property schemas. Scalars go
+ * to ScalarCaster and EnumMemberMatcher, and OptionalBlankRule decides which
+ * untouched properties to leave out.
  *
  * @internal
  */
 final class RecursiveTypeCaster {
 
   /**
-   * Starts a refinement that checks optional blanks with the validator.
+   * Starts a refinement.
    *
-   * @param \JsonSchema\Validator $validator
-   *   Validates optional blanks; its factory resolves the root's references.
+   * @param \SchemaForms\OptionalBlankRule $blanks
+   *   Decides which blank properties to omit.
    */
   private function __construct(
-    private readonly Validator $validator,
+    private readonly OptionalBlankRule $blanks,
   ) {}
 
   /**
@@ -58,7 +58,7 @@ final class RecursiveTypeCaster {
       // Walk the registered copy: its references resolve from any subschema.
       $schema = SchemaReferenceResolver::registeredSchema($factory);
     }
-    return (new self(new Validator($factory)))->refineValue($data, $schema);
+    return (new self(new OptionalBlankRule(new Validator($factory))))->refineValue($data, $schema);
   }
 
   /**
@@ -142,10 +142,7 @@ final class RecursiveTypeCaster {
         continue;
       }
       $refined = $this->refineValue($value, $property_schema);
-      // Nullable refinements take precedence over omitting untouched fields.
-      $omit = $value === '' && $refined === ''
-        && !self::isRequired($key, $schema)
-        && !$this->accepts($value, $property_schema);
+      $omit = $this->blanks->omits($key, $value, $refined, $schema, $property_schema);
       if ($omit && is_object($data)) {
         unset($data->{$key});
         continue;
@@ -161,45 +158,6 @@ final class RecursiveTypeCaster {
       $data[$key] = $refined;
     }
     return $data;
-  }
-
-  /**
-   * Checks whether the object schema lists a property as required.
-   *
-   * PHP turns a decimal property name such as "123" into an integer array key,
-   * while the schema lists it as a string.
-   *
-   * @param int|string $key
-   *   The property name, as PHP keys it.
-   * @param object $schema
-   *   The object schema.
-   *
-   * @return bool
-   *   TRUE when the property is required.
-   */
-  private static function isRequired(int|string $key, object $schema): bool {
-    $required = $schema->required ?? [];
-    if (!is_array($required)) {
-      return FALSE;
-    }
-    return in_array((string) $key, $required, TRUE) || in_array($key, $required, TRUE);
-  }
-
-  /**
-   * Checks a value against a schema.
-   *
-   * @param mixed $value
-   *   The value.
-   * @param object $schema
-   *   The schema.
-   *
-   * @return bool
-   *   TRUE when the schema accepts the value.
-   */
-  private function accepts(mixed $value, object $schema): bool {
-    $this->validator->reset();
-    $this->validator->validate($value, $schema);
-    return $this->validator->isValid();
   }
 
 }

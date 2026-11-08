@@ -15,18 +15,14 @@ namespace SchemaForms;
 final class SchemaCopier {
 
   /**
-   * Copies already made, keyed by the original.
-   *
-   * @var \WeakMap<object, mixed>
-   */
-  private \WeakMap $copies;
-
-  /**
    * Starts a copy with no members copied yet.
+   *
+   * @param \WeakMap<object, mixed> $copies
+   *   Copies already made, keyed by the original.
    */
-  private function __construct() {
-    $this->copies = new \WeakMap();
-  }
+  private function __construct(
+    private readonly \WeakMap $copies = new \WeakMap(),
+  ) {}
 
   /**
    * Copies a schema.

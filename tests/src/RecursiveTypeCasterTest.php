@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Tests;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -7,6 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\EnumMemberMatcher;
 use SchemaForms\Exception\UnsupportedReferenceException;
+use SchemaForms\OptionalBlankRule;
 use SchemaForms\PropertySchemaResolver;
 use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\ScalarCaster;
@@ -18,6 +21,7 @@ use SchemaForms\SchemaReferenceResolver;
  * @package SchemaForms
  */
 #[CoversClass(RecursiveTypeCaster::class)]
+#[CoversClass(OptionalBlankRule::class)]
 #[CoversClass(ScalarCaster::class)]
 #[CoversClass(EnumMemberMatcher::class)]
 #[CoversClass(PropertySchemaResolver::class)]

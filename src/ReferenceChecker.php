@@ -98,6 +98,8 @@ final class ReferenceChecker {
       $this->visit($this->storage->getSchema($target));
     }
     if (isset($schema->extends) && is_string($schema->extends)) {
+      // The validator retrieves an "extends" string with the id as the URI
+      // and the string as its base, so resolve the target the same way.
       $target = SchemaUriResolver::resolve($schema->id ?? NULL, $schema->extends);
       $this->visit($this->storage->getSchema($target));
     }

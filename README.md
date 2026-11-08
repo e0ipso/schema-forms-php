@@ -165,8 +165,56 @@ Semantic versioning covers these symbols, with Shaper's `Context` as the options
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
 - `SchemaForms\Exception\UnsupportedReferenceException`: a schema reference outside the registered documents.
+- `SchemaForms\Testing\FormTransformationContractTestCase`: a PHPUnit test case that checks your own `FormTransformationInterface` implementation. See [Wrapping or replacing the generator](#wrapping-or-replacing-the-generator).
 
 `tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
+
+### Wrapping or replacing the generator
+
+`FormTransformationInterface` is the extension point. Code that builds forms should type-hint it, so you can hand that code a decorator or a different generator instead of `FormGeneratorDrupal`. `FormGeneratorDrupal` is `final`; wrap it rather than extending it.
+
+This decorator adds context defaults. Values the caller passes still win, and whatever the wrapped generator returns or throws reaches the caller unchanged:
+
+```php
+use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormTransformationInterface;
+use Shaper\Util\Context;
+
+final class ContextDefaults implements FormTransformationInterface {
+
+  public function __construct(
+    private readonly FormTransformationInterface $inner,
+    private readonly array $defaults,
+  ) {}
+
+  public function transform($data, ?Context $context = NULL) {
+    $values = $context?->getArrayCopy() ?? [];
+    return $this->inner->transform($data, new Context($values + $this->defaults));
+  }
+
+}
+
+$generator = new ContextDefaults(new FormGeneratorDrupal(), ['namespace' => 'settings']);
+```
+
+The decorator implements only `FormTransformationInterface`. A Shaper pipeline that calls the validation methods of `FormGeneratorInterface` needs the generator itself.
+
+To check a decorator or a generator of your own against the interface's contract, extend `SchemaForms\Testing\FormTransformationContractTestCase` in your PHPUnit suite. It needs `phpunit/phpunit`, which this package suggests but does not require; the library's own tests run it with PHPUnit 11.5.
+
+```php
+use SchemaForms\FormTransformationInterface;
+use SchemaForms\Testing\FormTransformationContractTestCase;
+
+final class ContextDefaultsContractTest extends FormTransformationContractTestCase {
+
+  protected function createTransformation(): FormTransformationInterface {
+    return new ContextDefaults(new MyGenerator(), ['namespace' => 'settings']);
+  }
+
+}
+```
+
+The case checks that a decoded draft-04 object schema builds a form with and without a context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
 
 ### Context keys
 
@@ -310,7 +358,7 @@ Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` 
 - Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
 - Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks the symbols listed under [Public API](#public-api).
-- Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
+- Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal` or the test case in `src/Testing`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
 
 ### JSON Schema compatibility
 
