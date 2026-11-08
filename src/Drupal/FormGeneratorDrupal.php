@@ -10,7 +10,6 @@ use JsonSchema\Exception\ExceptionInterface;
 use JsonSchema\Validator;
 use SchemaForms\FormGeneratorInterface;
 use SchemaForms\JsonSchemaFormValidator;
-use SchemaForms\RenderArrayValidator;
 use SchemaForms\SchemaReferenceResolver;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;

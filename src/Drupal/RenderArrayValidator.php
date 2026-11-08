@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SchemaForms;
+namespace SchemaForms\Drupal;
 
 use Shaper\Validator\ValidateableBase;
 
