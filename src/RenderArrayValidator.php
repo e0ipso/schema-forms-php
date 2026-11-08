@@ -9,27 +9,42 @@ use Shaper\Validator\ValidateableBase;
  *
  * @internal
  */
-class RenderArrayValidator extends ValidateableBase {
+final class RenderArrayValidator extends ValidateableBase {
 
   /**
    * {@inheritdoc}
    */
-  public function isValid($data) {
+  #[\Override]
+  public function isValid($data): bool {
+    $this->resetErrors();
+    if (self::isRenderArray($data)) {
+      return TRUE;
+    }
+    $this->errors[] = 'Expected a render array: an array with a "#" key, or with a child that is a render array.';
+    return FALSE;
+  }
+
+  /**
+   * Checks one level of a render array.
+   *
+   * A key that contains "#" anywhere is a render property. Without one, any
+   * child render array is enough, so an empty container does not reject its
+   * siblings.
+   *
+   * @param mixed $data
+   *   The data to check.
+   *
+   * @return bool
+   *   TRUE when the data is a render array.
+   */
+  private static function isRenderArray(mixed $data): bool {
     if (!is_array($data)) {
       return FALSE;
     }
-    // A string value is accepted when its key contains '#' anywhere.
-    foreach ($data as $key => $val) {
-      if (is_string($val)) {
-        if (strpos($key, '#') !== FALSE) {
-          return TRUE;
-        }
-        continue;
+    foreach ($data as $key => $value) {
+      if (str_contains((string) $key, '#') || self::isRenderArray($value)) {
+        return TRUE;
       }
-      if (strpos($key, '#') !== FALSE) {
-        continue;
-      }
-      return $this->isValid($val);
     }
     return FALSE;
   }
