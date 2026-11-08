@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use JsonSchema\Constraints\Constraint;
@@ -11,21 +13,54 @@ use Shaper\Validator\JsonSchemaValidator;
  *
  * @internal
  */
-class JsonSchemaFormValidator extends JsonSchemaValidator {
+final class JsonSchemaFormValidator extends JsonSchemaValidator {
 
   /**
-   * {@inheritdoc}
+   * The schema every form root must match, built on first use.
+   *
+   * It is not serialized; an unserialized validator builds it again.
    */
-  public function __construct(Validator $validator, $mode = NULL) {
-    $new_schema = ['$ref' => sprintf('file://%s/meta-schema-draft4.json', dirname(__DIR__))];
-    parent::__construct($new_schema, $validator, $mode);
+  private ?object $formRoot = NULL;
+
+  /**
+   * Validates schemas against the bundled draft-04 meta-schema.
+   *
+   * @param \JsonSchema\Validator $validator
+   *   The validator; build it with SchemaReferenceResolver::createFactory().
+   * @param int|null $mode
+   *   The JsonSchema\Constraints\Constraint::CHECK_MODE_* flags.
+   */
+  public function __construct(Validator $validator, ?int $mode = NULL) {
+    parent::__construct(['$ref' => SchemaReferenceResolver::metaSchemaUri()], $validator, $mode);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function isValid($data) {
+  #[\Override]
+  public function isValid(mixed $data): bool {
     return parent::isValid($data) && $this->isFormRoot($data);
+  }
+
+  /**
+   * Keeps the check mode, so an unserialized validator validates the same way.
+   *
+   * @return string[]
+   *   The names of the properties to serialize.
+   */
+  #[\Override]
+  public function __sleep(): array {
+    return [...parent::__sleep(), 'checkMode'];
+  }
+
+  /**
+   * Restores the restricted reference resolver after unserialization.
+   *
+   * The parent would install a validator that retrieves any URI.
+   */
+  #[\Override]
+  public function __wakeup(): void {
+    $this->setValidator(new Validator(SchemaReferenceResolver::createFactory()));
   }
 
   /**
@@ -42,17 +77,16 @@ class JsonSchemaFormValidator extends JsonSchemaValidator {
    * @return bool
    *   TRUE if the root is an object schema.
    */
-  private function isFormRoot($data): bool {
-    $root_schema = (object) [
+  private function isFormRoot(mixed $data): bool {
+    $this->formRoot ??= (object) [
       'type' => 'object',
       'required' => ['type'],
       'properties' => (object) [
         'type' => (object) ['enum' => ['object']],
       ],
     ];
-    $num_errors = $this->validator->validate($data, $root_schema, Constraint::CHECK_MODE_NORMAL);
-    $this->errors = $this->validator->getErrors();
-    return !$num_errors;
+    // getErrors() reads the validator, so its errors need no copy here.
+    return $this->validator->validate($data, $this->formRoot, Constraint::CHECK_MODE_NORMAL) === 0;
   }
 
 }

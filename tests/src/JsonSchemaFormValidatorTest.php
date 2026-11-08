@@ -66,6 +66,35 @@ class JsonSchemaFormValidatorTest extends TestCase {
   }
 
   /**
+   * The validator checks schemas against the bundled meta-schema.
+   */
+  public function testMetaSchemaReference(): void {
+    $validator = new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()));
+    $uri = 'file://' . dirname(__DIR__, 2) . '/meta-schema-draft4.json';
+    $this->assertSame($uri, SchemaReferenceResolver::metaSchemaUri());
+    $this->assertSame(json_encode(['$ref' => $uri]), $validator->toJSON());
+  }
+
+  /**
+   * An unserialized validator keeps the restricted resolver and check mode.
+   */
+  public function testUnserializedValidatorStaysRestricted(): void {
+    $validator = new JsonSchemaFormValidator(
+      new Validator(SchemaReferenceResolver::createFactory()),
+      Constraint::CHECK_MODE_TYPE_CAST
+    );
+    $restored = unserialize(serialize($validator));
+    $this->assertInstanceOf(JsonSchemaFormValidator::class, $restored);
+    $inner = (fn () => $this->validator)->call($restored);
+    $retriever = (fn () => $this->factory->getUriRetriever())->call($inner);
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $retriever);
+    // Type casting accepts the empty list that encodes an empty properties map.
+    $schema = (new ArrayToStdClass())->transform(['type' => 'object', 'properties' => []]);
+    $this->assertTrue($restored->isValid($schema));
+    $this->assertFalse($restored->isValid(json_decode('{"type":"string"}')));
+  }
+
+  /**
    * Tests raw inputs, built the way FormGeneratorDrupal builds the validator.
    *
    * Regression: an associative array passed the type-cast meta-schema check,

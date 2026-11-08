@@ -68,6 +68,30 @@ final class RepositoryConfigurationTest extends TestCase {
   }
 
   /**
+   * Core code and its tests never reach into Drupal or the adapter.
+   *
+   * The adapter under src/Drupal depends on the core, never the reverse, so
+   * the core can be used and tested without Drupal installed.
+   */
+  public function testCoreDoesNotDependOnDrupal(): void {
+    $files = [
+      ...glob($this->root() . '/src/*.php'),
+      ...glob($this->root() . '/src/Exception/*.php'),
+      ...glob($this->root() . '/tests/src/*Test.php'),
+    ];
+    $this->assertNotEmpty($files);
+    foreach ($files as $file) {
+      $names = array_filter(
+        \PhpToken::tokenize(file_get_contents($file)),
+        static fn (\PhpToken $token): bool => $token->is([T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED]),
+      );
+      foreach ($names as $name) {
+        $this->assertDoesNotMatchRegularExpression('/^\\\\?(Drupal|SchemaForms\\\\Drupal)\\\\/', $name->text, $file);
+      }
+    }
+  }
+
+  /**
    * The Development section names the configured checks.
    */
   public function testDevelopmentDocumentsEveryTask(): void {
@@ -184,12 +208,15 @@ SH);
       $prepare = new Process([PHP_BINARY, $this->root() . '/scripts/prepare-json-schema-5.php', $directory, $this->root() . '/phpunit.xml', $this->root() . '/grumphp.yml'], $this->root(), timeout: 30);
       $this->assertSame(0, $prepare->run(), $prepare->getErrorOutput());
       $manifest = json_decode(file_get_contents($directory . '/runtime/composer.json'), TRUE);
-      $this->assertSame('5.3.4', $manifest['require']['justinrainbow/json-schema']);
+      // The runner pins the lowest JSON Schema 5 release composer.json allows.
+      $this->assertSame('5.2.0', $manifest['require']['justinrainbow/json-schema']);
+      $project = json_decode(file_get_contents($this->root() . '/composer.json'), TRUE);
+      $this->assertStringStartsWith('^5.2 ', $project['require']['justinrainbow/json-schema']);
       $this->assertArrayNotHasKey('require-dev', $manifest);
       $this->assertArrayNotHasKey('autoload', $manifest);
       mkdir($directory . '/runtime/vendor/composer', 0700, TRUE);
       $installed = require $this->root() . '/vendor/composer/installed.php';
-      $installed['versions']['justinrainbow/json-schema']['version'] = $wrong_version ? '6.13.1.0' : '5.3.4.0';
+      $installed['versions']['justinrainbow/json-schema']['version'] = $wrong_version ? '6.13.1.0' : '5.2.0.0';
       $installed['versions']['justinrainbow/json-schema']['install_path'] = $directory . '/runtime';
       file_put_contents($directory . '/runtime/vendor/composer/installed.php', '<?php return ' . var_export($installed, TRUE) . ';');
       file_put_contents($directory . '/runtime/vendor/autoload.php', '<?php return require ' . var_export($this->root() . '/vendor/autoload.php', TRUE) . ';');
@@ -202,8 +229,29 @@ SH);
     }
   }
 
+  /**
+   * The preparation script fails loudly on bad arguments and failed writes.
+   */
+  #[DataProvider('preparationFailureProvider')]
+  public function testPreparationFailures(int $arguments, string $message): void {
+    $directory = sys_get_temp_dir() . '/schema-prepare-' . bin2hex(random_bytes(8));
+    // The work directory does not exist, so creating runtime/ inside it fails.
+    $command = array_slice([PHP_BINARY, $this->root() . '/scripts/prepare-json-schema-5.php', $directory . '/missing', $this->root() . '/phpunit.xml', $this->root() . '/grumphp.yml'], 0, $arguments + 2);
+    $process = new Process($command, $this->root(), timeout: 30);
+    $this->assertNotSame(0, $process->run());
+    $this->assertStringContainsString($message, $process->getOutput() . $process->getErrorOutput());
+    $this->assertDirectoryDoesNotExist($directory);
+  }
+
+  public static function preparationFailureProvider(): array {
+    return [
+      'missing arguments' => [2, 'Usage: php scripts/prepare-json-schema-5.php'],
+      'missing work directory' => [3, 'Cannot create '],
+    ];
+  }
+
   public static function compatibilityGuardProvider(): array {
-    return ['wrong version' => [TRUE, 'Expected isolated JSON Schema 5.3.4.'], 'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator']];
+    return ['wrong version' => [TRUE, 'Expected isolated JSON Schema 5.2.0.'], 'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator']];
   }
 
 }

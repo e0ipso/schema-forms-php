@@ -40,6 +40,16 @@ class RenderArrayValidatorTest extends TestCase {
   }
 
   /**
+   * A rejection records an error, and the next check clears it.
+   */
+  public function testErrors(): void {
+    $this->assertFalse($this->sut->isValid(['fa' => 'mily']));
+    $this->assertSame(['Expected a render array: an array with a "#" key, or with a child that is a render array.'], $this->sut->getErrors());
+    $this->assertTrue($this->sut->isValid(['#fa' => 'mily']));
+    $this->assertSame([], $this->sut->getErrors());
+  }
+
+  /**
    * Data provider for the testIsValid.
    *
    * @return array
@@ -89,7 +99,25 @@ class RenderArrayValidatorTest extends TestCase {
           'fa' => ['#fa' => 'mily'],
         ],
         TRUE
-      ]
+      ],
+      // A render property holds any value, not only a string.
+      [
+        ['#markup' => new \stdClass()],
+        TRUE,
+      ],
+      // Any child render array is enough; an empty sibling does not reject it.
+      [
+        ['fa' => [], 'mily' => ['#type' => 'item']],
+        TRUE,
+      ],
+      [
+        [],
+        FALSE,
+      ],
+      [
+        ['fa' => [[]]],
+        FALSE,
+      ],
     ];
   }
 

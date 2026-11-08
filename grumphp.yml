@@ -45,6 +45,10 @@ grumphp:
       strict: true
     composer_normalize: ~
     jsonlint: ~
+    phpstan:
+      configuration: phpstan.neon.dist
+      memory_limit: 1G
+      use_grumphp_paths: false
     phpparser:
       visitors:
         no_exit_statements: ~
