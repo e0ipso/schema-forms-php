@@ -6,17 +6,24 @@ use JsonSchema\Exception\UnresolvableJsonPointerException;
 use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Exception\ExceptionInterface;
 use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\ReferenceChecker;
+use SchemaForms\SchemaCopier;
 use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\SchemaUriResolver;
 use SchemaForms\Tests\Fixture\ReferenceSentinel;
 
 /**
  * Retrieval stays inside registered schemas and bundled metadata.
  */
 #[CoversClass(SchemaReferenceResolver::class)]
+#[CoversClass(ReferenceChecker::class)]
+#[CoversClass(SchemaCopier::class)]
+#[CoversClass(SchemaUriResolver::class)]
 #[CoversClass(RecursiveTypeCaster::class)]
 final class SchemaReferenceResolverTest extends TestCase {
 
@@ -25,8 +32,13 @@ final class SchemaReferenceResolverTest extends TestCase {
    *
    * Generation and submission run the same check through the Drupal adapter;
    * see \SchemaForms\Tests\Drupal\SchemaReferenceRetrievalTest.
+   *
+   * The sentinel replaces the file stream wrapper and restores PHP's own, so
+   * the test runs in its own process and leaves any wrapper a test runner
+   * installed for the rest of the suite.
    */
   #[DataProvider('externalReferenceProvider')]
+  #[RunInSeparateProcess]
   public function testExternalRetrievalIsBlocked(string $scheme): void {
     $file = tempnam(sys_get_temp_dir(), 'schema-ref-');
     file_put_contents($file, '{"type":"string","minLength":2}');
@@ -103,9 +115,11 @@ final class SchemaReferenceResolverTest extends TestCase {
    * A local path as a base URI is refused before any filesystem check.
    *
    * UriResolver runs is_file() and is_dir() on such a base, which a stat
-   * recorder on the file wrapper observes.
+   * recorder on the file wrapper observes. It runs in its own process for the
+   * same reason as testExternalRetrievalIsBlocked().
    */
   #[DataProvider('localBaseProvider')]
+  #[RunInSeparateProcess]
   public function testLocalBaseIsNotProbed(string $entry): void {
     $sentinel = sys_get_temp_dir() . '/schema-forms-sentinel-' . bin2hex(random_bytes(8));
     $operation = match ($entry) {
@@ -144,6 +158,52 @@ final class SchemaReferenceResolverTest extends TestCase {
     $this->expectException(UnsupportedReferenceException::class);
     $this->expectExceptionMessage('A "$ref" value must be a string.');
     SchemaReferenceResolver::createFactory((object) ['properties' => (object) ['a' => (object) ['$ref' => 5]]]);
+  }
+
+  /**
+   * References are checked in branches validation may never reach.
+   */
+  #[DataProvider('uncheckedBranchProvider')]
+  public function testReferencesInEveryBranchAreChecked(string $schema): void {
+    $this->expectException(UnsupportedReferenceException::class);
+    SchemaReferenceResolver::createFactory(json_decode($schema));
+  }
+
+  public static function uncheckedBranchProvider(): array {
+    $ref = '{"$ref":"http://127.0.0.1:9/sentinel.json"}';
+    return [
+      'definition' => ['{"definitions":{"unused":' . $ref . '}}'],
+      'items' => ['{"type":"array","items":' . $ref . '}'],
+      'not' => ['{"not":' . $ref . '}'],
+      'referenced definition' => ['{"definitions":{"a":{"$ref":"#/definitions/b"},"b":{"items":' . $ref . '}},"$ref":"#/definitions/a"}'],
+      'extends' => ['{"extends":"http://127.0.0.1:9/sentinel.json"}'],
+    ];
+  }
+
+  /**
+   * The retriever refuses every URI but the bundled metadata.
+   */
+  #[DataProvider('refusedRetrievalProvider')]
+  public function testRetrievalIsRefused(mixed $uri, mixed $base): void {
+    $this->expectException(UnsupportedReferenceException::class);
+    $this->expectExceptionMessage('External schema retrieval is disabled.');
+    (new SchemaReferenceResolver())->retrieve($uri, $base);
+  }
+
+  public static function refusedRetrievalProvider(): array {
+    return [
+      'absolute URL' => ['http://127.0.0.1:9/sentinel.json', NULL],
+      'relative to a URL' => ['sentinel.json', 'http://127.0.0.1:9/'],
+      'non-string URI' => [5, 'http://127.0.0.1:9/'],
+      'non-string base' => ['sentinel.json', 5],
+    ];
+  }
+
+  /**
+   * The bundled meta-schema is addressed by its file URI.
+   */
+  public function testMetaSchemaUri(): void {
+    $this->assertSame('file://' . dirname(__DIR__, 2) . '/meta-schema-draft4.json', SchemaReferenceResolver::metaSchemaUri());
   }
 
   public static function localBaseProvider(): array {

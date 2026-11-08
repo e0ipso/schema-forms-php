@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 8.3 or later. CI runs on PHP 8.3, 8.4 and 8.5. The package is tested with Drupal 11. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or later. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
@@ -217,6 +217,29 @@ When Drupal validates the form, the schema validation:
 - Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
 - Only the root `required` list sets `#required`. A `required` list inside a nested object does not mark its sub-properties.
 
+## Upgrading
+
+Semantic versioning covers the public API named under Usage. The GitHub release notes list every change. This section explains the changes since 3.1.1 that your code or your users can notice.
+
+### Exceptions
+
+- Every exception the library throws implements `SchemaForms\Exception\ExceptionInterface`. Catch it to handle any failure from the library at once.
+- A schema reference outside the registered documents throws `SchemaForms\Exception\UnsupportedReferenceException`. It extends `JsonSchema\Exception\UnresolvableJsonPointerException`, the exception thrown before, so existing `catch` blocks still match. `transform()` still catches it and renders the container with the unsupported-reference message.
+- An `extends` value without a URI scheme is refused with the same exception before any filesystem check. Before, the resolver probed it as a local path first.
+
+### Submission values
+
+- A numeric string with an exponent and a fraction, such as `"1e-3"`, becomes the float `0.001`. It used to become the integer `0`.
+- An empty value of a required property with a numeric name, such as `"123"`, is kept, so validation reports it. It used to be dropped.
+- A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
+- A property missing from `properties` is cast by the first matching `patternProperties` schema, then by an `additionalProperties` schema. Any other property is left as submitted. It used to be cast against the object's `items` keyword, or against a schema that turned an empty string into `NULL`.
+- In multivalue (array) widgets, constants and saved values of unsupported types follow their item when another item is removed, and validation checks the value Drupal stores instead of the raw input. Errors for properties named `add_more`, `remove_one` or `removable_element` land on their element.
+
+### Schemas and dependencies
+
+- The schema you pass in is no longer changed. Its `$ref` strings used to be rewritten to internal storage URIs.
+- Composer refuses `marc-mabe/php-enum` releases before 4.4.0, which PHP 8 reports with a warning on every load.
+
 ## Security
 
 Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do not file them as public issues.
@@ -244,6 +267,15 @@ Coverage uses class-level `#[CoversClass]` attributes so executed private helper
 The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`. Keep coverage attribution at class level when adding tests.
 
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
+
+### CI-only checks
+
+Besides the main suite and the JSON Schema 5.2 run, `.github/workflows/php.yml` runs these jobs on PHP 8.3. None of their tools is in `composer.json`.
+
+- Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
+- Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
+- Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks `FormGeneratorInterface`, `FormGeneratorDrupal` and the `SchemaForms\Exception` types.
+- Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
 
 ### JSON Schema compatibility
 

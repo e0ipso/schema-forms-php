@@ -5,10 +5,7 @@ declare(strict_types=1);
 namespace SchemaForms;
 
 use JsonSchema\Constraints\Factory;
-use JsonSchema\Entity\JsonPointer;
 use JsonSchema\SchemaStorage;
-use JsonSchema\SchemaStorageInterface;
-use JsonSchema\Uri\UriResolver;
 use JsonSchema\UriRetrieverInterface;
 use SchemaForms\Exception\UnsupportedReferenceException;
 
@@ -45,14 +42,13 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     if ($schema !== NULL) {
       // Storage rewrites references in place, so register a copy and leave
       // the caller's schema as it was.
-      $registered = self::copySchema($schema, new \WeakMap());
+      $registered = SchemaCopier::copy($schema);
       // Older releases treat a single-slash internal URI as a local file base.
       // Expand local references with a URI both supported majors recognize,
       // then retain the original storage key for explicitly registered refs.
       $storage->addSchema('internal://schema-with-refs/', $registered);
       $storage->addSchema(self::SCHEMA_URI, $registered);
-      $visited = [];
-      self::checkReferences($registered, $storage, $visited);
+      ReferenceChecker::check($registered, $storage);
     }
     return $factory;
   }
@@ -77,39 +73,6 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
   }
 
   /**
-   * Copies the decoded objects and arrays of a schema.
-   *
-   * Objects other than stdClass are not schema data and stay shared.
-   *
-   * @param mixed $value
-   *   The schema or one of its members.
-   * @param \WeakMap<object, mixed> $copies
-   *   Copies already made, so shared and cyclic members keep their shape.
-   *
-   * @return mixed
-   *   The copy.
-   *
-   * @phpstan-return ($value is object ? object : mixed)
-   */
-  private static function copySchema(mixed $value, \WeakMap $copies): mixed {
-    if (is_array($value)) {
-      return array_map(static fn(mixed $member): mixed => self::copySchema($member, $copies), $value);
-    }
-    if (!$value instanceof \stdClass) {
-      return $value;
-    }
-    if (isset($copies[$value])) {
-      return $copies[$value];
-    }
-    $copy = clone $value;
-    $copies[$value] = $copy;
-    foreach (get_object_vars($copy) as $name => $member) {
-      $copy->{$name} = self::copySchema($member, $copies);
-    }
-    return $copy;
-  }
-
-  /**
    * {@inheritdoc}
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
@@ -117,7 +80,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    */
   #[\Override]
   public function retrieve(mixed $uri, mixed $baseUri = NULL): object {
-    $resolved = self::resolveUri($uri, $baseUri);
+    $resolved = SchemaUriResolver::resolve($uri, $baseUri);
     // Registered schemas are served by SchemaStorage without a retrieval. Only
     // these exact metadata URIs may reach disk. Never pass a target to a
     // generic retriever, even when its scheme is file or internal.
@@ -157,89 +120,6 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    */
   private static function metaSchemaPath(): string {
     return dirname(__DIR__) . '/meta-schema-draft4.json';
-  }
-
-  /**
-   * Resolves a URI without touching the local filesystem.
-   *
-   * UriResolver reads a base without a scheme as a local path and runs
-   * is_file(), is_dir() and realpath() on it. Schemas supply these values, so
-   * such a base is refused before it reaches the resolver.
-   *
-   * @param mixed $uri
-   *   The URI to resolve.
-   * @param mixed $base_uri
-   *   The base URI, or NULL.
-   *
-   * @return string
-   *   The resolved URI; empty when both inputs are empty.
-   *
-   * @throws \SchemaForms\Exception\UnsupportedReferenceException
-   *   When the base URI has no scheme.
-   */
-  private static function resolveUri(mixed $uri, mixed $base_uri): string {
-    if ($base_uri !== NULL && !is_string($base_uri)) {
-      throw new UnsupportedReferenceException('External schema retrieval is disabled.');
-    }
-    $is_relative = is_string($base_uri)
-      && preg_match('|^[^/]+://|u', $base_uri) !== 1
-      && filter_var($base_uri, FILTER_VALIDATE_URL) === FALSE;
-    if ($is_relative) {
-      throw new UnsupportedReferenceException('External schema retrieval is disabled.');
-    }
-    return (string) (new UriResolver())->resolve(is_scalar($uri) ? (string) $uri : '', $base_uri);
-  }
-
-  /**
-   * Checks reference targets even in branches validation may not evaluate.
-   *
-   * Optional blank values can be omitted before final validation, so checking
-   * only references followed by the validator would silently accept some
-   * unsupported schemas. Traverse schema keywords, not literal default, enum
-   * or const values. The retriever remains the boundary for every actual fetch.
-   *
-   * @param mixed $schema
-   *   A schema or a list of schemas.
-   * @param \JsonSchema\SchemaStorageInterface $storage
-   *   Storage containing the root schema and any registered subschemas.
-   * @param array<int, true> $visited
-   *   Object IDs already checked.
-   */
-  private static function checkReferences(mixed $schema, SchemaStorageInterface $storage, array &$visited): void {
-    if (is_array($schema)) {
-      foreach ($schema as $member) {
-        self::checkReferences($member, $storage, $visited);
-      }
-      return;
-    }
-    if (!is_object($schema) || isset($visited[spl_object_id($schema)])) {
-      return;
-    }
-    $visited[spl_object_id($schema)] = TRUE;
-    if (isset($schema->{'$ref'})) {
-      if (!is_string($schema->{'$ref'})) {
-        throw new UnsupportedReferenceException('A "$ref" value must be a string.');
-      }
-      $target = (new JsonPointer($schema->{'$ref'}))->getFilename();
-      // Checking the document does not expand recursive internal references.
-      self::checkReferences($storage->getSchema($target), $storage, $visited);
-    }
-    if (isset($schema->extends) && is_string($schema->extends)) {
-      $target = self::resolveUri($schema->id ?? NULL, $schema->extends);
-      self::checkReferences($storage->getSchema($target), $storage, $visited);
-    }
-    foreach (['properties', 'patternProperties', 'definitions', '$defs', 'dependencies', 'dependentSchemas'] as $keyword) {
-      foreach ((array) ($schema->{$keyword} ?? []) as $member) {
-        self::checkReferences($member, $storage, $visited);
-      }
-    }
-    foreach ([
-      'items', 'additionalItems', 'additionalProperties',
-      'allOf', 'anyOf', 'oneOf', 'not', 'extends', 'type', 'disallow',
-      'contains', 'propertyNames', 'if', 'then', 'else',
-    ] as $keyword) {
-      self::checkReferences($schema->{$keyword} ?? NULL, $storage, $visited);
-    }
   }
 
 }

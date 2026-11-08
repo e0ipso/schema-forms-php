@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace SchemaForms;
 
+use JsonSchema\Constraints\BaseConstraint;
 use JsonSchema\Constraints\Constraint;
+use JsonSchema\Constraints\Factory;
 use JsonSchema\Validator;
 use Shaper\Validator\JsonSchemaValidator;
 
@@ -26,12 +28,31 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
    * Validates schemas against the bundled draft-04 meta-schema.
    *
    * @param \JsonSchema\Validator $validator
-   *   The validator; build it with SchemaReferenceResolver::createFactory().
+   *   The validator whose check mode to use; see setValidator().
    * @param int|null $mode
-   *   The JsonSchema\Constraints\Constraint::CHECK_MODE_* flags.
+   *   The JsonSchema\Constraints\Constraint::CHECK_MODE_* flags. NULL uses
+   *   the check mode of the validator.
    */
   public function __construct(Validator $validator, ?int $mode = NULL) {
-    parent::__construct(['$ref' => SchemaReferenceResolver::metaSchemaUri()], $validator, $mode);
+    parent::__construct(['$ref' => SchemaReferenceResolver::metaSchemaUri()], NULL, $mode);
+    $this->setValidator($validator);
+  }
+
+  /**
+   * Installs a validator that only retrieves the bundled meta-schema.
+   *
+   * The given validator's factory may carry a retriever that fetches any URI,
+   * so only its check mode is kept. The installed validator is built on
+   * SchemaReferenceResolver::createFactory(), whatever the caller passes.
+   *
+   * @param \JsonSchema\Validator $validator
+   *   The validator whose check mode to use.
+   */
+  #[\Override]
+  public function setValidator(Validator $validator): void {
+    $factory = SchemaReferenceResolver::createFactory();
+    $factory->setConfig(self::checkModeOf($validator));
+    parent::setValidator(new Validator($factory));
   }
 
   /**
@@ -56,11 +77,32 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
   /**
    * Restores the restricted reference resolver after unserialization.
    *
-   * The parent would install a validator that retrieves any URI.
+   * The parent installs a validator that retrieves any URI; setValidator()
+   * replaces it with a restricted one in the default check mode.
    */
   #[\Override]
   public function __wakeup(): void {
-    $this->setValidator(new Validator(SchemaReferenceResolver::createFactory()));
+    $this->setValidator(new Validator());
+  }
+
+  /**
+   * Reads the check mode a validator's factory is configured with.
+   *
+   * Both supported json-schema majors keep the factory in a protected
+   * BaseConstraint property and offer no getter for it.
+   *
+   * @param \JsonSchema\Validator $validator
+   *   The validator.
+   *
+   * @return int
+   *   The JsonSchema\Constraints\Constraint::CHECK_MODE_* flags.
+   *
+   * @phpstan-return int-mask-of<Constraint::CHECK_MODE_*>
+   */
+  private static function checkModeOf(Validator $validator): int {
+    $factory = (new \ReflectionProperty(BaseConstraint::class, 'factory'))->getValue($validator);
+    assert($factory instanceof Factory);
+    return $factory->getConfig();
   }
 
   /**

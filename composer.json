@@ -38,8 +38,11 @@
         "povils/phpmnd": "^3.6",
         "squizlabs/php_codesniffer": "^3.7"
     },
+    "conflict": {
+        "marc-mabe/php-enum": "<4.4"
+    },
     "suggest": {
-        "drupal/core": "Required for the SchemaForms\\Drupal classes; tested with Drupal 11."
+        "drupal/core": "Required for the SchemaForms\\Drupal classes; tested with Drupal 11.2 and 11.3."
     },
     "autoload": {
         "psr-4": {

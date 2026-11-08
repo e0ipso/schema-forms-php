@@ -71,6 +71,7 @@ class ArrayToStdClassTest extends TestCase {
       $this->assertInstanceOf(ExceptionInterface::class, $e);
       $this->assertInstanceOf(\InvalidArgumentException::class, $e);
       $this->assertInstanceOf(\JsonException::class, $e->getPrevious());
+      $this->assertSame(0, $e->getCode());
       $this->assertSame('The data cannot be encoded as JSON: ' . $cause, $e->getMessage());
     }
     // The transformation keeps its empty-object fallback for the same data.
