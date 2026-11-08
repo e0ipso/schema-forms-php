@@ -216,6 +216,29 @@ When Drupal validates the form, the schema validation:
 - Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
 - Only the root `required` list sets `#required`. A `required` list inside a nested object does not mark its sub-properties.
 
+## Upgrading
+
+Semantic versioning covers the public API named under Usage. The GitHub release notes list every change. This section explains the changes since 3.1.1 that your code or your users can notice.
+
+### Exceptions
+
+- Every exception the library throws implements `SchemaForms\Exception\ExceptionInterface`. Catch it to handle any failure from the library at once.
+- A schema reference outside the registered documents throws `SchemaForms\Exception\UnsupportedReferenceException`. It extends `JsonSchema\Exception\UnresolvableJsonPointerException`, the exception thrown before, so existing `catch` blocks still match. `transform()` still catches it and renders the container with the unsupported-reference message.
+- An `extends` value without a URI scheme is refused with the same exception before any filesystem check. Before, the resolver probed it as a local path first.
+
+### Submission values
+
+- A numeric string with an exponent and a fraction, such as `"1e-3"`, becomes the float `0.001`. It used to become the integer `0`.
+- An empty value of a required property with a numeric name, such as `"123"`, is kept, so validation reports it. It used to be dropped.
+- A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
+- A property missing from `properties` is cast by the first matching `patternProperties` schema, then by an `additionalProperties` schema. Any other property is left as submitted. It used to be cast against the object's `items` keyword, or against a schema that turned an empty string into `NULL`.
+- In multivalue (array) widgets, constants and saved values of unsupported types follow their item when another item is removed, and validation checks the value Drupal stores instead of the raw input. Errors for properties named `add_more`, `remove_one` or `removable_element` land on their element.
+
+### Schemas and dependencies
+
+- The schema you pass in is no longer changed. Its `$ref` strings used to be rewritten to internal storage URIs.
+- Composer refuses `marc-mabe/php-enum` releases before 4.4.0, which PHP 8 reports with a warning on every load.
+
 ## Security
 
 Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do not file them as public issues.
