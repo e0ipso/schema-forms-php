@@ -10,13 +10,19 @@ use PHPUnit\Framework\TestCase;
 use SchemaForms\Exception\ExceptionInterface;
 use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\ReferenceChecker;
+use SchemaForms\SchemaCopier;
 use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\SchemaUriResolver;
 use SchemaForms\Tests\Fixture\ReferenceSentinel;
 
 /**
  * Retrieval stays inside registered schemas and bundled metadata.
  */
 #[CoversClass(SchemaReferenceResolver::class)]
+#[CoversClass(ReferenceChecker::class)]
+#[CoversClass(SchemaCopier::class)]
+#[CoversClass(SchemaUriResolver::class)]
 #[CoversClass(RecursiveTypeCaster::class)]
 final class SchemaReferenceResolverTest extends TestCase {
 
