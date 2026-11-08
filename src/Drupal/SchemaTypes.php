@@ -34,7 +34,8 @@ final class SchemaTypes {
     if (!is_array($type)) {
       return is_string($type) ? $type : 'unknown';
     }
-    // Use the first type other than 'null', or 'null' if none remains.
+    // 'null' has no control of its own, so a nullable type renders its other
+    // member.
     $types = array_values(array_filter($type, static fn (mixed $item): bool => $item !== 'null'));
     return is_string($types[0] ?? NULL) && $types[0] !== '' ? $types[0] : 'null';
   }

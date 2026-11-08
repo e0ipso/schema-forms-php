@@ -42,7 +42,6 @@ final class EnumElements {
     if (empty($members) || !is_array($members)) {
       return $element;
     }
-    // The hint is taken as given, as the type of every other control is.
     $element['#type'] = $hints['ui:widget'] ?? self::RADIOS;
     $element['#options'] = self::options($members, $hints);
     return $element;
