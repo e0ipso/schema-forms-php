@@ -13,6 +13,10 @@ use Shaper\Validator\ValidateableInterface;
 /**
  * Turns associative arrays into stdClass.
  *
+ * The transform() method exists so a Shaper transformation pipeline can
+ * include this step; nothing in the library calls it. Call convert() directly
+ * for an exception on data with no JSON encoding.
+ *
  * @internal
  */
 final class ArrayToStdClass extends TransformationBase {
