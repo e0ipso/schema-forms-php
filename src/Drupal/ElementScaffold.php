@@ -17,7 +17,7 @@ final class ElementScaffold {
    * Drupal has no 'integer' element. A number input whose step is one is the
    * native spelling of the constraint: the browser rejects a fractional value
    * before the form is submitted, and the value still arrives as an integer
-   * because RecursiveTypeCaster::tryCastingNumber() casts a numeric string
+   * because ScalarCaster::tryCastingNumber() casts a whole numeric string
    * with no decimal separator to int.
    */
   private const SCALAR_ELEMENTS = [
