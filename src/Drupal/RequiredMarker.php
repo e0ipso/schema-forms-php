@@ -31,7 +31,7 @@ final class RequiredMarker implements RenderCallbackInterface {
    * Core reads #label_attributes only for labels, and shows the legend marker
    * only when #required is set.
    */
-  private const GROUP_TYPES = ['checkboxes', 'radios'];
+  private const GROUP_TYPES = [EnumElements::CHECKBOXES, EnumElements::RADIOS];
 
   /**
    * Element types that collect no value, so Form API never enforces them.
@@ -138,7 +138,7 @@ final class RequiredMarker implements RenderCallbackInterface {
    *   The control.
    */
   private static function mark(array $element, bool $required): array {
-    if (!in_array($element['#type'] ?? '', ['checkbox', 'checkboxes'], TRUE)) {
+    if (!in_array($element['#type'] ?? '', ['checkbox', EnumElements::CHECKBOXES], TRUE)) {
       $element['#required'] = $required;
       return $element;
     }

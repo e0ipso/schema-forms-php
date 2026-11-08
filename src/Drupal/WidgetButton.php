@@ -9,7 +9,7 @@ namespace SchemaForms\Drupal;
  *
  * @internal
  */
-final class WidgetButton {
+final readonly class WidgetButton {
 
   /**
    * Creates the button reference.
@@ -24,10 +24,10 @@ final class WidgetButton {
    *   TRUE for a Remove button, FALSE for an Append button.
    */
   public function __construct(
-    public readonly array $path,
-    public readonly array $parents,
-    public readonly string $name,
-    public readonly bool $removes,
+    public array $path,
+    public array $parents,
+    public string $name,
+    public bool $removes,
   ) {}
 
 }

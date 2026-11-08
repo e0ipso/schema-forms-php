@@ -9,7 +9,7 @@ namespace SchemaForms\Drupal;
  *
  * @internal
  */
-final class ElementDataPath {
+final readonly class ElementDataPath {
 
   /**
    * Creates the pair.
@@ -21,8 +21,8 @@ final class ElementDataPath {
    *   The element.
    */
   public function __construct(
-    public readonly array $path,
-    public readonly array $element,
+    public array $path,
+    public array $element,
   ) {}
 
 }
