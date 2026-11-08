@@ -420,8 +420,15 @@ class FormGeneratorDrupalTest extends TestCase {
           '#prop_parents' => ['tag_labels', $delta],
           '#attributes' => [
             'class' => ['field-remove-one-submit'],
-            'style' => 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;',
-            'title' => new TranslatableMarkup('Remove item'),
+            'style' => 'opacity: 0.9;display: block;position: absolute;top: -12px;left: -12px;margin: 0;overflow: hidden;width: 24px;height: 24px;padding: 0;border-radius: 15px;',
+            'aria-label' => new TranslatableMarkup('Remove @title (value @number)', [
+              '@title' => Markup::create('Labels'),
+              '@number' => $delta + 1,
+            ]),
+            'title' => new TranslatableMarkup('Remove @title (value @number)', [
+              '@title' => Markup::create('Labels'),
+              '@number' => $delta + 1,
+            ]),
           ],
           '#limit_validation_errors' => [],
           '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],

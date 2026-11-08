@@ -101,6 +101,22 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   }
 
   /**
+   * Items are numbered by position, and each Remove button names its item.
+   */
+  public function testItemNumbersFollowPositions(): void {
+    $generator = new FormGeneratorDrupal();
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","title":"Tags","items":{"type":"string"}}}}');
+    $state = new FormState();
+    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => [0 => 0, 2 => 2, 3 => 5], 'next_delta' => 6]);
+    $widget = $generator->transform($schema, new Context(['form_state' => $state]))['items'];
+    $titles = array_map(static fn (int $delta): string => (string) $widget[$delta]['removable_element']['#title'], [0, 2, 5]);
+    $this->assertSame(['Tags (value 1)', 'Tags (value 2)', 'Tags (value 3)'], $titles);
+    $names = array_map(static fn (int $delta): string => (string) $widget[$delta]['remove_one']['#attributes']['aria-label'], [0, 2, 5]);
+    $this->assertSame(['Remove Tags (value 1)', 'Remove Tags (value 2)', 'Remove Tags (value 3)'], $names);
+    $this->assertSame($names[1], (string) $widget[2]['remove_one']['#attributes']['title']);
+  }
+
+  /**
    * After-build cleans only submitted values and records the final form path.
    */
   #[DataProvider('processingProvider')]
