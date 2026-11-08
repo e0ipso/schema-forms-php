@@ -11,7 +11,7 @@ use JsonSchema\Validator;
 use Shaper\Validator\JsonSchemaValidator;
 
 /**
- * Validates that the input provided conforms to the expectations.
+ * Checks that a schema is a decoded draft-04 schema with an object root.
  *
  * @internal
  */
