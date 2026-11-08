@@ -3,6 +3,7 @@
 namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
+use JsonSchema\Constraints\Factory;
 use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -92,6 +93,47 @@ class JsonSchemaFormValidatorTest extends TestCase {
     $schema = (new ArrayToStdClass())->transform(['type' => 'object', 'properties' => []]);
     $this->assertTrue($restored->isValid($schema));
     $this->assertFalse($restored->isValid(json_decode('{"type":"string"}')));
+  }
+
+  /**
+   * A validator set later is rebuilt on the restricted factory.
+   *
+   * Its check mode is kept: type casting accepts the empty list that encodes
+   * an empty properties map, and normal mode rejects it.
+   */
+  #[DataProvider('dataProviderSetValidator')]
+  public function testSetValidatorStaysRestricted(int $mode, bool $expected): void {
+    $validator = new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()));
+    $unrestricted = new Validator(new Factory(NULL, NULL, $mode));
+    $validator->setValidator($unrestricted);
+    $inner = (fn () => $this->validator)->call($validator);
+    $this->assertNotSame($unrestricted, $inner);
+    $retriever = (fn () => $this->factory->getUriRetriever())->call($inner);
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $retriever);
+    $storage_retriever = (fn () => $this->factory->getSchemaStorage()->getUriRetriever())->call($inner);
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $storage_retriever);
+    $schema = (new ArrayToStdClass())->transform(['type' => 'object', 'properties' => []]);
+    $this->assertSame($expected, $validator->isValid($schema));
+  }
+
+  /**
+   * Data provider for testSetValidatorStaysRestricted.
+   */
+  public static function dataProviderSetValidator(): array {
+    return [
+      'type cast' => [Constraint::CHECK_MODE_TYPE_CAST, TRUE],
+      'normal' => [Constraint::CHECK_MODE_NORMAL, FALSE],
+    ];
+  }
+
+  /**
+   * The constructor restricts the validator it is given, too.
+   */
+  public function testConstructorRestrictsTheValidator(): void {
+    $validator = new JsonSchemaFormValidator(new Validator(), Constraint::CHECK_MODE_TYPE_CAST);
+    $inner = (fn () => $this->validator)->call($validator);
+    $retriever = (fn () => $this->factory->getUriRetriever())->call($inner);
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $retriever);
   }
 
   /**
