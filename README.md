@@ -201,8 +201,10 @@ The element title comes from `ui:title`, then the schema `title`, then the prope
 ### Accessibility
 
 - Each item of a multivalue widget has a visually hidden title, such as "Tags (value 2)". Items are numbered by their position, so the numbers have no gaps after a removal.
-- Each remove button shows "⨯" and has the accessible name "Remove Tags (value 2)" in its `aria-label` and `title`. It is 24 by 24 pixels, the WCAG 2.2 minimum target size. The library ships no CSS asset, so the size and position are an inline style on the button.
-- After Append or Remove, the AJAX response announces the change through `Drupal.announce()`, for example "Item added: Tags (value 3).", and moves focus: to the new item after Append, and after Remove to the item that took the removed item's place, else the Append button, else the widget.
+- Each remove button shows "⨯" and has the accessible name "Remove Tags (value 2)" in its `aria-label` and `title`. It is 24 by 24 pixels, the WCAG 2.2 minimum target size.
+- The library is not a Drupal module, so it ships no asset library and no CSS file. The remove button's size and position, and the `position: relative` of each item container that anchors it, are inline styles for that reason. A site whose Content Security Policy forbids inline styles must style `.field-remove-one-submit` itself.
+- After Append or Remove, the AJAX response announces the change through `Drupal.announce()`, for example "Item added: Tags (value 3).", and moves focus: to the new item after Append, and after Remove to the item that took the removed item's place, else the Append button, else the widget. Status messages appear at the top of the rebuilt widget.
+- A required property that shows Drupal's marker without Form API `#required` (see [Limitations](#limitations)) also tells assistive technology it is required: inputs, selects and single checkboxes get `aria-required="true"`, and a radio group's fieldset gets `role="radiogroup"` with `aria-required="true"`. ARIA has no required state for a group of checkboxes, so those show the marker only.
 - The announcements, item titles and button names are translatable.
 
 ### UI schema data
@@ -234,7 +236,7 @@ When Drupal validates the form, the schema validation:
 ### Limitations
 
 - Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
-- Only the root `required` list sets Form API `#required`, which rejects blank values. Checkboxes at the root and properties in a nested object's `required` list show Drupal's required marker without `#required`, because the schema accepts `FALSE`, an empty selection or an empty string there; schema validation still requires the key. That marker is visual only: the inputs carry no `required` or `aria-required` attribute, so assistive technology does not announce these properties as required.
+- Only the root `required` list sets Form API `#required`, which rejects blank values. Checkboxes at the root and properties in a nested object's `required` list show Drupal's required marker without `#required`, because the schema accepts `FALSE`, an empty selection or an empty string there; schema validation still requires the key. These inputs carry `aria-required` instead of the HTML `required` attribute, which would make the browser refuse the blank values the schema accepts.
 
 ## Upgrading
 
@@ -264,6 +266,8 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - `ui:visible: 0` now hides the element; see the UI schema section.
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
 - Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
+- Controls that show the required marker without `#required` carry `aria-required="true"`, and such a radio group's fieldset also gets `role="radiogroup"`. They used to carry no required state for assistive technology.
+- The status messages of the Append and Remove AJAX responses go into the rebuilt widget. They used to target the wrapper ID from before the rebuild, which no longer exists after the response replaces it, so they were not shown.
 
 ### Schemas and dependencies
 
