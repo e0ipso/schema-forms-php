@@ -22,15 +22,47 @@ final class SavedShapeSubmissionTest extends SchemaFormsKernelTestBase {
   protected static $modules = ['system'];
 
   /**
-   * A list value where an object is expected is still reported.
+   * Objects whose property names are "0" to "n-1" validate as objects.
+   *
+   * Regression: PHP holds such an object as a list, which JSON encodes as an
+   * array, so validation reported that an object was required.
    */
-  public function testListForAnObjectIsReported(): void {
-    $schema = json_decode('{"type":"object","properties":{"fixed":{"type":"object"}}}', flags: JSON_THROW_ON_ERROR);
-    $form = new GeneratedSchemaForm($schema, currentInput: ['fixed' => ['a', 'b']], withSave: TRUE);
+  #[DataProvider('integerNameProvider')]
+  public function testIntegerPropertyNames(?string $parent): void {
+    $schema = json_decode('{"type":"object","properties":{
+      "0":{"type":"string"},
+      "1":{"type":"object","properties":{"0":{"type":"string"},"1":{"type":"integer"}}}
+    }}', flags: JSON_THROW_ON_ERROR);
+    $current = ['0' => 'a', '1' => ['0' => 'b', '1' => 2]];
+    $form = new GeneratedSchemaForm($schema, parentKey: $parent, tree: TRUE, currentInput: $current, withSave: TRUE);
+
+    $result = $this->browserSubmit($form, [], $parent);
+
+    $this->assertSame([], $result->errors);
+    $values = $parent === NULL ? $result->values : $result->values[$parent];
+    $this->assertSame('a', $values[0]);
+    $this->assertSame(['b', 2], $values[1]);
+  }
+
+  public static function integerNameProvider(): array {
+    return ['form root' => [NULL], 'under a key' => ['schema']];
+  }
+
+  /**
+   * A saved list where an object is expected is held as an object.
+   *
+   * PHP cannot tell the list ["a", "b"] from an object whose properties are
+   * "0" and "1", so the schema decides.
+   */
+  public function testListForAnObjectIsAnObject(): void {
+    $schema = json_decode('{"type":"object","properties":{"fixed":{"type":"object","additionalProperties":{"type":"string"}},"list":{"type":["array","object"]}}}', flags: JSON_THROW_ON_ERROR);
+    $form = new GeneratedSchemaForm($schema, currentInput: ['fixed' => ['a', 'b'], 'list' => ['c']], withSave: TRUE);
 
     $result = $this->browserSubmit($form);
 
-    $this->assertSame(['fixed'], array_keys($result->errors));
+    $this->assertSame([], $result->errors);
+    $this->assertSame(['a', 'b'], $result->values['fixed']);
+    $this->assertSame(['c'], $result->values['list']);
   }
 
   /**
