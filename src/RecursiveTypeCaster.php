@@ -148,7 +148,11 @@ final class RecursiveTypeCaster {
    */
   private static function refineProperties(array|object $data, object $schema, Validator $validator): array|object {
     foreach ((array) $data as $key => $value) {
-      $property_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
+      $property_schema = self::propertySchema($schema, (string) $key);
+      // A property the schema does not describe is left for validation.
+      if ($property_schema === NULL) {
+        continue;
+      }
       $refined = self::refineValue($value, $property_schema, $validator);
       // Nullable refinements take precedence over omitting untouched fields.
       $omit = $value === '' && $refined === ''
@@ -169,6 +173,51 @@ final class RecursiveTypeCaster {
       $data[$key] = $refined;
     }
     return $data;
+  }
+
+  /**
+   * Finds the schema that describes one property of an object.
+   *
+   * A declared property wins, then the first matching pattern property, then
+   * an additionalProperties schema.
+   *
+   * @param object $schema
+   *   The object schema.
+   * @param string $name
+   *   The property name.
+   *
+   * @return object|null
+   *   The property schema, or NULL when the schema does not describe it.
+   */
+  private static function propertySchema(object $schema, string $name): ?object {
+    $declared = $schema->properties->{$name} ?? NULL;
+    if (is_object($declared)) {
+      return $declared;
+    }
+    $pattern_properties = $schema->patternProperties ?? [];
+    foreach (is_array($pattern_properties) || is_object($pattern_properties) ? $pattern_properties : [] as $pattern => $pattern_schema) {
+      if (is_object($pattern_schema) && self::matchesPattern((string) $pattern, $name)) {
+        return $pattern_schema;
+      }
+    }
+    $additional = $schema->additionalProperties ?? NULL;
+    return is_object($additional) ? $additional : NULL;
+  }
+
+  /**
+   * Matches a property name against a JSON Schema pattern.
+   *
+   * @param string $pattern
+   *   The pattern, without delimiters.
+   * @param string $name
+   *   The property name.
+   *
+   * @return bool
+   *   TRUE on a match. An invalid pattern matches nothing; validation reports
+   *   it.
+   */
+  private static function matchesPattern(string $pattern, string $name): bool {
+    return @preg_match('~' . str_replace('~', '\~', $pattern) . '~u', $name) === 1;
   }
 
   /**

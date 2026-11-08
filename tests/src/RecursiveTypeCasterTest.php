@@ -89,6 +89,53 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"a":{"type":"string","minLength":1},"b":{"type":"string"},"c":{"type":"string","minLength":1}}}',
         ['b' => ''],
       ],
+      // A property is refined with properties, then patternProperties, then
+      // an additionalProperties schema; otherwise it is left as it is.
+      'pattern property is refined' => [
+        ['n_a' => '3', 'other' => '3'],
+        '{"type":"object","patternProperties":{"^n_":{"type":"integer"}}}',
+        ['n_a' => 3, 'other' => '3'],
+      ],
+      'declared property wins over a pattern' => [
+        ['n_a' => '3'],
+        '{"type":"object","properties":{"n_a":{"type":"string"}},"patternProperties":{"^n_":{"type":"integer"}}}',
+        ['n_a' => '3'],
+      ],
+      'additional properties schema is refined' => [
+        ['x' => '3', 'blank' => ''],
+        '{"type":"object","additionalProperties":{"type":["integer","null"]}}',
+        ['x' => 3, 'blank' => NULL],
+      ],
+      'additional properties FALSE leaves values alone' => [
+        ['x' => '3', 'blank' => ''],
+        '{"type":"object","additionalProperties":false}',
+        ['x' => '3', 'blank' => ''],
+      ],
+      'undeclared blank is kept' => [
+        ['x' => '', 'y' => NULL],
+        '{"type":"object","properties":{}}',
+        ['x' => '', 'y' => NULL],
+      ],
+      'items do not describe object properties' => [
+        ['x' => '3'],
+        '{"type":"object","items":{"type":"integer"}}',
+        ['x' => '3'],
+      ],
+      'an invalid pattern matches nothing' => [
+        ['x' => '3'],
+        '{"type":"object","patternProperties":{"(":{"type":"integer"}},"additionalProperties":{"type":"number"}}',
+        ['x' => 3],
+      ],
+      'a pattern may contain the delimiter' => [
+        ['a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a~b$":{"type":"integer"}}}',
+        ['a~b' => 3],
+      ],
+      'a non-object property schema is skipped' => [
+        ['x' => '3'],
+        '{"type":"object","properties":{"x":true},"additionalProperties":{"type":"integer"}}',
+        ['x' => 3],
+      ],
       // Unsafe numeric conversions must retain the input string.
       'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
       'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
