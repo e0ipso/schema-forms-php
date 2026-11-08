@@ -68,6 +68,30 @@ final class RepositoryConfigurationTest extends TestCase {
   }
 
   /**
+   * Core code and its tests never reach into Drupal or the adapter.
+   *
+   * The adapter under src/Drupal depends on the core, never the reverse, so
+   * the core can be used and tested without Drupal installed.
+   */
+  public function testCoreDoesNotDependOnDrupal(): void {
+    $files = [
+      ...glob($this->root() . '/src/*.php'),
+      ...glob($this->root() . '/src/Exception/*.php'),
+      ...glob($this->root() . '/tests/src/*Test.php'),
+    ];
+    $this->assertNotEmpty($files);
+    foreach ($files as $file) {
+      $names = array_filter(
+        \PhpToken::tokenize(file_get_contents($file)),
+        static fn (\PhpToken $token): bool => $token->is([T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED]),
+      );
+      foreach ($names as $name) {
+        $this->assertDoesNotMatchRegularExpression('/^\\\\?(Drupal|SchemaForms\\\\Drupal)\\\\/', $name->text, $file);
+      }
+    }
+  }
+
+  /**
    * The Development section names the configured checks.
    */
   public function testDevelopmentDocumentsEveryTask(): void {

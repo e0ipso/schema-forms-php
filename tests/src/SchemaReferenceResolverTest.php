@@ -2,14 +2,11 @@
 
 namespace SchemaForms\Tests;
 
-use Drupal\Core\Form\FormState;
 use JsonSchema\Exception\UnresolvableJsonPointerException;
 use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormValidatorDrupal;
 use SchemaForms\Exception\ExceptionInterface;
 use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
@@ -20,16 +17,17 @@ use SchemaForms\Tests\Fixture\ReferenceSentinel;
  * Retrieval stays inside registered schemas and bundled metadata.
  */
 #[CoversClass(SchemaReferenceResolver::class)]
-#[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(FormValidatorDrupal::class)]
 #[CoversClass(RecursiveTypeCaster::class)]
 final class SchemaReferenceResolverTest extends TestCase {
 
   /**
    * The sentinel also detects the pre-fix retrieval without external hosts.
+   *
+   * Generation and submission run the same check through the Drupal adapter;
+   * see \SchemaForms\Tests\Drupal\SchemaReferenceRetrievalTest.
    */
   #[DataProvider('externalReferenceProvider')]
-  public function testExternalRetrievalIsBlocked(string $scheme, string $entry): void {
+  public function testExternalRetrievalIsBlocked(string $scheme): void {
     $file = tempnam(sys_get_temp_dir(), 'schema-ref-');
     file_put_contents($file, '{"type":"string","minLength":2}');
     $uri = $scheme === 'file' ? 'file://' . $file : $scheme . '://127.0.0.1:9/sentinel.json';
@@ -40,48 +38,26 @@ final class SchemaReferenceResolverTest extends TestCase {
       // Prove the observer is armed for this exact URI before the operation.
       ReferenceSentinel::observe($file, static fn () => file_get_contents($uri));
       $this->assertCount(1, ReferenceSentinel::$reads);
-      ReferenceSentinel::observe($file, function () use ($schema, $entry): void {
-        if ($entry === 'generation') {
-          $form = (new FormGeneratorDrupal())->transform($schema);
-          $this->assertArrayNotHasKey('field', $form);
-          $this->assertStringContainsString('unsupported reference', $form['#markup']->getUntranslatedString());
-          return;
+      ReferenceSentinel::observe($file, function () use ($schema): void {
+        try {
+          RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema);
+          $this->fail('Optional blank refinement must reject the reference.');
         }
-        if ($entry === 'optional blank') {
-          try {
-            RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema);
-            $this->fail('Optional blank refinement must reject the reference.');
-          }
-          catch (UnresolvableJsonPointerException $e) {
-            $this->assertStringContainsString('retriev', $e->getMessage());
-            $this->assertInstanceOf(UnsupportedReferenceException::class, $e);
-            $this->assertInstanceOf(ExceptionInterface::class, $e);
-          }
-          return;
+        catch (UnresolvableJsonPointerException $e) {
+          $this->assertStringContainsString('retriev', $e->getMessage());
+          $this->assertInstanceOf(UnsupportedReferenceException::class, $e);
+          $this->assertInstanceOf(ExceptionInterface::class, $e);
         }
-        $form = ['#parents' => ['schema'], '#array_parents' => ['schema']];
-        $state = (new FormState())->setUserInput([])->setValues(['schema' => ['field' => 'valid']]);
-        FormValidatorDrupal::validateWithSchema($form, $state, $schema);
-        $this->assertSame(['schema'], array_keys($state->getErrors()));
-        $error = $state->getErrors()['schema'];
-        $this->assertStringContainsString('unsupported reference', $error->getUntranslatedString());
       });
       $this->assertSame([], ReferenceSentinel::$reads, 'No file read or HTTP(S) retrieval was attempted.');
     }
     finally {
       unlink($file);
-      (new FormState())->clearErrors();
     }
   }
 
   public static function externalReferenceProvider(): array {
-    $cases = [];
-    foreach (['file', 'http', 'https'] as $scheme) {
-      foreach (['generation', 'submission', 'optional blank'] as $entry) {
-        $cases[$scheme . ' ' . $entry] = [$scheme, $entry];
-      }
-    }
-    return $cases;
+    return ['file' => ['file'], 'http' => ['http'], 'https' => ['https']];
   }
 
   #[DataProvider('internalReferenceProvider')]
@@ -89,8 +65,6 @@ final class SchemaReferenceResolverTest extends TestCase {
     $schema = (object) ['type' => 'object', 'definitions' => (object) [
       'label' => (object) ['type' => 'string', 'minLength' => 2],
     ], 'properties' => (object) ['field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $reference]]]]];
-    $form = (new FormGeneratorDrupal())->transform($schema);
-    $this->assertSame('textfield', $form['field']['#type']);
     $this->assertSame([], RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema));
     $validator = new Validator(SchemaReferenceResolver::createFactory($schema));
     $data = (object) ['field' => 'valid'];
