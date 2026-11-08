@@ -30,6 +30,19 @@ final class ValidationMessages {
   }
 
   /**
+   * Explains that a saved value does not fit the control for its type.
+   *
+   * @param string $type
+   *   The schema type the property is rendered for.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslatableMarkup
+   *   The message.
+   */
+  public static function mismatchedSavedValue(string $type): TranslatableMarkup {
+    return new TranslatableMarkup('This property cannot be edited: its saved value is not of the %type type.', ['%type' => $type]);
+  }
+
+  /**
    * Explains that the submission has no JSON representation.
    *
    * @return \Drupal\Core\StringTranslation\TranslatableMarkup

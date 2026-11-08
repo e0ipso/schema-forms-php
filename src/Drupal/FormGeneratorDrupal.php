@@ -220,7 +220,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form element.
    */
   private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE, bool $has_current_input = FALSE): array {
-    $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input, $has_current_input);
+    $guessed_type = $this->guessSchemaType($json_schema, $ui_schema_data);
+    // A saved scalar cannot fill a compound control, but a union type may
+    // offer a control that shows it.
+    $saved_scalar = $has_current_input && in_array($guessed_type, ['array', 'object'], TRUE) && !is_array($current_input) && $current_input !== NULL;
+    $type = $saved_scalar ? $this->scalarType($json_schema, $current_input) ?? $guessed_type : $guessed_type;
+    $form_element = $this->scaffoldFormElement($json_schema, $type, $machine_name, $ui_schema_data, $current_input, $has_current_input);
     $enabled = $parent_enabled && (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
     $form_element['#prop_parents'] = $prop_parents;
     if (property_exists($json_schema, 'const')) {
@@ -233,13 +238,72 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       // Not much more to do with constants.
       return $form_element;
     }
-    $type = $this->guessSchemaType($json_schema, $ui_schema_data);
     // Saved input wins over the default, including an explicit NULL.
     if (!$has_current_input && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
       $default_input = $this->normalizeInput($json_schema->default);
       // A union may select a compound widget but supply a scalar default.
       $current_input = is_array($default_input) ? $default_input : NULL;
     }
+    $form_element['#disabled'] = !$enabled;
+    $visible = (bool) ($ui_schema_data['ui:visible'] ?? TRUE);
+    $form_element['#visible'] = $visible;
+    if ($saved_scalar && $type === $guessed_type) {
+      $form_element = $this->transformUnsupported($form_element, $type, ValidationMessages::mismatchedSavedValue($type));
+      $form_element['#schema_fixed_value'] = $current_input;
+      return $form_element;
+    }
+    // Form API options are keyed by member, and only scalars make keys.
+    $editable_enum = !$this->hasStructuredEnumMember($json_schema, $type);
+    if ($editable_enum) {
+      $form_element = $this->buildByType($form_element, $json_schema, $type, $machine_name, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled, $has_current_input);
+    }
+    // A 'ui:widget' names a Form API element the caller picked deliberately, so
+    // it is taken at face value. Everything else has to be an element this
+    // generator built on purpose; see SUPPORTED_ELEMENT_TYPES.
+    $has_widget = !empty($ui_schema_data['ui:widget']);
+    if (!$editable_enum || (!$has_widget && !in_array($form_element['#type'] ?? '', self::SUPPORTED_ELEMENT_TYPES, TRUE))) {
+      $form_element = $this->transformUnsupported($form_element, $type);
+      if ($has_current_input || property_exists($json_schema, 'default')) {
+        $form_element['#schema_fixed_value'] = $has_current_input ? $current_input : $json_schema->default;
+      }
+      return $form_element;
+    }
+    // An editable control cannot show NULL, so an untouched one would submit
+    // a blank value instead. Record the saved NULL to restore it on submit.
+    if ($has_current_input && $current_input === NULL && in_array('null', (array) ($json_schema->type ?? []), TRUE)) {
+      $form_element['#schema_saved_null'] = TRUE;
+    }
+    return $form_element;
+  }
+
+  /**
+   * Builds the control for a schema type.
+   *
+   * @param array $form_element
+   *   The scaffolded form element.
+   * @param mixed $json_schema
+   *   The JSON Schema for the element.
+   * @param string $type
+   *   The schema type the control is built for.
+   * @param string $machine_name
+   *   The machine name for the form element.
+   * @param array $prop_parents
+   *   The parents.
+   * @param array $ui_schema_data
+   *   The schema for the UI refinements.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param mixed $current_input
+   *   The current input.
+   * @param bool $enabled
+   *   Whether the element is enabled.
+   * @param bool $has_current_input
+   *   Whether current input is available, including an explicit NULL.
+   *
+   * @return array
+   *   The form element.
+   */
+  private function buildByType(array $form_element, $json_schema, string $type, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $enabled, bool $has_current_input): array {
     if ($type === 'string' && !empty($json_schema->format) && $json_schema->format === 'email') {
       $form_element = $this->transformEmail($form_element);
     }
@@ -260,27 +324,49 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     if ($type === 'object') {
       $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled, $has_current_input);
     }
-
-    $form_element['#disabled'] = !$enabled;
-    $visible = (bool) ($ui_schema_data['ui:visible'] ?? TRUE);
-    $form_element['#visible'] = $visible;
-    // A 'ui:widget' names a Form API element the caller picked deliberately, so
-    // it is taken at face value. Everything else has to be an element this
-    // generator built on purpose; see SUPPORTED_ELEMENT_TYPES.
-    $has_widget = !empty($ui_schema_data['ui:widget']);
-    if (!$has_widget && !in_array($form_element['#type'] ?? '', self::SUPPORTED_ELEMENT_TYPES, TRUE)) {
-      $form_element = $this->transformUnsupported($form_element, $type);
-      if ($has_current_input || property_exists($json_schema, 'default')) {
-        $form_element['#schema_fixed_value'] = $has_current_input ? $current_input : $json_schema->default;
-      }
-      return $form_element;
-    }
-    // An editable control cannot show NULL, so an untouched one would submit
-    // a blank value instead. Record the saved NULL to restore it on submit.
-    if ($has_current_input && $current_input === NULL && in_array('null', (array) ($json_schema->type ?? []), TRUE)) {
-      $form_element['#schema_saved_null'] = TRUE;
-    }
     return $form_element;
+  }
+
+  /**
+   * Decides whether an enum the control would offer has a structured member.
+   *
+   * @param mixed $json_schema
+   *   The JSON Schema for the element.
+   * @param string $type
+   *   The schema type the control is built for.
+   *
+   * @return bool
+   *   TRUE when an array or object member makes options impossible.
+   */
+  private function hasStructuredEnumMember($json_schema, string $type): bool {
+    $members = [
+      ...(is_array($json_schema->enum ?? NULL) ? $json_schema->enum : []),
+      ...($type === 'array' && is_array($json_schema->items->enum ?? NULL) ? $json_schema->items->enum : []),
+    ];
+    return array_filter($members, static fn ($member): bool => is_array($member) || is_object($member)) !== [];
+  }
+
+  /**
+   * Finds the scalar type of a union that holds a saved value.
+   *
+   * @param mixed $json_schema
+   *   The JSON Schema for the element.
+   * @param mixed $value
+   *   The saved scalar.
+   *
+   * @return string|null
+   *   The type whose control shows the value, or NULL when none does.
+   */
+  private function scalarType($json_schema, $value): ?string {
+    $candidates = match (TRUE) {
+      is_string($value) => ['string'],
+      is_int($value) => ['integer', 'number'],
+      is_float($value) => ['number'],
+      is_bool($value) => ['boolean'],
+      default => [],
+    };
+    $types = array_values(array_intersect($candidates, (array) ($json_schema->type ?? [])));
+    return $types[0] ?? NULL;
   }
 
   /**
@@ -548,6 +634,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @param mixed $element
    *   The parsed element from the schema.
+   * @param string $type
+   *   The schema type the control is built for.
    * @param string $machine_name
    *   The machine name for the form element. Used for fallback metadata.
    * @param array $ui_schema_data
@@ -560,8 +648,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return array
    *   The scaffolded form element.
    */
-  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, $current_input, bool $has_current_input): array {
-    $type = $this->guessSchemaType($element, $ui_schema_data);
+  private function scaffoldFormElement($element, string $type, string $machine_name, array $ui_schema_data, $current_input, bool $has_current_input): array {
     $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
     $form_element = [
       '#title' => Markup::create(Xss::filter($title)),
@@ -626,6 +713,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       }
       if (count(array_filter($members, 'is_bool')) === $count) {
         return 'boolean';
+      }
+      if (count(array_filter($members, 'is_array')) === $count) {
+        return 'array';
+      }
+      if (count(array_filter($members, 'is_object')) === $count) {
+        return 'object';
       }
       // String-only and mixed enums both use string controls.
       return 'string';
@@ -775,11 +868,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form element.
    * @param string $type
    *   The type that could not be turned into a control.
+   * @param \Drupal\Core\StringTranslation\TranslatableMarkup|null $reason
+   *   The explanation, when it is not the missing element for the type.
    *
    * @return array
    *   The form element.
    */
-  private function transformUnsupported(array $form_element, string $type): array {
+  private function transformUnsupported(array $form_element, string $type, ?TranslatableMarkup $reason = NULL): array {
     $form_element['#type'] = 'item';
     // 'item' collects a value by default, and the only value it could collect
     // here is the empty string. That string is then type-cast and validated
@@ -788,7 +883,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     // stay out of the browser's submitted values. Any saved value or schema
     // default is supplied separately before schema validation.
     $form_element['#input'] = FALSE;
-    $form_element['#markup'] = new TranslatableMarkup(
+    $form_element['#markup'] = $reason ?? new TranslatableMarkup(
       'This property cannot be edited: there is no form element for the %type type.',
       ['%type' => $type]
     );
@@ -1033,6 +1128,25 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   }
 
   /**
+   * Gets the UI hints of a sub-property from its parent's hints.
+   *
+   * The parent's own hints share the array with its children's, so a child
+   * named like a hint, such as "ui:title", has no hints of its own.
+   *
+   * @param array $ui_schema_data
+   *   The parent's UI hints.
+   * @param string $name
+   *   The sub-property name.
+   *
+   * @return array
+   *   The sub-property's UI hints.
+   */
+  private function childHints(array $ui_schema_data, string $name): array {
+    $hints = str_starts_with($name, 'ui:') ? NULL : ($ui_schema_data[$name] ?? NULL);
+    return is_array($hints) ? $hints : [];
+  }
+
+  /**
    * Builds the form element for the nested case.
    *
    * @param mixed $json_schema
@@ -1068,7 +1182,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
           $sub_json_schema,
           $sub_machine_name,
           [...$parents, $sub_machine_name],
-          $ui_schema_data[$sub_machine_name] ?? [],
+          $this->childHints($ui_schema_data, (string) $sub_machine_name),
           $form_state,
           $current_input[$sub_machine_name] ?? NULL,
           $enabled,
