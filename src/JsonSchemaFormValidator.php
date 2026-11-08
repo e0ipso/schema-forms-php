@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use JsonSchema\Constraints\Constraint;
@@ -14,16 +16,22 @@ use Shaper\Validator\JsonSchemaValidator;
 final class JsonSchemaFormValidator extends JsonSchemaValidator {
 
   /**
-   * {@inheritdoc}
+   * Validates schemas against the bundled draft-04 meta-schema.
+   *
+   * @param \JsonSchema\Validator $validator
+   *   The validator; build it with SchemaReferenceResolver::createFactory().
+   * @param int|null $mode
+   *   The JsonSchema\Constraints\Constraint::CHECK_MODE_* flags.
    */
-  public function __construct(Validator $validator, $mode = NULL) {
+  public function __construct(Validator $validator, ?int $mode = NULL) {
     parent::__construct(['$ref' => SchemaReferenceResolver::metaSchemaUri()], $validator, $mode);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function isValid($data) {
+  #[\Override]
+  public function isValid(mixed $data): bool {
     return parent::isValid($data) && $this->isFormRoot($data);
   }
 
@@ -62,7 +70,7 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
    * @return bool
    *   TRUE if the root is an object schema.
    */
-  private function isFormRoot($data): bool {
+  private function isFormRoot(mixed $data): bool {
     $root_schema = (object) [
       'type' => 'object',
       'required' => ['type'],

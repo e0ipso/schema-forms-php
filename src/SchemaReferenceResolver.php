@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use JsonSchema\Constraints\Factory;
@@ -33,8 +35,8 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
    *   When the schema references a document outside itself.
-   * @throws \JsonSchema\Exception\ExceptionInterface
-   *   When a reference inside the schema cannot be resolved.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
    */
   public static function createFactory(?object $schema = NULL): Factory {
     $retriever = new self();
@@ -68,7 +70,10 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *   The registered copy of the schema.
    */
   public static function registeredSchema(Factory $factory): object {
-    return $factory->getSchemaStorage()->getSchema(self::SCHEMA_URI);
+    $schema = $factory->getSchemaStorage()->getSchema(self::SCHEMA_URI);
+    // createFactory() registers an object, never a boolean schema.
+    assert(is_object($schema));
+    return $schema;
   }
 
   /**
@@ -78,11 +83,13 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *
    * @param mixed $value
    *   The schema or one of its members.
-   * @param \WeakMap $copies
+   * @param \WeakMap<object, mixed> $copies
    *   Copies already made, so shared and cyclic members keep their shape.
    *
    * @return mixed
    *   The copy.
+   *
+   * @phpstan-return ($value is object ? object : mixed)
    */
   private static function copySchema(mixed $value, \WeakMap $copies): mixed {
     if (is_array($value)) {
@@ -96,8 +103,8 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     }
     $copy = clone $value;
     $copies[$value] = $copy;
-    foreach ($copy as &$member) {
-      $member = self::copySchema($member, $copies);
+    foreach (get_object_vars($copy) as $name => $member) {
+      $copy->{$name} = self::copySchema($member, $copies);
     }
     return $copy;
   }
@@ -108,7 +115,8 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
    *   For every URI except the bundled draft-04 meta-schema.
    */
-  public function retrieve($uri, $baseUri = NULL) {
+  #[\Override]
+  public function retrieve(mixed $uri, mixed $baseUri = NULL): object {
     $resolved = self::resolveUri($uri, $baseUri);
     // Registered schemas are served by SchemaStorage without a retrieval. Only
     // these exact metadata URIs may reach disk. Never pass a target to a
@@ -122,7 +130,10 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     ], TRUE)) {
       throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
-    return json_decode(file_get_contents(self::metaSchemaPath()), FALSE, 512, JSON_THROW_ON_ERROR);
+    $metadata = json_decode((string) file_get_contents(self::metaSchemaPath()), FALSE, 512, JSON_THROW_ON_ERROR);
+    // The bundled file holds one JSON object.
+    assert(is_object($metadata));
+    return $metadata;
   }
 
   /**
@@ -160,19 +171,19 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    * @param mixed $base_uri
    *   The base URI, or NULL.
    *
-   * @return string|null
-   *   The resolved URI, or NULL when both inputs are empty.
+   * @return string
+   *   The resolved URI; empty when both inputs are empty.
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
    *   When the base URI has no scheme.
    */
-  private static function resolveUri(mixed $uri, mixed $base_uri): ?string {
+  private static function resolveUri(mixed $uri, mixed $base_uri): string {
     $is_absolute = is_string($base_uri)
       && (preg_match('|^[^/]+://|u', $base_uri) === 1 || filter_var($base_uri, FILTER_VALIDATE_URL) !== FALSE);
     if ($base_uri !== NULL && !$is_absolute) {
       throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
-    return (new UriResolver())->resolve($uri, $base_uri);
+    return (string) (new UriResolver())->resolve(is_scalar($uri) ? (string) $uri : '', $base_uri);
   }
 
   /**
@@ -187,10 +198,10 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *   A schema or a list of schemas.
    * @param \JsonSchema\SchemaStorageInterface $storage
    *   Storage containing the root schema and any registered subschemas.
-   * @param array $visited
+   * @param array<int, true> $visited
    *   Object IDs already checked.
    */
-  private static function checkReferences($schema, SchemaStorageInterface $storage, array &$visited): void {
+  private static function checkReferences(mixed $schema, SchemaStorageInterface $storage, array &$visited): void {
     if (is_array($schema)) {
       foreach ($schema as $member) {
         self::checkReferences($member, $storage, $visited);
@@ -202,6 +213,9 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     }
     $visited[spl_object_id($schema)] = TRUE;
     if (isset($schema->{'$ref'})) {
+      if (!is_string($schema->{'$ref'})) {
+        throw new UnsupportedReferenceException('A "$ref" value must be a string.');
+      }
       $target = (new JsonPointer($schema->{'$ref'}))->getFilename();
       // Checking the document does not expand recursive internal references.
       self::checkReferences($storage->getSchema($target), $storage, $visited);

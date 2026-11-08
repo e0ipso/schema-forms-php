@@ -137,6 +137,15 @@ final class SchemaReferenceResolverTest extends TestCase {
     $this->assertSame('http://json-schema.org/draft-04/schema#', $metadata->id);
   }
 
+  /**
+   * A "$ref" that is not a string is refused as an unsupported reference.
+   */
+  public function testNonStringReference(): void {
+    $this->expectException(UnsupportedReferenceException::class);
+    $this->expectExceptionMessage('A "$ref" value must be a string.');
+    SchemaReferenceResolver::createFactory((object) ['properties' => (object) ['a' => (object) ['$ref' => 5]]]);
+  }
+
   public static function localBaseProvider(): array {
     return ['extends' => ['extends'], 'retrieve' => ['retrieve']];
   }

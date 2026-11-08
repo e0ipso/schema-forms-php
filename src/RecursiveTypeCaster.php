@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use JsonSchema\Constraints\Factory;
@@ -31,8 +33,10 @@ final class RecursiveTypeCaster {
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
    *   When the schema references a document outside itself.
-   * @throws \JsonSchema\Exception\ExceptionInterface
+   * @throws \JsonSchema\Exception\InvalidArgumentException
    *   When a reference inside the schema cannot be resolved.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
    */
   public static function recursiveTypeRefinements(mixed $data, object $schema, ?Factory $factory = NULL): mixed {
     if ($factory === NULL) {
@@ -84,7 +88,7 @@ final class RecursiveTypeCaster {
    */
   private static function matchEnumMember(string|int $data, mixed $enum): mixed {
     $members = [];
-    foreach (is_array($enum) || is_object($enum) ? $enum : [] as $member) {
+    foreach (self::members($enum) as $member) {
       if (!is_scalar($member) && $member !== NULL) {
         continue;
       }
@@ -96,12 +100,28 @@ final class RecursiveTypeCaster {
   }
 
   /**
+   * Lists the members of a keyword value that holds a list or a map.
+   *
+   * @param mixed $value
+   *   The keyword value.
+   *
+   * @return array<mixed>
+   *   Its members, or nothing when the value is a scalar.
+   */
+  private static function members(mixed $value): array {
+    if (is_object($value)) {
+      return get_object_vars($value);
+    }
+    return is_array($value) ? $value : [];
+  }
+
+  /**
    * Lists the types a schema declares.
    *
    * @param object $schema
    *   The schema.
    *
-   * @return array
+   * @return array<mixed>
    *   The declared types; empty when the schema declares none.
    */
   private static function types(object $schema): array {
@@ -112,14 +132,14 @@ final class RecursiveTypeCaster {
   /**
    * Refines each item of a list with the item schema.
    *
-   * @param array $data
+   * @param list<mixed> $data
    *   The list.
    * @param object $schema
    *   The array schema.
    * @param \JsonSchema\Validator $validator
    *   Validates optional blanks.
    *
-   * @return array
+   * @return list<mixed>
    *   The refined list.
    */
   private static function refineItems(array $data, object $schema, Validator $validator): array {
@@ -136,14 +156,14 @@ final class RecursiveTypeCaster {
    *
    * A stdClass is changed in place, so it stays an object at every level.
    *
-   * @param array|object $data
+   * @param array<mixed>|object $data
    *   The object data.
    * @param object $schema
    *   The object schema.
    * @param \JsonSchema\Validator $validator
    *   Validates optional blanks.
    *
-   * @return array|object
+   * @return array<mixed>|object
    *   The refined data.
    */
   private static function refineProperties(array|object $data, object $schema, Validator $validator): array|object {
@@ -194,8 +214,7 @@ final class RecursiveTypeCaster {
     if (is_object($declared)) {
       return $declared;
     }
-    $pattern_properties = $schema->patternProperties ?? [];
-    foreach (is_array($pattern_properties) || is_object($pattern_properties) ? $pattern_properties : [] as $pattern => $pattern_schema) {
+    foreach (self::members($schema->patternProperties ?? []) as $pattern => $pattern_schema) {
       if (is_object($pattern_schema) && self::matchesPattern((string) $pattern, $name)) {
         return $pattern_schema;
       }
@@ -266,7 +285,7 @@ final class RecursiveTypeCaster {
    *
    * @param mixed $data
    *   The value.
-   * @param array $types
+   * @param array<mixed> $types
    *   The declared types.
    * @param object $schema
    *   The schema of the value.
@@ -295,7 +314,7 @@ final class RecursiveTypeCaster {
    *
    * @param mixed $input
    *   The input data. Passed by reference to change its type.
-   * @param array $types
+   * @param array<mixed> $types
    *   The possible types.
    *
    * @return bool
@@ -330,7 +349,7 @@ final class RecursiveTypeCaster {
    *
    * @param mixed $input
    *   The input data. Passed by reference to change its type.
-   * @param array $types
+   * @param array<mixed> $types
    *   The possible types.
    * @param object $schema
    *   The schema of the property the value belongs to. Read for the keywords
@@ -356,7 +375,7 @@ final class RecursiveTypeCaster {
   /**
    * Decides whether any declared type can hold the empty string.
    *
-   * @param array $types
+   * @param array<mixed> $types
    *   The possible types.
    * @param object $schema
    *   The schema of the property the value belongs to.
@@ -383,7 +402,7 @@ final class RecursiveTypeCaster {
    *
    * @param mixed $input
    *   The input data. Passed by reference to change its type.
-   * @param array $types
+   * @param array<mixed> $types
    *   The possible types.
    *
    * @return bool
@@ -407,7 +426,7 @@ final class RecursiveTypeCaster {
    *
    * @param mixed $input
    *   The input data. Passed by reference to change its type.
-   * @param array $types
+   * @param array<mixed> $types
    *   The possible types.
    *
    * @return bool

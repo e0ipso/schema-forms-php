@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use Shaper\Validator\ValidateableBase;
@@ -15,12 +17,12 @@ final class RenderArrayValidator extends ValidateableBase {
    * {@inheritdoc}
    */
   #[\Override]
-  public function isValid($data): bool {
+  public function isValid(mixed $data): bool {
     $this->resetErrors();
     if (self::isRenderArray($data)) {
       return TRUE;
     }
-    $this->errors[] = 'Expected a render array: an array with a "#" key, or with a child that is a render array.';
+    $this->errors = ['Expected a render array: an array with a "#" key, or with a child that is a render array.'];
     return FALSE;
   }
 

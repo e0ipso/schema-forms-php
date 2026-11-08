@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use SchemaForms\Exception\UnencodableDataException;
@@ -46,7 +48,7 @@ final class ArrayToStdClass extends TransformationBase {
    * get an exception instead.
    */
   #[\Override]
-  protected function doTransform($data, Context $context): mixed {
+  protected function doTransform(mixed $data, Context $context): mixed {
     try {
       return self::convert($data);
     }
