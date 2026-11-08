@@ -6,6 +6,7 @@ use JsonSchema\Exception\UnresolvableJsonPointerException;
 use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Exception\ExceptionInterface;
 use SchemaForms\Exception\UnsupportedReferenceException;
@@ -31,8 +32,13 @@ final class SchemaReferenceResolverTest extends TestCase {
    *
    * Generation and submission run the same check through the Drupal adapter;
    * see \SchemaForms\Tests\Drupal\SchemaReferenceRetrievalTest.
+   *
+   * The sentinel replaces the file stream wrapper and restores PHP's own, so
+   * the test runs in its own process and leaves any wrapper a test runner
+   * installed for the rest of the suite.
    */
   #[DataProvider('externalReferenceProvider')]
+  #[RunInSeparateProcess]
   public function testExternalRetrievalIsBlocked(string $scheme): void {
     $file = tempnam(sys_get_temp_dir(), 'schema-ref-');
     file_put_contents($file, '{"type":"string","minLength":2}');
@@ -109,9 +115,11 @@ final class SchemaReferenceResolverTest extends TestCase {
    * A local path as a base URI is refused before any filesystem check.
    *
    * UriResolver runs is_file() and is_dir() on such a base, which a stat
-   * recorder on the file wrapper observes.
+   * recorder on the file wrapper observes. It runs in its own process for the
+   * same reason as testExternalRetrievalIsBlocked().
    */
   #[DataProvider('localBaseProvider')]
+  #[RunInSeparateProcess]
   public function testLocalBaseIsNotProbed(string $entry): void {
     $sentinel = sys_get_temp_dir() . '/schema-forms-sentinel-' . bin2hex(random_bytes(8));
     $operation = match ($entry) {
