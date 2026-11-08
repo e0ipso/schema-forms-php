@@ -11,11 +11,12 @@ $coverage_floor = 45;
 $percentage_scale = 100;
 $max_arguments = 2;
 
-if ($argc > $max_arguments) {
+// $_SERVER['argv'] has a type PHPStan can check; the $argv global may not.
+$arguments = is_array($_SERVER['argv'] ?? NULL) ? $_SERVER['argv'] : [];
+$path = $arguments[1] ?? __DIR__ . '/../build/logs/clover.xml';
+if (count($arguments) > $max_arguments || !is_string($path)) {
   throw new RuntimeException('Usage: php scripts/check-coverage.php [clover.xml]');
 }
-
-$path = $argv[1] ?? __DIR__ . '/../build/logs/clover.xml';
 if (!is_file($path) || !is_readable($path)) {
   throw new RuntimeException(sprintf('Cannot read Clover report: %s', $path));
 }

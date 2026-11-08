@@ -14,10 +14,12 @@ require $root . '/vendor/autoload.php';
 // The lowest release composer.json allows; the bootstrap checks it too.
 $json_schema_version = '5.3.0';
 $expected_arguments = 4;
-if ($argc !== $expected_arguments) {
+// $_SERVER['argv'] has a type PHPStan can check; the $argv global may not.
+$arguments = is_array($_SERVER['argv'] ?? NULL) ? array_filter($_SERVER['argv'], 'is_string') : [];
+if (count($arguments) !== $expected_arguments) {
   throw new RuntimeException('Usage: php scripts/prepare-json-schema-5.php <work-dir> <phpunit.xml> <grumphp.yml>');
 }
-[, $work, $phpunit_path, $grumphp_path] = $argv;
+[, $work, $phpunit_path, $grumphp_path] = array_values($arguments);
 
 /**
  * Writes a file and fails loudly when the write fails.

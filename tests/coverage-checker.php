@@ -27,6 +27,7 @@ $fixtures = [
   'decimal counts' => [$clover($metrics('100', '45.5')), FALSE, 'non-negative integers'],
   'nonnumeric counts' => [$clover($metrics('NaN', '45')), FALSE, 'non-negative integers'],
   'excess covered lines' => [$clover($metrics('100', '101')), FALSE, 'empty or inconsistent'],
+  'extra argument' => [$clover($metrics('100', '100')), FALSE, 'Usage:', ['extra']],
 ];
 
 $directory = sys_get_temp_dir() . '/schema-coverage-' . bin2hex(random_bytes(8));
@@ -36,12 +37,13 @@ if (!mkdir($directory)) {
 $path = $directory . '/clover.xml';
 $assertions = 0;
 try {
-  foreach ($fixtures as $name => [$xml, $passes, $message]) {
+  foreach ($fixtures as $name => $fixture) {
+    [$xml, $passes, $message] = $fixture;
     if ($xml !== NULL) {
       file_put_contents($path, $xml);
     }
     $process = proc_open(
-      [PHP_BINARY, __DIR__ . '/../scripts/check-coverage.php', $path],
+      [PHP_BINARY, __DIR__ . '/../scripts/check-coverage.php', $path, ...$fixture[3] ?? []],
       [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
       $pipes,
     );
