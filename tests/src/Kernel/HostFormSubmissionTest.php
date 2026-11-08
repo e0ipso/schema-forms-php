@@ -24,6 +24,7 @@ use SchemaForms\Drupal\RequiredMarker;
 use SchemaForms\Drupal\SavedInput;
 use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\SubmissionPreparer;
 use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\Drupal\SubmittedValue;
@@ -40,6 +41,7 @@ use SchemaForms\Tests\Kernel\Form\SubformSchemaForm;
  */
 #[CoversClass(FormGeneratorDrupal::class)]
 #[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SchemaValidationBridge::class)]
 #[CoversClass(SubmissionValidator::class)]
 #[CoversClass(SubmittedValue::class)]
 #[CoversClass(UserInputCleaner::class)]

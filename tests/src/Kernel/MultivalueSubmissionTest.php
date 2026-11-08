@@ -25,6 +25,7 @@ use SchemaForms\Drupal\RequiredMarker;
 use SchemaForms\Drupal\SavedInput;
 use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\SubmissionPreparer;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\UserInputCleaner;
@@ -39,6 +40,7 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 #[CoversClass(FormGeneratorDrupal::class)]
 #[CoversClass(UserInputCleaner::class)]
 #[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SchemaValidationBridge::class)]
 #[CoversClass(ElementDataPaths::class)]
 #[CoversClass(MultivalueWidget::class)]
 #[CoversClass(PreservedValues::class)]
