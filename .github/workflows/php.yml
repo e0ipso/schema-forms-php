@@ -62,7 +62,7 @@ jobs:
           php scripts/check-coverage.php
 
   json-schema-5:
-    name: JSON Schema 5.2
+    name: JSON Schema 5.3
     runs-on: ubuntu-latest
 
     steps:
@@ -94,7 +94,7 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       # Runs the full GrumPHP suite with the JSON Schema 5 production runtime.
-      - name: Run test suite against JSON Schema 5.2
+      - name: Run test suite against JSON Schema 5.3
         env:
           SIMPLETEST_DB: 'sqlite://localhost/:memory:'
         run: bash scripts/test-json-schema-5.sh
@@ -182,8 +182,7 @@ jobs:
           composer require --working-dir="$RUNNER_TEMP/bc-check" --no-interaction --no-progress roave/backward-compatibility-check:8.19.0
 
       # The tool skips classes, methods and properties marked @internal, so
-      # it compares the documented API: FormGeneratorInterface,
-      # FormGeneratorDrupal and the SchemaForms\Exception types.
+      # it compares the API the README lists under "Public API".
       - name: Compare with the latest release
         run: |
           latest=$(git describe --tags --abbrev=0 --match 'v*')

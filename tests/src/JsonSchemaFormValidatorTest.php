@@ -8,7 +8,6 @@ use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\ArrayToStdClass;
 use SchemaForms\JsonSchemaFormValidator;
 use SchemaForms\SchemaReferenceResolver;
 
@@ -27,7 +26,8 @@ class JsonSchemaFormValidatorTest extends TestCase {
       new Validator(),
       Constraint::CHECK_MODE_TYPE_CAST
     );
-    $data = (new ArrayToStdClass())->transform($schema);
+    // Decode the way json_decode() delivers schemas: maps become objects.
+    $data = json_decode(json_encode($schema, JSON_THROW_ON_ERROR));
     $this->assertSame($expected, $validator->isValid($data), $message);
   }
 
@@ -84,13 +84,13 @@ class JsonSchemaFormValidatorTest extends TestCase {
       new Validator(SchemaReferenceResolver::createFactory()),
       Constraint::CHECK_MODE_TYPE_CAST
     );
-    $restored = unserialize(serialize($validator));
+    $restored = unserialize(serialize($validator), ['allowed_classes' => [JsonSchemaFormValidator::class]]);
     $this->assertInstanceOf(JsonSchemaFormValidator::class, $restored);
     $inner = (fn () => $this->validator)->call($restored);
     $retriever = (fn () => $this->factory->getUriRetriever())->call($inner);
     $this->assertInstanceOf(SchemaReferenceResolver::class, $retriever);
     // Type casting accepts the empty list that encodes an empty properties map.
-    $schema = (new ArrayToStdClass())->transform(['type' => 'object', 'properties' => []]);
+    $schema = json_decode('{"type":"object","properties":[]}');
     $this->assertTrue($restored->isValid($schema));
     $this->assertFalse($restored->isValid(json_decode('{"type":"string"}')));
   }
@@ -112,7 +112,7 @@ class JsonSchemaFormValidatorTest extends TestCase {
     $this->assertInstanceOf(SchemaReferenceResolver::class, $retriever);
     $storage_retriever = (fn () => $this->factory->getSchemaStorage()->getUriRetriever())->call($inner);
     $this->assertInstanceOf(SchemaReferenceResolver::class, $storage_retriever);
-    $schema = (new ArrayToStdClass())->transform(['type' => 'object', 'properties' => []]);
+    $schema = json_decode('{"type":"object","properties":[]}');
     $this->assertSame($expected, $validator->isValid($schema));
   }
 

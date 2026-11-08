@@ -43,9 +43,12 @@ final class SchemaReferenceResolverTest extends TestCase {
     $file = tempnam(sys_get_temp_dir(), 'schema-ref-');
     file_put_contents($file, '{"type":"string","minLength":2}');
     $uri = $scheme === 'file' ? 'file://' . $file : $scheme . '://127.0.0.1:9/sentinel.json';
-    $schema = (object) ['type' => 'object', 'properties' => (object) [
-      'field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $uri]]],
-    ]];
+    $schema = (object) [
+      'type' => 'object',
+      'properties' => (object) [
+        'field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $uri]]],
+      ],
+    ];
     try {
       // Prove the observer is armed for this exact URI before the operation.
       ReferenceSentinel::observe($file, static fn () => file_get_contents($uri));
@@ -68,15 +71,25 @@ final class SchemaReferenceResolverTest extends TestCase {
     }
   }
 
+  /**
+   * Data provider for testExternalRetrievalIsBlocked().
+   */
   public static function externalReferenceProvider(): array {
     return ['file' => ['file'], 'http' => ['http'], 'https' => ['https']];
   }
 
+  /**
+   * References inside the registered document resolve for every URI form.
+   */
   #[DataProvider('internalReferenceProvider')]
   public function testInternalReferences(string $reference): void {
-    $schema = (object) ['type' => 'object', 'definitions' => (object) [
-      'label' => (object) ['type' => 'string', 'minLength' => 2],
-    ], 'properties' => (object) ['field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $reference]]]]];
+    $schema = (object) [
+      'type' => 'object',
+      'definitions' => (object) [
+        'label' => (object) ['type' => 'string', 'minLength' => 2],
+      ],
+      'properties' => (object) ['field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $reference]]]],
+    ];
     $this->assertSame([], RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema));
     $validator = new Validator(SchemaReferenceResolver::createFactory($schema));
     $data = (object) ['field' => 'valid'];
@@ -88,6 +101,9 @@ final class SchemaReferenceResolverTest extends TestCase {
     $this->assertFalse($validator->isValid());
   }
 
+  /**
+   * Data provider for testInternalReferences().
+   */
   public static function internalReferenceProvider(): array {
     return [
       'fragment' => ['#/definitions/label'],
@@ -123,7 +139,9 @@ final class SchemaReferenceResolverTest extends TestCase {
   public function testLocalBaseIsNotProbed(string $entry): void {
     $sentinel = sys_get_temp_dir() . '/schema-forms-sentinel-' . bin2hex(random_bytes(8));
     $operation = match ($entry) {
-      'extends' => static fn () => SchemaReferenceResolver::createFactory((object) ['type' => 'object', 'extends' => $sentinel]),
+      'extends' => static fn () => SchemaReferenceResolver::createFactory(
+        (object) ['type' => 'object', 'extends' => $sentinel],
+      ),
       'retrieve' => static fn () => (new SchemaReferenceResolver())->retrieve('schema.json', $sentinel),
     };
     // Load every class the operation needs before observing the wrapper.
@@ -169,6 +187,9 @@ final class SchemaReferenceResolverTest extends TestCase {
     SchemaReferenceResolver::createFactory(json_decode($schema));
   }
 
+  /**
+   * Data provider for testReferencesInEveryBranchAreChecked().
+   */
   public static function uncheckedBranchProvider(): array {
     $ref = '{"$ref":"http://127.0.0.1:9/sentinel.json"}';
     return [
@@ -190,6 +211,9 @@ final class SchemaReferenceResolverTest extends TestCase {
     (new SchemaReferenceResolver())->retrieve($uri, $base);
   }
 
+  /**
+   * Data provider for testRetrievalIsRefused().
+   */
   public static function refusedRetrievalProvider(): array {
     return [
       'absolute URL' => ['http://127.0.0.1:9/sentinel.json', NULL],
@@ -206,10 +230,16 @@ final class SchemaReferenceResolverTest extends TestCase {
     $this->assertSame('file://' . dirname(__DIR__, 2) . '/meta-schema-draft4.json', SchemaReferenceResolver::metaSchemaUri());
   }
 
+  /**
+   * Data provider for testLocalBaseIsNotProbed().
+   */
   public static function localBaseProvider(): array {
     return ['extends' => ['extends'], 'retrieve' => ['retrieve']];
   }
 
+  /**
+   * The bundled meta-schema validates through each of its allowed URIs.
+   */
   #[DataProvider('metadataProvider')]
   public function testBundledMetadata(string $uri): void {
     $schema = (object) ['$ref' => $uri];
@@ -223,6 +253,9 @@ final class SchemaReferenceResolverTest extends TestCase {
     $this->assertFalse($validator->isValid());
   }
 
+  /**
+   * Data provider for testBundledMetadata().
+   */
   public static function metadataProvider(): array {
     return [
       'bundled file' => ['file://' . dirname(__DIR__, 2) . '/meta-schema-draft4.json'],
@@ -238,9 +271,23 @@ final class SchemaReferenceResolverTest extends TestCase {
  */
 final class StatRecorder {
 
+  /**
+   * The stream context PHP sets on every wrapper instance.
+   *
+   * @var resource|null
+   */
   public $context;
+
+  /**
+   * The paths seen since observe() started.
+   *
+   * @var list<string>
+   */
   public static array $paths = [];
 
+  /**
+   * Runs a callback and records the paths the file wrapper sees.
+   */
   public static function observe(callable $callback): mixed {
     self::$paths = [];
     if (!stream_wrapper_unregister('file') || !stream_wrapper_register('file', self::class)) {
@@ -255,11 +302,19 @@ final class StatRecorder {
     }
   }
 
+  /**
+   * Records a stat call and reports that the path does not exist.
+   */
+  // phpcs:ignore Drupal.NamingConventions.ValidFunctionName.ScopeNotCamelCaps -- PHP names stream wrapper methods.
   public function url_stat(string $path, int $flags): array|false {
     self::$paths[] = $path;
     return FALSE;
   }
 
+  /**
+   * Records an open call and refuses it.
+   */
+  // phpcs:ignore Drupal.NamingConventions.ValidFunctionName.ScopeNotCamelCaps -- PHP names stream wrapper methods.
   public function stream_open(string $path, string $mode, int $options, ?string &$opened_path): bool {
     self::$paths[] = $path;
     return FALSE;

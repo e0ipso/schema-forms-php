@@ -15,8 +15,16 @@ $fixtures = [
   'above floor' => [$clover($metrics('100', '80')), TRUE, '80.00%'],
   'unrounded below floor' => [$clover($metrics('100000', '44999')), FALSE, '45.00%'],
   'zero covered lines' => [$clover($metrics('100', '0')), FALSE, '0.00%'],
-  'project totals only' => [$clover('<file>' . $metrics('100', '100') . '</file>' . $metrics('100', '44')), FALSE, '44.00%'],
-  'line counts only' => [$clover('<metrics statements="100" coveredstatements="44" elements="100" coveredelements="100"/>'), FALSE, '44.00%'],
+  'project totals only' => [
+    $clover('<file>' . $metrics('100', '100') . '</file>' . $metrics('100', '44')),
+    FALSE,
+    '44.00%',
+  ],
+  'line counts only' => [
+    $clover('<metrics statements="100" coveredstatements="44" elements="100" coveredelements="100"/>'),
+    FALSE,
+    '44.00%',
+  ],
   'missing report' => [NULL, FALSE, 'Cannot read Clover report'],
   'malformed report' => ['<coverage>', FALSE, 'Invalid Clover XML'],
   'missing metrics' => [$clover(''), FALSE, 'Expected one project-level'],
@@ -27,6 +35,7 @@ $fixtures = [
   'decimal counts' => [$clover($metrics('100', '45.5')), FALSE, 'non-negative integers'],
   'nonnumeric counts' => [$clover($metrics('NaN', '45')), FALSE, 'non-negative integers'],
   'excess covered lines' => [$clover($metrics('100', '101')), FALSE, 'empty or inconsistent'],
+  'extra argument' => [$clover($metrics('100', '100')), FALSE, 'Usage:', ['extra']],
 ];
 
 $directory = sys_get_temp_dir() . '/schema-coverage-' . bin2hex(random_bytes(8));
@@ -36,12 +45,13 @@ if (!mkdir($directory)) {
 $path = $directory . '/clover.xml';
 $assertions = 0;
 try {
-  foreach ($fixtures as $name => [$xml, $passes, $message]) {
+  foreach ($fixtures as $name => $fixture) {
+    [$xml, $passes, $message] = $fixture;
     if ($xml !== NULL) {
       file_put_contents($path, $xml);
     }
     $process = proc_open(
-      [PHP_BINARY, __DIR__ . '/../scripts/check-coverage.php', $path],
+      [PHP_BINARY, __DIR__ . '/../scripts/check-coverage.php', $path, ...$fixture[3] ?? []],
       [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
       $pipes,
     );
