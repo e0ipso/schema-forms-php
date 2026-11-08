@@ -215,7 +215,7 @@ When Drupal validates the form, the schema validation:
 ### Limitations
 
 - Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
-- Only the root `required` list sets `#required`. A `required` list inside a nested object does not mark its sub-properties.
+- Only the root `required` list sets Form API `#required`, which rejects blank values. Checkboxes at the root and properties in a nested object's `required` list show Drupal's required marker without `#required`, because the schema accepts `FALSE`, an empty selection or an empty string there; schema validation still requires the key. That marker is visual only: the inputs carry no `required` or `aria-required` attribute, so assistive technology does not announce these properties as required.
 
 ## Upgrading
 

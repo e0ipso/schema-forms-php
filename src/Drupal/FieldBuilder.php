@@ -214,8 +214,12 @@ final class FieldBuilder {
     // The paths of nested properties have always used string names, even
     // where the array conversion makes a numeric name an integer key.
     $names = array_map('strval', array_keys($schemas));
+    $required = is_array($context->schema->required ?? NULL) ? $context->schema->required : [];
     $children = array_map(
-      fn (\stdClass $schema, string $name): array => $this->build($context->child($name, $schema, self::childHints($context->hints, $name))),
+      fn (\stdClass $schema, string $name): array => RequiredMarker::nested(
+        $this->build($context->child($name, $schema, self::childHints($context->hints, $name))),
+        in_array($name, $required, TRUE)
+      ),
       $schemas,
       $names
     );

@@ -476,7 +476,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#prop_name' => 'address',
             '#prop_parents' => ['address'],
             '#open' => TRUE,
-            // A nested required list currently adds no #required key.
+            // A nested required list shows the marker without #required.
             'street' => [
               '#title' => Markup::create('Street address'),
               '#type' => 'textfield',
@@ -487,6 +487,7 @@ class FormGeneratorDrupalTest extends TestCase {
               '#prop_parents' => ['address', 'street'],
               '#disabled' => FALSE,
               '#visible' => TRUE,
+              '#label_attributes' => ['class' => ['form-required']],
             ],
             '#disabled' => FALSE,
             '#visible' => TRUE,
