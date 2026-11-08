@@ -65,7 +65,7 @@ $context = new Context(['ui_hints' => $ui_schema_data]);
 $form = $generator->transform($schema_data, $context);
 ```
 
-The public API is `FormGeneratorDrupal` and the `FormGeneratorInterface` it implements, with Shaper's `Context` as input. Semantic versioning covers only these. Every other class in `src/` is marked `@internal` and can change in any release.
+Code that only builds forms should type-hint `FormTransformationInterface`, which `FormGeneratorDrupal` implements through `FormGeneratorInterface`. The symbols semantic versioning covers are listed under [Public API](#public-api).
 
 `$form` is this render array. The root container also carries `#json_schema` (the decoded schema), `#element_validate` and `#validate`, left out here:
 
@@ -156,6 +156,16 @@ The public API is `FormGeneratorDrupal` and the `FormGeneratorInterface` it impl
 
 The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`, decoded to objects. Anything else, including an associative array, makes `transform()` throw a `TypeError` whose message lists the validation errors. A property name that starts with `#`, at any depth, makes `transform()` throw an `\InvalidArgumentException` naming the property path, because Drupal would read the name as a render property.
 
+### Public API
+
+Semantic versioning covers these symbols, with Shaper's `Context` as the options input. Every other class in `src/` is marked `@internal` and can change in any release.
+
+- `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator.
+- `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
+- `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
+- `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
+- `SchemaForms\Exception\UnsupportedReferenceException`: a schema reference outside the registered documents.
+
 ### Context keys
 
 The `Context` accepts four keys, all optional:
@@ -219,7 +229,7 @@ When Drupal validates the form, the schema validation:
 
 ## Upgrading
 
-Semantic versioning covers the public API named under Usage. The GitHub release notes list every change. This section explains the changes since 3.1.1 that your code or your users can notice.
+Semantic versioning covers the symbols listed under [Public API](#public-api). The GitHub release notes list every change. This section explains the changes since 3.1.1 that your code or your users can notice.
 
 ### Exceptions
 
@@ -275,7 +285,7 @@ Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` 
 
 - Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
-- Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks `FormGeneratorInterface`, `FormGeneratorDrupal` and the `SchemaForms\Exception` types.
+- Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks the symbols listed under [Public API](#public-api).
 - Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
 
 ### JSON Schema compatibility
