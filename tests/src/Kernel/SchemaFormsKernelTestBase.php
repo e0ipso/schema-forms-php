@@ -11,6 +11,7 @@ use Drupal\Core\Form\FormState;
 use Drupal\Core\Render\Element;
 use Drupal\KernelTests\KernelTestBase;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
+use Symfony\Component\Routing\Route;
 
 /**
  * Builds and submits generated forms through Drupal's FormBuilder.
@@ -53,7 +54,7 @@ abstract class SchemaFormsKernelTestBase extends KernelTestBase {
     // AJAX buttons need a current route even in the disposable kernel fixture.
     $request = $this->container->get('request_stack')->getCurrentRequest();
     $request->attributes->set('_route', 'schema_forms_test');
-    $request->attributes->set('_route_object', new \Symfony\Component\Routing\Route('/schema-form'));
+    $request->attributes->set('_route_object', new Route('/schema-form'));
     $form_object = new GeneratedSchemaForm($schema, $ui_hints, $parent_key, $tree, $current_input);
     $this->container->get('form_builder')->submitForm($form_object, $form_state);
     $errors = array_map('strval', $form_state->getErrors());
@@ -93,7 +94,7 @@ abstract class SchemaFormsKernelTestBase extends KernelTestBase {
     $request = $this->container->get('request_stack')->getCurrentRequest();
     $request->setMethod('POST');
     $request->attributes->set('_route', 'schema_forms_test');
-    $request->attributes->set('_route_object', new \Symfony\Component\Routing\Route('/schema-form'));
+    $request->attributes->set('_route_object', new Route('/schema-form'));
     $builder = $this->container->get('form_builder');
     $build_state = new FormState();
     $build_state->setStorage($storage);

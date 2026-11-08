@@ -36,9 +36,12 @@ final class SchemaReferenceRetrievalTest extends TestCase {
     $file = tempnam(sys_get_temp_dir(), 'schema-ref-');
     file_put_contents($file, '{"type":"string","minLength":2}');
     $uri = $scheme === 'file' ? 'file://' . $file : $scheme . '://127.0.0.1:9/sentinel.json';
-    $schema = (object) ['type' => 'object', 'properties' => (object) [
-      'field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $uri]]],
-    ]];
+    $schema = (object) [
+      'type' => 'object',
+      'properties' => (object) [
+        'field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $uri]]],
+      ],
+    ];
     try {
       // Prove the observer is armed for this exact URI before the operation.
       ReferenceSentinel::observe($file, static fn () => file_get_contents($uri));
@@ -70,6 +73,12 @@ final class SchemaReferenceRetrievalTest extends TestCase {
     }
   }
 
+  /**
+   * Provides references to documents outside the schema.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function externalReferenceProvider(): array {
     $cases = [];
     foreach (['file', 'http', 'https'] as $scheme) {
@@ -85,13 +94,23 @@ final class SchemaReferenceRetrievalTest extends TestCase {
    */
   #[DataProvider('internalReferenceProvider')]
   public function testInternalReferences(string $reference): void {
-    $schema = (object) ['type' => 'object', 'definitions' => (object) [
-      'label' => (object) ['type' => 'string', 'minLength' => 2],
-    ], 'properties' => (object) ['field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $reference]]]]];
+    $schema = (object) [
+      'type' => 'object',
+      'definitions' => (object) [
+        'label' => (object) ['type' => 'string', 'minLength' => 2],
+      ],
+      'properties' => (object) ['field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $reference]]]],
+    ];
     $form = (new FormGeneratorDrupal())->transform($schema);
     $this->assertSame('textfield', $form['field']['#type']);
   }
 
+  /**
+   * Provides references to the schema itself.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function internalReferenceProvider(): array {
     return [
       'fragment' => ['#/definitions/label'],

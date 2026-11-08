@@ -77,6 +77,12 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
     $this->assertArrayNotHasKey('#schema_fixed_value', $field);
   }
 
+  /**
+   * Provides enums with structured members, which have no options.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function nonScalarEnumProvider(): array {
     $cases = [];
     foreach ([
@@ -117,6 +123,12 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
     $this->assertArrayNotHasKey('#schema_fixed_value', $field);
   }
 
+  /**
+   * Provides saved scalars on compound or union types.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function savedScalarProvider(): array {
     return [
       'string in an array or string union' => [['array', 'string'], 'abc', 'textfield'],

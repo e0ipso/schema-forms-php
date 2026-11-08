@@ -66,7 +66,9 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $context = new Context(['form_state' => $state, 'current_input' => ['items' => $saved]]);
     $form = ['host' => $generator->transform($schema, $context)];
     $this->assertFalse($state->isRebuilding());
-    $state->setTriggeringElement($form['host']['items']['add_more'] + ['#array_parents' => ['host', 'items', 'add_more']]);
+    $state->setTriggeringElement($form['host']['items']['add_more'] + [
+      '#array_parents' => ['host', 'items', 'add_more'],
+    ]);
 
     FormGeneratorDrupal::addMoreSubmit($form, $state);
 
@@ -96,6 +98,12 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     }
   }
 
+  /**
+   * Provides saved item lists to append to and remove from.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function savedItemsProvider(): array {
     return ['empty widget' => [[]], 'existing items' => [['first', 'second']]];
   }
@@ -107,11 +115,22 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","title":"Tags","items":{"type":"string"}}}}');
     $state = new FormState();
-    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => [0 => 0, 2 => 2, 3 => 5], 'next_delta' => 6]);
+    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, [
+      'items_indices' => [0 => 0, 2 => 2, 3 => 5],
+      'next_delta' => 6,
+    ]);
     $widget = $generator->transform($schema, new Context(['form_state' => $state]))['items'];
-    $titles = array_map(static fn (int $delta): string => (string) $widget[$delta]['removable_element']['#title'], [0, 2, 5]);
+    $titles = array_map(static fn (int $delta): string => (string) $widget[$delta]['removable_element']['#title'], [
+      0,
+      2,
+      5,
+    ]);
     $this->assertSame(['Tags (value 1)', 'Tags (value 2)', 'Tags (value 3)'], $titles);
-    $names = array_map(static fn (int $delta): string => (string) $widget[$delta]['remove_one']['#attributes']['aria-label'], [0, 2, 5]);
+    $names = array_map(static fn (int $delta): string => (string) $widget[$delta]['remove_one']['#attributes']['aria-label'], [
+      0,
+      2,
+      5,
+    ]);
     $this->assertSame(['Remove Tags (value 1)', 'Remove Tags (value 2)', 'Remove Tags (value 3)'], $names);
     $this->assertSame($names[1], (string) $widget[2]['remove_one']['#attributes']['title']);
   }
@@ -143,6 +162,12 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame($widget, $result);
   }
 
+  /**
+   * Provides whether the form is processing submitted input.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function processingProvider(): array {
     return ['submitted form' => [TRUE], 'initial build' => [FALSE]];
   }
@@ -174,6 +199,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     ]);
     FormGeneratorDrupal::removeOneSubmit($form, $state);
     // The form cache serializes the state between requests.
+    // phpcs:ignore DrupalPractice.FunctionCalls.InsecureUnserialize -- Drupal's form cache restores every class, as this does.
     $state = unserialize(serialize($state));
     $context['form_state'] = $state;
     $form = $generator->transform($schema, $context);
@@ -195,10 +221,17 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $state = new FormState();
     $plain = (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state]));
-    $form = ['host' => (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state, 'namespace' => 'host']))];
+    $form = [
+      'host' => (new FormGeneratorDrupal())->transform($schema, new Context([
+        'form_state' => $state,
+        'namespace' => 'host',
+      ])),
+    ];
     $this->assertArrayNotHasKey('#schema_namespace', $plain['items']);
     $this->assertSame('host', $form['host']['items']['#schema_namespace']);
-    $state->setTriggeringElement($form['host']['items']['add_more'] + ['#array_parents' => ['host', 'items', 'add_more']]);
+    $state->setTriggeringElement($form['host']['items']['add_more'] + [
+      '#array_parents' => ['host', 'items', 'add_more'],
+    ]);
 
     FormGeneratorDrupal::addMoreSubmit($form, $state);
 
@@ -206,7 +239,10 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame([], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
     $this->assertArrayHasKey('host', $state->getStorage()['prop_storage']['#namespaces']);
     FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => [3]], 'host');
-    $rebuilt = (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state, 'namespace' => 'host']));
+    $rebuilt = (new FormGeneratorDrupal())->transform($schema, new Context([
+      'form_state' => $state,
+      'namespace' => 'host',
+    ]));
     $this->assertArrayHasKey(3, $rebuilt['items']);
   }
 
@@ -246,6 +282,12 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame($expected, $form['list']['#cardinality']);
   }
 
+  /**
+   * Provides maxItems values and the cardinality each selects.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function cardinalityProvider(): array {
     $cases = ['missing' => ['missing', -1, TRUE], 'zero' => [0, -1, TRUE]];
     foreach ([NULL, -1, 2.5, '2', 2.0, FALSE] as $value) {
@@ -271,7 +313,10 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     FormGeneratorDrupal::addMoreSubmit($form, $state);
     $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']);
     $this->assertTrue($state->isRebuilding());
-    $state->setTriggeringElement($form['a'][0]['remove_one'] + ['#array_parents' => ['a', 0, 'remove_one'], '#parents' => ['a', 0, 'remove_one']]);
+    $state->setTriggeringElement($form['a'][0]['remove_one'] + [
+      '#array_parents' => ['a', 0, 'remove_one'],
+      '#parents' => ['a', 0, 'remove_one'],
+    ]);
     FormGeneratorDrupal::removeOneSubmit($form, $state);
     $form = $generator->transform($schema, $context);
     $this->assertTrue($form['a']['add_more']['#access'] ?? TRUE);

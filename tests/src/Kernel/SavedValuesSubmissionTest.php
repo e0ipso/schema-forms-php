@@ -66,6 +66,9 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 #[RunTestsInSeparateProcesses]
 final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   private const MAX_ITEMS = 2;
@@ -96,6 +99,9 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     return $result;
   }
 
+  /**
+   * Saved NULLs survive an unchanged save wherever the container sits.
+   */
   #[DataProvider('placementProvider')]
   public function testUntouchedNullAtEveryPath(?string $parent): void {
     $current = array_fill_keys(['name', 'flag', 'count', 'choice', 'tags', 'picks', 'profile', 'raw'], NULL);
@@ -115,29 +121,78 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertSame('', $form['profile']['name']['#value']);
   }
 
+  /**
+   * Provides parent keys that hold the generated container, or NULL.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function placementProvider(): array {
     return ['root' => [NULL], 'nested' => ['host']];
   }
 
+  /**
+   * Edits to controls that showed a saved NULL are saved.
+   */
   public function testEditsToNullAreSaved(): void {
     $current = array_fill_keys(['name', 'flag', 'count', 'choice', 'tags', 'picks', 'profile'], NULL);
     $current += ['items' => [NULL], 'people' => [NULL], 'grid' => [NULL]];
     $result = $this->save(json_decode(self::SCHEMA), $current, [
-      'name' => '0', 'flag' => 1, 'count' => '0', 'choice' => 'b',
-      'profile.name' => 'edited', 'picks.y' => 'y',
+      'name' => '0',
+      'flag' => 1,
+      'count' => '0',
+      'choice' => 'b',
+      'profile.name' => 'edited',
+      'picks.y' => 'y',
       'items.0.removable_element' => 'edited',
       'people.0.removable_element.name' => 'person',
     ], 'host');
     $this->assertSame([], $result->errors);
     $values = $result->values['host'];
-    foreach (['name' => '0', 'flag' => TRUE, 'count' => 0, 'choice' => 'b', 'profile' => ['name' => 'edited', 'on' => FALSE], 'picks' => ['y'], 'items' => ['edited'], 'people' => [['name' => 'person']], 'grid' => [NULL]] as $key => $value) {
+    foreach ([
+      'name' => '0',
+      'flag' => TRUE,
+      'count' => 0,
+      'choice' => 'b',
+      'profile' => ['name' => 'edited', 'on' => FALSE],
+      'picks' => ['y'],
+      'items' => ['edited'],
+      'people' => [['name' => 'person']],
+      'grid' => [NULL],
+    ] as $key => $value) {
       $this->assertSame($value, $values[$key], $key);
     }
   }
 
+  /**
+   * Saved empty and non-empty values survive an unchanged save.
+   */
   public function testExplicitEmptyAndNonemptyValues(): void {
-    $current = ['name' => '', 'flag' => FALSE, 'count' => 0, 'choice' => 'b', 'tags' => [], 'picks' => [], 'profile' => ['name' => '', 'on' => FALSE], 'raw' => [], 'items' => []];
-    foreach ([$current, ['name' => 'saved', 'flag' => TRUE, 'count' => 7, 'choice' => 'b', 'tags' => ['saved'], 'picks' => ['y'], 'profile' => ['name' => 'saved', 'on' => TRUE], 'raw' => ['saved'], 'items' => ['saved']]] as $saved) {
+    $current = [
+      'name' => '',
+      'flag' => FALSE,
+      'count' => 0,
+      'choice' => 'b',
+      'tags' => [],
+      'picks' => [],
+      'profile' => ['name' => '', 'on' => FALSE],
+      'raw' => [],
+      'items' => [],
+    ];
+    foreach ([
+      $current,
+      [
+        'name' => 'saved',
+        'flag' => TRUE,
+        'count' => 7,
+        'choice' => 'b',
+        'tags' => ['saved'],
+        'picks' => ['y'],
+        'profile' => ['name' => 'saved', 'on' => TRUE],
+        'raw' => ['saved'],
+        'items' => ['saved'],
+      ],
+    ] as $saved) {
       $result = $this->save(json_decode(self::SCHEMA), $saved);
       $this->assertSame([], $result->errors);
       foreach ($saved as $key => $value) {
@@ -146,14 +201,29 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     }
   }
 
+  /**
+   * Properties with no saved value are saved with their defaults.
+   */
   public function testAbsentValuesReceiveDefaults(): void {
     $result = $this->save(json_decode(self::SCHEMA), []);
     $this->assertSame([], $result->errors);
-    foreach (['name' => 'default', 'flag' => TRUE, 'count' => 3, 'choice' => 'a', 'tags' => ['default'], 'picks' => ['x'], 'profile' => ['name' => 'default', 'on' => FALSE], 'raw' => ['default']] as $key => $value) {
+    foreach ([
+      'name' => 'default',
+      'flag' => TRUE,
+      'count' => 3,
+      'choice' => 'a',
+      'tags' => ['default'],
+      'picks' => ['x'],
+      'profile' => ['name' => 'default', 'on' => FALSE],
+      'raw' => ['default'],
+    ] as $key => $value) {
       $this->assertSame($value, $result->values[$key], $key);
     }
   }
 
+  /**
+   * A widget with maxItems keeps its saved items through FormBuilder.
+   */
   #[DataProvider('finiteItemsProvider')]
   public function testFiniteWidgetThroughFormBuilder(array $saved): void {
     $schema = json_decode('{"type":"object","properties":{"a":{"type":"array","maxItems":2,"items":{"type":"string"}},"b":{"type":"array","items":{"type":"string"}}}}');
@@ -171,10 +241,24 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     }
   }
 
+  /**
+   * Provides saved item lists below, at and above maxItems.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function finiteItemsProvider(): array {
-    return ['empty' => [[]], 'below maximum' => [['first']], 'at maximum' => [['first', 'second']], 'oversized saved data' => [['first', 'second', 'third']]];
+    return [
+      'empty' => [[]],
+      'below maximum' => [['first']],
+      'at maximum' => [['first', 'second']],
+      'oversized saved data' => [['first', 'second', 'third']],
+    ];
   }
 
+  /**
+   * An unsupported array keeps its saved value or default on save.
+   */
   #[DataProvider('fixedArrayProvider')]
   public function testUnsupportedArraySurvivesSave(bool $tuple, bool $saved): void {
     $property = (object) ['type' => 'array', 'default' => ['default']];
@@ -189,10 +273,24 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertTrue($result->form['value']['#disabled']);
   }
 
+  /**
+   * Provides unsupported arrays with saved values or defaults.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function fixedArrayProvider(): array {
-    return ['missing default' => [FALSE, FALSE], 'missing saved' => [FALSE, TRUE], 'tuple default' => [TRUE, FALSE], 'tuple saved' => [TRUE, TRUE]];
+    return [
+      'missing default' => [FALSE, FALSE],
+      'missing saved' => [FALSE, TRUE],
+      'tuple default' => [TRUE, FALSE],
+      'tuple saved' => [TRUE, TRUE],
+    ];
   }
 
+  /**
+   * Append on a list saved as NULL starts an editable item.
+   */
   public function testAppendingNullArrayStartsEditableItem(): void {
     $schema = json_decode(self::SCHEMA);
     $result = $this->save($schema, ['tags' => NULL, 'people' => [NULL]], button: 'tags_add_more');
@@ -205,6 +303,9 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertFalse($rebuilt['tags'][0]['removable_element']['#disabled'] ?? FALSE);
   }
 
+  /**
+   * Append at the item limit rebuilds the widget at its final paths.
+   */
   public function testFiniteAppendRebuildsFinalPaths(): void {
     $schema = json_decode('{"type":"object","properties":{"a":{"type":"array","maxItems":2,"items":{"type":"string"}},"b":{"type":"array","items":{"type":"string"}}}}');
     $result = $this->save($schema, ['a' => ['first'], 'b' => ['other']], button: 'a_add_more');

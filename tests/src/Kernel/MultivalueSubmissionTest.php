@@ -64,6 +64,9 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 #[RunTestsInSeparateProcesses]
 final class MultivalueSubmissionTest extends SchemaFormsKernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   /**
@@ -79,11 +82,13 @@ final class MultivalueSubmissionTest extends SchemaFormsKernelTestBase {
       "label":{"type":"string"},
       "tags":{"type":"array"}
     }}}}}', flags: JSON_THROW_ON_ERROR);
-    $current = ['rows' => [
+    $current = [
+      'rows' => [
       ['kind' => 'row', 'label' => 'a', 'tags' => ['t-a']],
       ['kind' => 'row', 'label' => 'b', 'tags' => ['t-b']],
       ['kind' => 'row', 'label' => 'c', 'tags' => ['t-c']],
-    ]];
+      ],
+    ];
     $form = new GeneratedSchemaForm($schema, currentInput: $current, withSave: TRUE);
     $removed = $this->browserSubmit($form, [], NULL, 'rows-0-remove', '⨯');
     $this->assertTrue($removed->formState->isRebuilding());

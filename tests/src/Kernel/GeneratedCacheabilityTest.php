@@ -70,7 +70,9 @@ final class GeneratedCacheabilityTest extends SchemaFormsKernelTestBase {
    * Widgets add only the route context of core's AJAX buttons.
    */
   public function testAjaxWidgetsAddOnlyTheRouteContext(): void {
-    $form = $this->browserSubmit(new GeneratedSchemaForm(json_decode(self::AJAX_SCHEMA), parentKey: 'schema', tree: TRUE, currentInput: ['items' => ['a']]))->form;
+    $form = $this->browserSubmit(new GeneratedSchemaForm(json_decode(self::AJAX_SCHEMA), parentKey: 'schema', tree: TRUE, currentInput: [
+      'items' => ['a'],
+    ]))->form;
 
     $metadata = $this->renderedMetadata($form['schema']);
 

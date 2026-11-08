@@ -55,6 +55,9 @@ use SchemaForms\Tests\Kernel\Form\TwoSchemaForm;
 #[RunTestsInSeparateProcesses]
 final class WidgetButtonSubmissionTest extends SchemaFormsKernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   /**
@@ -71,7 +74,11 @@ final class WidgetButtonSubmissionTest extends SchemaFormsKernelTestBase {
     }}', flags: JSON_THROW_ON_ERROR);
     $form = new GeneratedSchemaForm($schema, withSave: TRUE);
     $built = $this->browserSubmit($form)->form;
-    $names = array_map(static fn (string $key): string => $built[$key]['add_more']['#name'], ['tag-list', 'tag_list', 'plain']);
+    $names = array_map(static fn (string $key): string => $built[$key]['add_more']['#name'], [
+      'tag-list',
+      'tag_list',
+      'plain',
+    ]);
     $this->assertCount(3, array_unique($names));
     $this->assertSame('plain_add_more', $names[2]);
 

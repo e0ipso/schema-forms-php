@@ -43,7 +43,10 @@ final class RequiredMarkerRenderingTest extends SchemaFormsKernelTestBase {
    * Every required property is marked, and blank values still pass.
    */
   public function testMarkersWithoutEnforcement(): void {
-    $values = ['picks' => [], 'nested' => ['text' => '', 'choice' => 'x', 'many' => [], 'inner' => ['z' => ''], 'optional' => '']];
+    $values = [
+      'picks' => [],
+      'nested' => ['text' => '', 'choice' => 'x', 'many' => [], 'inner' => ['z' => ''], 'optional' => ''],
+    ];
 
     $result = $this->submitSchemaForm(json_decode(self::SCHEMA), ['schema' => $values], [], 'schema');
 

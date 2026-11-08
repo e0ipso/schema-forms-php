@@ -446,7 +446,9 @@ final class FormValidatorDrupalTest extends TestCase {
     $this->assertSame(['count' => 3, 'label' => 'ab'], $form_state->getValue('data'));
     // The validation set the error on the element.
     $this->assertSame(
-      ['data][label' => self::elementError('Label', 'Must be at least 3 characters long [JSON Schema violation of "minLength"]')],
+      [
+        'data][label' => self::elementError('Label', 'Must be at least 3 characters long [JSON Schema violation of "minLength"]'),
+      ],
       self::renderedErrors($form_state)
     );
   }
@@ -519,6 +521,12 @@ final class FormValidatorDrupalTest extends TestCase {
     $this->assertSame('The submitted data could not be encoded as JSON. Please check the submitted values.', $state->getErrors()['schema']->getUntranslatedString());
   }
 
+  /**
+   * Provides submitted values that have no JSON representation.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function unencodableProvider(): array {
     return [
       'positive infinity' => [INF],

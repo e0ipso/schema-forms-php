@@ -30,16 +30,19 @@ final class ButtonNamesTest extends TestCase {
    */
   public function testCollidingNames(): void {
     $array = ['type' => 'array', 'items' => ['type' => 'string']];
-    $schema = json_decode(json_encode(['type' => 'object', 'properties' => [
-      'tag-list' => $array,
-      'tag_list' => $array,
-      'tag' => ['type' => 'object', 'properties' => ['list' => $array]],
-      'a-b' => $array,
-      'a' => ['type' => 'object', 'properties' => ['b' => $array]],
-      'grid' => ['type' => 'array', 'items' => $array],
-      'grid-0' => $array,
-      'other-name' => $array,
-    ]]));
+    $schema = json_decode(json_encode([
+      'type' => 'object',
+      'properties' => [
+        'tag-list' => $array,
+        'tag_list' => $array,
+        'tag' => ['type' => 'object', 'properties' => ['list' => $array]],
+        'a-b' => $array,
+        'a' => ['type' => 'object', 'properties' => ['b' => $array]],
+        'grid' => ['type' => 'array', 'items' => $array],
+        'grid-0' => $array,
+        'other-name' => $array,
+      ],
+    ]));
     $current = ['a-b' => ['x'], 'a' => ['b' => ['y']], 'grid' => [['z']], 'grid-0' => ['w']];
     $form = (new FormGeneratorDrupal())->transform($schema, new Context(['current_input' => $current]));
     $names = self::names($form);
@@ -86,6 +89,12 @@ final class ButtonNamesTest extends TestCase {
     (new FormGeneratorDrupal())->transform($schema, new Context(['namespace' => $namespace]));
   }
 
+  /**
+   * Provides namespace context values that are not non-empty strings.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function invalidNamespaceProvider(): array {
     return ['empty' => [''], 'integer' => [1], 'array' => [['a']]];
   }

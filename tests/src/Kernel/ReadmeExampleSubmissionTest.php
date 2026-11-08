@@ -163,7 +163,9 @@ JSON;
    * Untouched optional controls must not reject the README form.
    */
   public function testMinimumSubmissionOmitsRejectedBlanks(): void {
-    $submission = $this->submitSchemaForm($this->schema(), ['schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris', 'password' => '', 'age' => '', 'bio' => '']], $this->uiSchema(), 'schema');
+    $submission = $this->submitSchemaForm($this->schema(), [
+      'schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris', 'password' => '', 'age' => '', 'bio' => ''],
+    ], $this->uiSchema(), 'schema');
     $this->assertSame([], $submission->errors);
     $values = $submission->values['schema'];
     $this->assertArrayNotHasKey('password', $values);
@@ -175,7 +177,9 @@ JSON;
    * The README needs only its two required names.
    */
   public function testOnlyRequiredNames(): void {
-    $submission = $this->submitSchemaForm($this->schema(), ['schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris']], $this->uiSchema(), 'schema');
+    $submission = $this->submitSchemaForm($this->schema(), [
+      'schema' => ['firstName' => 'Chuck', 'lastName' => 'Norris'],
+    ], $this->uiSchema(), 'schema');
     $this->assertSame([], $submission->errors);
     $this->assertArrayNotHasKey('age', $submission->values['schema']);
     $this->assertArrayNotHasKey('password', $submission->values['schema']);

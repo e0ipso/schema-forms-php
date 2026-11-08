@@ -47,7 +47,10 @@ trait ConstantSchemas {
       'NULL' => 'null',
       default => 'string',
     };
-    return (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => $type, 'const' => $value]]];
+    return (object) [
+      'type' => 'object',
+      'properties' => (object) ['fixed' => (object) ['type' => $type, 'const' => $value]],
+    ];
   }
 
 }

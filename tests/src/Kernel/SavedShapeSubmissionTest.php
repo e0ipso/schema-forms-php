@@ -57,6 +57,9 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 #[RunTestsInSeparateProcesses]
 final class SavedShapeSubmissionTest extends SchemaFormsKernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   /**
@@ -82,6 +85,12 @@ final class SavedShapeSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertSame(['b', 2], $values[1]);
   }
 
+  /**
+   * Provides integer-like property names.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function integerNameProvider(): array {
     return ['form root' => [NULL], 'under a key' => ['schema']];
   }
@@ -117,6 +126,12 @@ final class SavedShapeSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertSame($saved, $result->values['p']);
   }
 
+  /**
+   * Provides saved scalars on compound or union types.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function savedScalarProvider(): array {
     return [
       'string in a union' => ['{"type":["array","string"],"items":{"type":"string"}}', 'abc', []],

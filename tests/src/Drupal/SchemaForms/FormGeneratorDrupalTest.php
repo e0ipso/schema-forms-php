@@ -29,6 +29,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\Tests\Fixture\ConstantSchemas;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -152,7 +153,7 @@ class FormGeneratorDrupalTest extends TestCase {
           ],
           'bar' => [
             '#title' => Markup::create('Bar'),
-            // phpcs:ignore
+            // phpcs:ignore DrupalPractice.General.DescriptionT -- The generator passes schema text through untranslated.
             '#description' => 'It is just a bar',
             '#type' => 'number',
             '#required' => TRUE,
@@ -169,7 +170,7 @@ class FormGeneratorDrupalTest extends TestCase {
         [
           'foo' => [
             '#title' => Markup::create('Foo'),
-            // phpcs:ignore
+            // phpcs:ignore DrupalPractice.General.DescriptionT -- The generator passes schema text through untranslated.
             '#description' => 'How many',
             // Drupal has no 'integer' element, so an integer is a number that
             // steps by one.
@@ -277,7 +278,12 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => [10 => Markup::create('10'), 12 => Markup::create('12'), 15 => Markup::create('15'), 20 => Markup::create('20')],
+            '#options' => [
+              10 => Markup::create('10'),
+              12 => Markup::create('12'),
+              15 => Markup::create('15'),
+              20 => Markup::create('20'),
+            ],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -296,7 +302,11 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => ['' => new TranslatableMarkup('None'), 'lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
+            '#options' => [
+              '' => new TranslatableMarkup('None'),
+              'lor-em' => Markup::create('Lor Em'),
+              'ipsum' => Markup::create('Ipsum'),
+            ],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -372,6 +382,7 @@ class FormGeneratorDrupalTest extends TestCase {
       '#type' => 'details',
       '#prop_name' => 'tag_labels',
       '#default_value' => ['first', 'second'],
+      // phpcs:ignore DrupalPractice.General.DescriptionT -- The generator passes schema text through untranslated.
       '#description' => 'Add useful labels',
       '#placeholder' => 'A label',
       '#prop_parents' => ['tag_labels'],
@@ -482,6 +493,7 @@ class FormGeneratorDrupalTest extends TestCase {
               '#type' => 'textfield',
               '#default_value' => 'schema street',
               '#prop_name' => 'street',
+              // phpcs:ignore DrupalPractice.General.DescriptionT -- The generator passes schema text through untranslated.
               '#description' => 'Include the house number',
               '#placeholder' => '12 Main Street',
               '#prop_parents' => ['address', 'street'],
@@ -572,6 +584,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
+            // phpcs:ignore DrupalPractice.General.DescriptionT -- The generator passes schema text through untranslated.
             '#description' => 'Some help text',
             '#placeholder' => 'This is a placeholder',
             '#prop_name' => 'foo',
@@ -620,7 +633,6 @@ class FormGeneratorDrupalTest extends TestCase {
       ],
     ];
   }
-
 
   /**
    * Tests that a root object without properties yields an empty container.
@@ -725,10 +737,10 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->sut->transform($schema);
     $serialized = serialize($this->sut);
     $this->assertStringNotContainsString('JsonSchemaFormValidator', $serialized);
+    // phpcs:ignore DrupalPractice.FunctionCalls.InsecureUnserialize -- Drupal's form cache restores every class, as this does.
     $generator = unserialize($serialized);
     $this->assertArrayHasKey('a', $generator->transform($schema));
   }
-
 
   /**
    * Tests that property names starting with '#' are rejected.
@@ -770,7 +782,6 @@ class FormGeneratorDrupalTest extends TestCase {
       ],
     ];
   }
-
 
   /**
    * Tests that a disabled parent disables every descendant.
@@ -869,7 +880,6 @@ class FormGeneratorDrupalTest extends TestCase {
     return $disabled;
   }
 
-
   /**
    * Null does not hide an editable member of a union.
    */
@@ -884,6 +894,12 @@ class FormGeneratorDrupalTest extends TestCase {
     }
   }
 
+  /**
+   * Provides type unions with null and the element each renders.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function nullableTypeProvider(): array {
     return [
       'null first string' => [['null', 'string'], 'textfield'],
@@ -913,10 +929,13 @@ class FormGeneratorDrupalTest extends TestCase {
    * Title filtering preserves other metadata and fixed text.
    */
   public function testOtherMetadataIsUnchanged(): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) [
-      'fixed' => (object) ['type' => 'string', 'const' => self::UNTRUSTED_LABEL],
-      'field' => (object) ['type' => 'string', 'description' => self::UNTRUSTED_LABEL],
-    ]];
+    $schema = (object) [
+      'type' => 'object',
+      'properties' => (object) [
+        'fixed' => (object) ['type' => 'string', 'const' => self::UNTRUSTED_LABEL],
+        'field' => (object) ['type' => 'string', 'description' => self::UNTRUSTED_LABEL],
+      ],
+    ];
     $form = (new FormGeneratorDrupal())->transform($schema, new Context([
       'ui_hints' => ['field' => ['ui:placeholder' => self::UNTRUSTED_LABEL]],
     ]));
@@ -935,12 +954,22 @@ class FormGeneratorDrupalTest extends TestCase {
       $property = (object) ['type' => 'array', 'items' => $property];
     }
     $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => $property]];
-    $context = new Context(['ui_hints' => ['field' => ['ui:enum' => ['labels' => ['mappings' => ['0.5' => '<script>bad</script><em>Half</em>']]]]]]);
+    $context = new Context([
+      'ui_hints' => [
+        'field' => ['ui:enum' => ['labels' => ['mappings' => ['0.5' => '<script>bad</script><em>Half</em>']]]],
+      ],
+    ]);
     $field = $this->sut->transform($schema, $context)['field'];
     $this->assertSame(['0.5', '1.5', '1.75'], array_keys($field['#options']));
     $this->assertSame('bad<em>Half</em>', (string) $field['#options']['0.5']);
   }
 
+  /**
+   * Provides whether to build checkboxes instead of radios.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function fractionalEnumProvider(): array {
     return ['radios' => [FALSE], 'checkboxes' => [TRUE]];
   }
@@ -958,7 +987,9 @@ class FormGeneratorDrupalTest extends TestCase {
       $property = (object) ['type' => 'array', 'items' => $property];
     }
     $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => $property, 'mapped' => $property]];
-    $context = new Context(['ui_hints' => ['mapped' => ['ui:enum' => ['labels' => ['mappings' => ['1' => 'Yes', '' => 'Unset']]]]]]);
+    $context = new Context([
+      'ui_hints' => ['mapped' => ['ui:enum' => ['labels' => ['mappings' => ['1' => 'Yes', '' => 'Unset']]]]],
+    ]);
     $form = $this->sut->transform($schema, $context);
     $this->assertSame([1, 0, ''], array_keys($form['field']['#options']));
     $this->assertEquals([
@@ -979,7 +1010,10 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('ajaxDeltaProvider')]
   public function testAppendAjaxUsesRealDelta(array $indices): void {
     $state = new FormState();
-    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => $indices, 'array_parents' => []]);
+    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, [
+      'items_indices' => $indices,
+      'array_parents' => [],
+    ]);
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $form = $this->sut->transform($schema, new Context(['form_state' => $state]));
     $state->setTriggeringElement(['#array_parents' => ['items', 'add_more']]);
@@ -1000,6 +1034,12 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->assertSame($form['items'][$last]['#suffix'] . '</div>', $result[$last]['#suffix']);
   }
 
+  /**
+   * Provides stored item deltas, including gaps left by removals.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function ajaxDeltaProvider(): array {
     return ['three items' => [[0, 1, 2]], 'gap' => [[0, 2]], 'removed first' => [[1, 2]], 'empty' => [[]]];
   }
@@ -1009,14 +1049,17 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   public function testItemIdsAcrossForms(): void {
     $name = 'odd " field';
-    $schema = (object) ['type' => 'object', 'properties' => (object) [$name => (object) ['type' => 'array', 'items' => (object) ['type' => 'string']]]];
+    $schema = (object) [
+      'type' => 'object',
+      'properties' => (object) [$name => (object) ['type' => 'array', 'items' => (object) ['type' => 'string']]],
+    ];
     $ids = [];
     foreach (range(1, 2) as $form_number) {
       $form = $this->sut->transform($schema, new Context(['current_input' => [$name => ['one', 'two']]]));
       foreach ([0, 1] as $delta) {
         $item = $form[$name][$delta];
         $id = $item['#wrapper_id'];
-        $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]+$/D', $id);
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]+$/D', $id, 'Form ' . $form_number);
         $this->assertSame('<div id="' . $id . '">', $item['#prefix']);
         $this->assertSame($form[$name]['add_more']['#ajax']['wrapper'], $item['remove_one']['#ajax']['wrapper']);
         $ids[] = $id;
@@ -1052,6 +1095,12 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->assertCount(count($enum), $form['choice']['#options']);
   }
 
+  /**
+   * Provides enums without a type, one per inferred type.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function enumOnlyControlProvider(): array {
     return [
       'string' => [['a', 'b']],
@@ -1062,9 +1111,15 @@ class FormGeneratorDrupalTest extends TestCase {
     ];
   }
 
+  /**
+   * An untyped constant renders as text and an empty schema as an item.
+   */
   public function testUntypedConstantAndEmptySchema(): void {
     $text = '<script>alert("x")</script>&';
-    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['const' => $text], 'unknown' => (object) []]];
+    $schema = (object) [
+      'type' => 'object',
+      'properties' => (object) ['fixed' => (object) ['const' => $text], 'unknown' => (object) []],
+    ];
     $form = $this->sut->transform($schema);
     $this->assertSame($text, $form['fixed']['#plain_text']);
     $this->assertFalse($form['fixed']['#input']);
@@ -1093,11 +1148,23 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->assertSame($before, serialize($schema));
   }
 
+  /**
+   * Provides compound defaults and saved values to normalize.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function compoundInputProvider(): array {
     return [
       'defaults' => [[], [['first', 'second'], 'default', 'nested']],
-      'saved arrays' => [['tags' => ['saved'], 'profile' => ['name' => 'saved', 'rows' => [['label' => 'saved row']]]], [['saved'], 'saved', 'saved row']],
-      'saved objects' => [['tags' => ['saved'], 'profile' => (object) ['name' => 'saved', 'rows' => [(object) ['label' => 'saved row']]]], [['saved'], 'saved', 'saved row']],
+      'saved arrays' => [
+        ['tags' => ['saved'], 'profile' => ['name' => 'saved', 'rows' => [['label' => 'saved row']]]],
+        [['saved'], 'saved', 'saved row'],
+      ],
+      'saved objects' => [
+        ['tags' => ['saved'], 'profile' => (object) ['name' => 'saved', 'rows' => [(object) ['label' => 'saved row']]]],
+        [['saved'], 'saved', 'saved row'],
+      ],
       'explicit empty arrays' => [['tags' => [], 'profile' => []], [[], NULL, NULL]],
       'explicit empty object' => [['tags' => [], 'profile' => (object) []], [[], NULL, NULL]],
     ];
@@ -1108,13 +1175,24 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   #[DataProvider('scalarCompoundDefaultProvider')]
   public function testScalarCompoundDefaults(mixed $type, mixed $default): void {
-    $property = (object) ['type' => $type, 'default' => $default, 'items' => (object) ['type' => 'string'], 'properties' => (object) ['name' => (object) ['type' => 'string']]];
+    $property = (object) [
+      'type' => $type,
+      'default' => $default,
+      'items' => (object) ['type' => 'string'],
+      'properties' => (object) ['name' => (object) ['type' => 'string']],
+    ];
     $schema = (object) ['type' => 'object', 'properties' => (object) ['value' => $property]];
     $form = $this->sut->transform($schema);
     $this->assertSame('details', $form['value']['#type']);
     $this->assertArrayNotHasKey(0, $form['value']);
   }
 
+  /**
+   * Provides compound types with scalar defaults.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function scalarCompoundDefaultProvider(): array {
     $cases = [];
     foreach (['array', 'object', ['array', 'string']] as $type) {
@@ -1141,11 +1219,22 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->assertTrue($form['value']['#disabled']);
     $this->assertSame($saved ? ['saved'] : ['default'], $form['value']['#schema_fixed_value']);
     $this->assertArrayNotHasKey('add_more', $form['value']);
-    $this->assertSame(['value' => ['1']], \SchemaForms\RecursiveTypeCaster::recursiveTypeRefinements(['value' => ['1']], $schema));
+    $this->assertSame(['value' => ['1']], RecursiveTypeCaster::recursiveTypeRefinements(['value' => ['1']], $schema));
   }
 
+  /**
+   * Provides arrays with missing or tuple items, with saved values or defaults.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function unsupportedItemsProvider(): array {
-    return ['missing default' => [NULL, FALSE], 'missing saved' => [NULL, TRUE], 'tuple default' => [[(object) ['type' => 'string']], FALSE], 'tuple saved' => [[(object) ['type' => 'string']], TRUE]];
+    return [
+      'missing default' => [NULL, FALSE],
+      'missing saved' => [NULL, TRUE],
+      'tuple default' => [[(object) ['type' => 'string']], FALSE],
+      'tuple saved' => [[(object) ['type' => 'string']], TRUE],
+    ];
   }
 
   /**
