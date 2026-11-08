@@ -12,6 +12,7 @@ use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormTreeBuilder;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
@@ -19,6 +20,7 @@ use Shaper\Util\Context;
  * Multivalue button names are unique within a generated form.
  */
 #[CoversClass(ButtonNames::class)]
+#[CoversClass(WidgetButtons::class)]
 #[CoversClass(WidgetButton::class)]
 #[CoversClass(FormTreeBuilder::class)]
 final class ButtonNamesTest extends TestCase {

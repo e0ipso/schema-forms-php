@@ -31,6 +31,8 @@ use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\UserInputCleaner;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 
@@ -48,7 +50,9 @@ use SchemaForms\Drupal\WidgetStateStorage;
 #[CoversClass(MultivalueCallbacks::class)]
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
+#[CoversClass(WidgetLocation::class)]
 #[CoversClass(ButtonNames::class)]
+#[CoversClass(WidgetButtons::class)]
 #[CoversClass(ElementScaffold::class)]
 #[CoversClass(EnumElements::class)]
 #[CoversClass(FieldBuilder::class)]

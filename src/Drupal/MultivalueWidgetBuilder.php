@@ -46,13 +46,15 @@ final class MultivalueWidgetBuilder {
    *   The field context of the array.
    * @param \stdClass $items
    *   The item schema.
-   * @param \SchemaForms\Drupal\FieldBuilder $fields
-   *   Builds the item controls.
+   * @param \Closure(\SchemaForms\Drupal\FieldContext): array<int|string, mixed> $build_item
+   *   Builds the control of one item. Items can be any schema, so the caller
+   *   that builds every other control builds them too; taking it as a
+   *   callable keeps the two builders from depending on each other.
    *
    * @return array<int|string, mixed>
    *   The widget.
    */
-  public function build(array $element, FieldContext $context, \stdClass $items, FieldBuilder $fields): array {
+  public function build(array $element, FieldContext $context, \stdClass $items, \Closure $build_item): array {
     $state = $this->state($context);
     $cardinality = self::cardinality($context->schema);
     $id_prefix = implode('-', $context->parents);
@@ -82,7 +84,7 @@ final class MultivalueWidgetBuilder {
     // Items are numbered by position, so the numbers have no gaps after a
     // removal.
     foreach (array_values($state->deltas()) as $position => $delta) {
-      $element[$delta] = $this->item($element, $context->item($delta, $items), $fields, $wrapper_id, $position + 1);
+      $element[$delta] = $this->item($element, $context->item($delta, $items), $build_item, $wrapper_id, $position + 1);
     }
     $element[RenderKeys::APPEND_BUTTON] = $this->appendButton($context, $wrapper_id);
     if ($state->isFull($cardinality)) {
@@ -102,13 +104,14 @@ final class MultivalueWidgetBuilder {
    *   The state.
    */
   private function state(FieldContext $context): WidgetState {
-    $stored = WidgetStateStorage::get($context->formState, $context->parents, $context->name, $context->namespace);
+    $location = $context->widgetLocation();
+    $stored = $context->widgetStates->get($location);
     if (!empty($stored)) {
       return WidgetState::fromStorage($stored);
     }
     $count = is_array($context->currentInput) ? count($context->currentInput) : 0;
     $state = WidgetState::forSavedItems($count);
-    WidgetStateStorage::set($context->formState, $context->parents, $context->name, $state->toStorage(), $context->namespace);
+    $context->widgetStates->save($location, $state);
     return $state;
   }
 
@@ -119,7 +122,7 @@ final class MultivalueWidgetBuilder {
    *   The widget so far.
    * @param \SchemaForms\Drupal\FieldContext $context
    *   The field context of the item.
-   * @param \SchemaForms\Drupal\FieldBuilder $fields
+   * @param \Closure(\SchemaForms\Drupal\FieldContext): array<int|string, mixed> $build_item
    *   Builds the item control.
    * @param string $wrapper_id
    *   The HTML ID of the widget wrapper.
@@ -129,7 +132,7 @@ final class MultivalueWidgetBuilder {
    * @return array<int|string, mixed>
    *   The item container.
    */
-  private function item(array $widget, FieldContext $context, FieldBuilder $fields, string $wrapper_id, int $number): array {
+  private function item(array $widget, FieldContext $context, \Closure $build_item, string $wrapper_id, int $number): array {
     // The wrapping details element shows the title and description, even
     // when maxItems is 1; each item gets an invisible numbered title.
     $title = $widget['#title'] ?? '';
@@ -141,7 +144,7 @@ final class MultivalueWidgetBuilder {
       '#title' => new TranslatableMarkup('@title (value @number)', $arguments),
       '#title_display' => 'invisible',
       '#description' => '',
-    ] + $fields->build($context);
+    ] + $build_item($context);
     // The ID is taken after the item control is built, so nested widgets
     // claim their IDs first and every ID stays as it always was.
     $container_id = Html::getUniqueId(sprintf('%s-%d-container', implode('-', array_slice($context->parents, 0, -1)), $context->name));

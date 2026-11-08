@@ -10,18 +10,30 @@ use Drupal\Component\Utility\NestedArray;
  * Names the buttons of multivalue widgets.
  *
  * FormBuilder finds the button that submitted a form by its name and value,
- * so two buttons with one name act on whichever widget comes first. The
- * names join the schema path of the widget, which hyphens and underscores
- * inside property names can make ambiguous: "tag-list" and "tag_list" share
- * an Append name, and ["a-b"] and ["a", "b"] share a Remove name. Only the
- * buttons whose names collide get a different, unambiguous name, so names
- * that worked before keep working. Inside a namespaced container every
- * button gets an unambiguous name that starts with the namespace, so two
- * containers in one form keep apart.
+ * so two buttons with one name act on whichever widget comes first. Two
+ * naming schemes exist:
+ *
+ * - Legacy names join the schema path with hyphens and underscores, which
+ *   property names may also hold: "tag-list" and "tag_list" share an Append
+ *   name, and ["a-b"] and ["a", "b"] share a Remove name. Forms built by
+ *   earlier releases use them, so they stay wherever they are unique.
+ * - Escaped names cannot collide; see escaped(). Buttons whose legacy names
+ *   collide get one, and inside a namespaced container every button does,
+ *   so that two containers in one form keep apart.
  *
  * @internal
  */
 final class ButtonNames {
+
+  /**
+   * The ending of an escaped Append name.
+   */
+  private const APPEND_ENDING = ':add_more';
+
+  /**
+   * The ending of an escaped Remove name.
+   */
+  private const REMOVE_ENDING = ':remove';
 
   /**
    * Builds the name of an Append button.
@@ -36,7 +48,7 @@ final class ButtonNames {
    */
   public static function append(array $parents, ?string $namespace = NULL): string {
     if ($namespace !== NULL) {
-      return self::escaped($parents, ':add_more', $namespace);
+      return self::escaped($parents, self::APPEND_ENDING, $namespace);
     }
     return strtr(implode('-', $parents), '-', '_') . '_add_more';
   }
@@ -54,7 +66,7 @@ final class ButtonNames {
    */
   public static function remove(array $parents, ?string $namespace = NULL): string {
     if ($namespace !== NULL) {
-      return self::escaped($parents, ':remove', $namespace);
+      return self::escaped($parents, self::REMOVE_ENDING, $namespace);
     }
     $delta = array_pop($parents);
     return sprintf('%s-%d-remove', implode('-', $parents), $delta);
@@ -63,6 +75,9 @@ final class ButtonNames {
   /**
    * Renames the buttons of a generated tree whose names collide.
    *
+   * Of two buttons that share a name, the one whose path holds a joiner is
+   * renamed, so a plain path keeps the name it always had.
+   *
    * @param array<int|string, mixed> $root
    *   The generated root container.
    *
@@ -70,16 +85,17 @@ final class ButtonNames {
    *   The tree, with every button name unique.
    */
   public static function deduplicate(array $root): array {
-    $buttons = self::buttons($root, []);
+    $buttons = WidgetButtons::in($root);
     $counts = array_count_values(array_map(static fn (WidgetButton $button): string => $button->name, $buttons));
     $renamed = array_filter(
       $buttons,
-      static fn (WidgetButton $button): bool => $counts[$button->name] > 1 && !self::isPlain($button)
+      static fn (WidgetButton $button): bool => $counts[$button->name] > 1 && self::hasJoiner($button)
     );
     return array_reduce(
       $renamed,
       static function (array $root, WidgetButton $button): array {
-        NestedArray::setValue($root, [...$button->path, '#name'], self::unambiguous($button));
+        $ending = $button->removes ? self::REMOVE_ENDING : self::APPEND_ENDING;
+        NestedArray::setValue($root, [...$button->path, '#name'], self::escaped($button->parents, $ending));
         return $root;
       },
       $root
@@ -87,126 +103,45 @@ final class ButtonNames {
   }
 
   /**
-   * Lists the multivalue buttons under an element.
+   * Decides whether another path could share a button's legacy name.
    *
-   * @param array<int|string, mixed> $element
-   *   The element.
-   * @param list<int|string> $path
-   *   The keys from the root to the element.
-   *
-   * @return list<\SchemaForms\Drupal\WidgetButton>
-   *   The buttons.
-   */
-  private static function buttons(array $element, array $path): array {
-    $own = array_filter([self::appendButton($element, $path), self::removeButton($element, $path)]);
-    $children = RenderChildren::of($element);
-    $nested = array_map(
-      static fn (array $child, int|string $key): array => self::buttons($child, [...$path, $key]),
-      $children,
-      array_keys($children)
-    );
-    return [...array_values($own), ...array_merge(...$nested)];
-  }
-
-  /**
-   * Finds the Append button of a widget.
-   *
-   * @param array<int|string, mixed> $element
-   *   The element.
-   * @param list<int|string> $path
-   *   The keys from the root to the element.
-   *
-   * @return \SchemaForms\Drupal\WidgetButton|null
-   *   The button, or NULL when the element is not a widget.
-   */
-  private static function appendButton(array $element, array $path): ?WidgetButton {
-    $button = $element[RenderKeys::APPEND_BUTTON] ?? NULL;
-    $name = is_array($button) ? ($button['#name'] ?? NULL) : NULL;
-    if (!MultivalueWidget::is($element) || !is_string($name)) {
-      return NULL;
-    }
-    return new WidgetButton([...$path, RenderKeys::APPEND_BUTTON], self::segments($element[RenderKeys::PROP_PARENTS] ?? []), $name, FALSE);
-  }
-
-  /**
-   * Reads a Remove button.
-   *
-   * @param array<int|string, mixed> $element
-   *   The element.
-   * @param list<int|string> $path
-   *   The keys from the root to the element.
-   *
-   * @return \SchemaForms\Drupal\WidgetButton|null
-   *   The button, or NULL when the element is not a Remove button.
-   */
-  private static function removeButton(array $element, array $path): ?WidgetButton {
-    $name = $element['#name'] ?? NULL;
-    if (!MultivalueWidget::isButton($element) || !isset($element['#delta']) || !is_string($name)) {
-      return NULL;
-    }
-    return new WidgetButton($path, self::segments($element[RenderKeys::PROP_PARENTS] ?? []), $name, TRUE);
-  }
-
-  /**
-   * Reads a schema path from a render property.
-   *
-   * @param mixed $parents
-   *   The '#prop_parents' value.
-   *
-   * @return list<string>
-   *   The path segments.
-   */
-  private static function segments(mixed $parents): array {
-    $segments = is_array($parents) ? array_values($parents) : [];
-    return array_map(static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '', $segments);
-  }
-
-  /**
-   * Decides whether a button's legacy name cannot match another widget's.
-   *
-   * Legacy Remove names join the path with hyphens, and legacy Append names
-   * also turn hyphens into the underscores that join them. A path whose
-   * segments hold none of these joiners maps to a name no other path has.
+   * Legacy Remove names join segments with hyphens, and legacy Append names
+   * turn hyphens into the underscores that join them. Only a segment that
+   * holds one of these joiners can make two paths give one name.
    *
    * @param \SchemaForms\Drupal\WidgetButton $button
    *   The button.
    *
    * @return bool
-   *   TRUE when the legacy name is unambiguous.
+   *   TRUE when a segment of the button's path holds a joiner.
    */
-  private static function isPlain(WidgetButton $button): bool {
+  private static function hasJoiner(WidgetButton $button): bool {
     $joiners = $button->removes ? '-' : '-_';
-    $ambiguous = array_filter(
+    $joined = array_filter(
       $button->parents,
       static fn (string $segment): bool => strpbrk($segment, $joiners) !== FALSE
     );
-    return $ambiguous === [];
+    return $joined !== [];
   }
 
   /**
-   * Builds a name no other path maps to.
+   * Builds a name no other path, namespace or button kind maps to.
    *
-   * @param \SchemaForms\Drupal\WidgetButton $button
-   *   The button.
-   *
-   * @return string
-   *   The name.
-   */
-  private static function unambiguous(WidgetButton $button): string {
-    return self::escaped($button->parents, $button->removes ? ':remove' : ':add_more');
-  }
-
-  /**
-   * Builds an escaped name.
-   *
-   * Every character outside [A-Za-z0-9] is escaped, so hyphens only join
-   * segments and "::" only ends the namespace. The ":remove" and ":add_more"
-   * endings never end a legacy name, which ends in "-remove" or "_add_more".
+   * Escaping leaves only letters, digits and three-character escapes that
+   * start with ":" followed by two hexadecimal digits. Hence:
+   * - a hyphen never appears inside a segment, so it only joins segments;
+   * - "::" never appears inside an escaped part, so it only ends the
+   *   namespace;
+   * - the endings cannot be escapes, because "r" is not a hexadecimal digit
+   *   and escaped text holds no "_", so they only tell the kinds apart.
+   * Each part can thus be read back, and different inputs give different
+   * names. Legacy names end in "-remove" or "_add_more" instead, so the two
+   * schemes never meet either.
    *
    * @param array<int|string> $parents
    *   The schema path.
    * @param string $ending
-   *   The ending that tells Remove from Append names.
+   *   The ending of the button kind.
    * @param string|null $namespace
    *   The namespace of the generated container, if it has one.
    *

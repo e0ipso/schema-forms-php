@@ -64,4 +64,19 @@ final class RequiredMarkerRenderingTest extends SchemaFormsKernelTestBase {
     $this->assertDoesNotMatchRegularExpression('@<input[^>]*required="required"@', $html);
   }
 
+  /**
+   * Assistive technology hears what the marker shows, and nothing more.
+   */
+  public function testMarkersAreAnnounced(): void {
+    $form = $this->submitSchemaForm(json_decode(self::SCHEMA), ['schema' => []], [], 'schema')->form;
+    $html = (string) $this->container->get('renderer')->renderInIsolation($form);
+
+    foreach (['edit-schema-flag', 'edit-schema-nested-text'] as $id) {
+      $this->assertMatchesRegularExpression('@<input[^>]*id="' . $id . '"[^>]*aria-required="true"|<input[^>]*aria-required="true"[^>]*id="' . $id . '"@', $html);
+    }
+    $this->assertMatchesRegularExpression('@<fieldset[^>]*role="radiogroup"[^>]*aria-required="true"[^>]*id="edit-schema-nested-choice--wrapper"@', $html);
+    $this->assertSame(3, substr_count($html, 'aria-required="true"'));
+    $this->assertDoesNotMatchRegularExpression('@<input[^>]*id="edit-schema-nested-optional"[^>]*aria-required@', $html);
+  }
+
 }

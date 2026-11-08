@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormValidatorDrupal;
 use SchemaForms\Drupal\SchemaPreparer;
+use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\SubmissionPreparer;
 use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\SchemaReferenceResolver;
@@ -23,6 +24,7 @@ use SchemaForms\Tests\Fixture\TranslationContainer;
 #[CoversClass(SchemaReferenceResolver::class)]
 #[CoversClass(SchemaPreparer::class)]
 #[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SchemaValidationBridge::class)]
 #[CoversClass(SubmissionValidator::class)]
 final class SchemaReferenceRetrievalTest extends TestCase {
 

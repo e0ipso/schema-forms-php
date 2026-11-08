@@ -145,7 +145,8 @@ final class EnumElements {
    * Gives the label of an enum member that no mapping labels.
    *
    * Casting TRUE, FALSE and NULL to a string gives "1" or an empty label,
-   * which leaves the option without an accessible name.
+   * and the empty string has no text at all. An empty label leaves the
+   * option without an accessible name.
    *
    * @param mixed $member
    *   The scalar enum member.
@@ -158,6 +159,7 @@ final class EnumElements {
       $member === TRUE => new TranslatableMarkup('True'),
       $member === FALSE => new TranslatableMarkup('False'),
       $member === NULL => new TranslatableMarkup('None'),
+      $member === '' => new TranslatableMarkup('Empty'),
       default => Labels::markup(Labels::humanName(is_scalar($member) ? (string) $member : '')),
     };
   }

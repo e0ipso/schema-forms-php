@@ -24,10 +24,13 @@ use SchemaForms\Drupal\RequiredMarker;
 use SchemaForms\Drupal\SavedInput;
 use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\SubmissionPreparer;
 use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 
@@ -36,6 +39,7 @@ use SchemaForms\Drupal\WidgetStateStorage;
  */
 #[CoversClass(FormGeneratorDrupal::class)]
 #[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SchemaValidationBridge::class)]
 #[CoversClass(SubmissionValidator::class)]
 #[CoversClass(ErrorElementMapper::class)]
 #[CoversClass(PreservedValues::class)]
@@ -44,7 +48,9 @@ use SchemaForms\Drupal\WidgetStateStorage;
 #[CoversClass(MultivalueCallbacks::class)]
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
+#[CoversClass(WidgetLocation::class)]
 #[CoversClass(ButtonNames::class)]
+#[CoversClass(WidgetButtons::class)]
 #[CoversClass(ElementScaffold::class)]
 #[CoversClass(EnumElements::class)]
 #[CoversClass(FieldBuilder::class)]
