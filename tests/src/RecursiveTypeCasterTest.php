@@ -172,7 +172,55 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"ids":{"type":"array","items":{"type":"integer"}},"label":{"type":"string"}}}',
         ['ids' => [1, 2], 'label' => 'x'],
       ],
+      // An untyped enum maps a submitted option key back to its member.
+      'untyped enum maps a key to an integer' => ['1', '{"enum":[1,2]}', 1],
+      'untyped enum maps a key to a float' => ['1.5', '{"enum":[1.5]}', 1.5],
+      'untyped enum maps an integer key to a boolean' => [1, '{"enum":[true,false]}', TRUE],
+      'untyped enum keeps an unknown key' => ['3', '{"enum":[1,2]}', '3'],
+      'untyped enum skips non-scalar members' => ['1', '{"enum":[[1],{"a":1},1]}', 1],
+      'untyped enum leaves a float alone' => [1.5, '{"enum":[1.5]}', 1.5],
+      'typed enum casts by its type' => ['1.5', '{"type":"string","enum":[1.5]}', '1.5'],
+      // The first cast that succeeds is final.
+      'boolean wins over a later string' => ['1', '{"type":["boolean","string"]}', TRUE],
+      'integer wins over a later boolean' => [1, '{"type":["integer","boolean"]}', 1],
+      'float wins over a later string' => ['0.5', '{"type":["number","string"]}', 0.5],
+      'integer wins over a later string' => ['5', '{"type":["integer","string"]}', 5],
+      // The integer range is exact at both ends.
+      'smallest integer' => ['-9223372036854775808', '{"type":"integer"}', PHP_INT_MIN],
+      'largest integer' => ['9223372036854775807', '{"type":"integer"}', PHP_INT_MAX],
+      'one below the smallest integer' => ['-9223372036854775809', '{"type":"integer"}', '-9223372036854775809'],
+      'one above the largest integer' => ['9223372036854775808', '{"type":"integer"}', '9223372036854775808'],
+      // Skipping or omitting one property does not stop the walk.
+      'an undescribed property is skipped' => [
+        ['extra' => '1', 'n' => '2'],
+        '{"type":"object","properties":{"n":{"type":"integer"}}}',
+        ['extra' => '1', 'n' => 2],
+      ],
+      'an omitted property is skipped' => [
+        ['a' => '', 'n' => '2'],
+        '{"type":"object","properties":{"a":{"type":"string","minLength":1},"n":{"type":"integer"}}}',
+        ['n' => 2],
+      ],
     ];
+  }
+
+  /**
+   * Omitting a stdClass property does not stop the walk.
+   */
+  public function testOmittedStdClassPropertyIsSkipped(): void {
+    $data = (object) ['a' => '', 'n' => '2'];
+    $schema = json_decode('{"type":"object","properties":{"a":{"type":"string","minLength":1},"n":{"type":"integer"}}}');
+    $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    $this->assertObjectNotHasProperty('a', $actual);
+    $this->assertSame(2, $actual->n);
+  }
+
+  /**
+   * Pattern properties given as a PHP array are matched too.
+   */
+  public function testPatternPropertiesArray(): void {
+    $schema = (object) ['type' => 'object', 'patternProperties' => ['^n' => (object) ['type' => 'integer']]];
+    $this->assertSame(['n1' => 5], RecursiveTypeCaster::recursiveTypeRefinements(['n1' => '5'], $schema));
   }
 
   /**

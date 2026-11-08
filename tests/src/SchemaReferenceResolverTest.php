@@ -160,6 +160,52 @@ final class SchemaReferenceResolverTest extends TestCase {
     SchemaReferenceResolver::createFactory((object) ['properties' => (object) ['a' => (object) ['$ref' => 5]]]);
   }
 
+  /**
+   * References are checked in branches validation may never reach.
+   */
+  #[DataProvider('uncheckedBranchProvider')]
+  public function testReferencesInEveryBranchAreChecked(string $schema): void {
+    $this->expectException(UnsupportedReferenceException::class);
+    SchemaReferenceResolver::createFactory(json_decode($schema));
+  }
+
+  public static function uncheckedBranchProvider(): array {
+    $ref = '{"$ref":"http://127.0.0.1:9/sentinel.json"}';
+    return [
+      'definition' => ['{"definitions":{"unused":' . $ref . '}}'],
+      'items' => ['{"type":"array","items":' . $ref . '}'],
+      'not' => ['{"not":' . $ref . '}'],
+      'referenced definition' => ['{"definitions":{"a":{"$ref":"#/definitions/b"},"b":{"items":' . $ref . '}},"$ref":"#/definitions/a"}'],
+      'extends' => ['{"extends":"http://127.0.0.1:9/sentinel.json"}'],
+    ];
+  }
+
+  /**
+   * The retriever refuses every URI but the bundled metadata.
+   */
+  #[DataProvider('refusedRetrievalProvider')]
+  public function testRetrievalIsRefused(mixed $uri, mixed $base): void {
+    $this->expectException(UnsupportedReferenceException::class);
+    $this->expectExceptionMessage('External schema retrieval is disabled.');
+    (new SchemaReferenceResolver())->retrieve($uri, $base);
+  }
+
+  public static function refusedRetrievalProvider(): array {
+    return [
+      'absolute URL' => ['http://127.0.0.1:9/sentinel.json', NULL],
+      'relative to a URL' => ['sentinel.json', 'http://127.0.0.1:9/'],
+      'non-string URI' => [5, 'http://127.0.0.1:9/'],
+      'non-string base' => ['sentinel.json', 5],
+    ];
+  }
+
+  /**
+   * The bundled meta-schema is addressed by its file URI.
+   */
+  public function testMetaSchemaUri(): void {
+    $this->assertSame('file://' . dirname(__DIR__, 2) . '/meta-schema-draft4.json', SchemaReferenceResolver::metaSchemaUri());
+  }
+
   public static function localBaseProvider(): array {
     return ['extends' => ['extends'], 'retrieve' => ['retrieve']];
   }
