@@ -107,6 +107,9 @@ abstract class SchemaFormsKernelTestBase extends KernelTestBase {
     $state = new FormState();
     $state->setStorage($storage);
     $state->setValues($values);
+    // A browser cannot submit input for an inaccessible element, so Drupal
+    // ignores it; programmed submissions would bypass that check.
+    $state->setProgrammedBypassAccessCheck(FALSE);
     $builder->submitForm($form_object, $state);
     return new SchemaFormSubmission($state->getCompleteForm(), $state, array_map('strval', $state->getErrors()), $state->getValues());
   }
