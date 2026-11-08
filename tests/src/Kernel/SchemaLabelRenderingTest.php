@@ -100,13 +100,13 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * Constant markup escapes text and JSON and renders no input.
+   * Constant markup escapes text and JSON, labels it and renders no input.
    */
   #[DataProvider('renderedConstantProvider')]
   public function testRenderedConstants(mixed $value, string $text): void {
     $form = (new FormGeneratorDrupal())->transform(self::constantSchema($value));
     $html = (string) $this->container->get('renderer')->renderInIsolation($form['fixed']);
-    $this->assertSame(Html::escape($text), $html);
+    $this->assertMatchesRegularExpression('@<label[^>]*>Fixed</label>\s*' . preg_quote(Html::escape($text), '@') . '\s*</div>@', $html);
     $this->assertStringNotContainsString('<input', $html);
   }
 

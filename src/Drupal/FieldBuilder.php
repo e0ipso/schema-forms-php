@@ -96,6 +96,9 @@ final class FieldBuilder {
   /**
    * Turns the element into the plain text of a constant.
    *
+   * An item element shows the title as a label next to the text; without a
+   * type the text would render with no label at all.
+   *
    * @param array<int|string, mixed> $element
    *   The element.
    * @param mixed $value
@@ -105,7 +108,7 @@ final class FieldBuilder {
    *   The element, which collects no input.
    */
   private function constant(array $element, mixed $value): array {
-    unset($element['#type']);
+    $element['#type'] = 'item';
     $element['#plain_text'] = is_string($value) ? $value : json_encode($value, JSON_THROW_ON_ERROR);
     $element['#input'] = FALSE;
     $element[RenderKeys::FIXED_VALUE] = $value;

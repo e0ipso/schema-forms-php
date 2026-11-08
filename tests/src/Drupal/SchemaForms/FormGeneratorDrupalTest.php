@@ -209,6 +209,7 @@ class FormGeneratorDrupalTest extends TestCase {
         '{"type":"object","properties":{"foo":{"type":"string","const":"The Big Foo"}}}',
         [
           'foo' => [
+            '#type' => 'item',
             '#plain_text' => 'The Big Foo',
             '#title' => Markup::create('Foo'),
             '#input' => FALSE,
@@ -897,7 +898,7 @@ class FormGeneratorDrupalTest extends TestCase {
     $field = $this->sut->transform(self::constantSchema($value))['fixed'];
     $this->assertSame($text, $field['#plain_text']);
     $this->assertFalse($field['#input']);
-    $this->assertArrayNotHasKey('#type', $field);
+    $this->assertSame('item', $field['#type']);
     $this->assertEquals($value, $field['#schema_fixed_value']);
   }
 
