@@ -163,6 +163,17 @@ final class SchemaReferenceResolverTest extends TestCase {
   }
 
   /**
+   * A base that is not valid UTF-8 is refused like a base with no scheme.
+   *
+   * UriResolver reads such a base as a local path and probes the filesystem.
+   */
+  public function testInvalidUtf8BaseIsRefused(): void {
+    $this->expectException(UnsupportedReferenceException::class);
+    $this->expectExceptionMessage('External schema retrieval is disabled.');
+    SchemaUriResolver::resolve('', "http://example\xff.com/");
+  }
+
+  /**
    * An absolute "extends" URI still reaches the bundled metadata.
    */
   public function testAbsoluteExtendsIsResolved(): void {
