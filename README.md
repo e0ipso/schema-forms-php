@@ -280,7 +280,7 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 
 - `git_branch_name`: checks the branch naming convention below.
 - `phpunit`: runs PHPUnit when PHP files are present.
-- `phpcs`: checks Drupal and DrupalPractice standards with two-space indentation. It checks `php`, `module`, `inc`, `install`, `test`, `profile` and `theme` files, excluding tests and dependency directories.
+- `phpcs`: checks Drupal and DrupalPractice standards with two-space indentation. It checks `php`, `module`, `inc`, `install`, `test`, `profile` and `theme` files, excluding dependency directories.
 - `phpmnd`: checks for magic numbers in `php` and `module` files.
 - `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
 - `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
