@@ -295,7 +295,7 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => Markup::create('Foo'),
             '#type' => 'radios',
-            '#options' => ['' => Markup::create(''), 'lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
+            '#options' => ['' => new TranslatableMarkup('None'), 'lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -315,7 +315,7 @@ class FormGeneratorDrupalTest extends TestCase {
             '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
             '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
-            '#options' => ['' => Markup::create(''), 'lor-em' => Markup::create('Lor Em')],
+            '#options' => ['' => new TranslatableMarkup('None'), 'lor-em' => Markup::create('Lor Em')],
             '#required' => FALSE,
             '#disabled' => FALSE,
             '#visible' => TRUE,
@@ -933,6 +933,34 @@ class FormGeneratorDrupalTest extends TestCase {
 
   public static function fractionalEnumProvider(): array {
     return ['radios' => [FALSE], 'checkboxes' => [TRUE]];
+  }
+
+  /**
+   * Boolean and null members get readable labels unless a mapping names them.
+   *
+   * @param bool $multiple
+   *   Whether to build checkboxes instead of radios.
+   */
+  #[DataProvider('fractionalEnumProvider')]
+  public function testBooleanAndNullEnumLabels(bool $multiple): void {
+    $property = (object) ['enum' => [TRUE, FALSE, NULL]];
+    if ($multiple) {
+      $property = (object) ['type' => 'array', 'items' => $property];
+    }
+    $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => $property, 'mapped' => $property]];
+    $context = new Context(['ui_hints' => ['mapped' => ['ui:enum' => ['labels' => ['mappings' => ['1' => 'Yes', '' => 'Unset']]]]]]);
+    $form = $this->sut->transform($schema, $context);
+    $this->assertSame([1, 0, ''], array_keys($form['field']['#options']));
+    $this->assertEquals([
+      1 => new TranslatableMarkup('True'),
+      0 => new TranslatableMarkup('False'),
+      '' => new TranslatableMarkup('None'),
+    ], $form['field']['#options']);
+    $this->assertEquals([
+      1 => Markup::create('Yes'),
+      0 => new TranslatableMarkup('False'),
+      '' => Markup::create('Unset'),
+    ], $form['mapped']['#options']);
   }
 
   /**
