@@ -149,6 +149,7 @@ class RecursiveTypeCasterTest extends TestCase {
       // Unsafe numeric conversions must retain the input string.
       'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
       'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
+      'non-finite exponent with a dot' => ['1.5e999', '{"type":"number"}', '1.5e999'],
       'positive integer overflow' => ['99999999999999999999', '{"type":"integer"}', '99999999999999999999'],
       'negative integer overflow' => ['-99999999999999999999', '{"type":"integer"}', '-99999999999999999999'],
       'ordinary negative decimal' => ['-1.5', '{"type":"number"}', -1.5],
@@ -181,6 +182,8 @@ class RecursiveTypeCasterTest extends TestCase {
       'untyped enum maps a key to a float' => ['1.5', '{"enum":[1.5]}', 1.5],
       'untyped enum maps an integer key to a boolean' => [1, '{"enum":[true,false]}', TRUE],
       'untyped enum keeps an unknown key' => ['3', '{"enum":[1,2]}', '3'],
+      'untyped enum map maps a key to its member' => ['1', '{"enum":{"a":1}}', 1],
+      'untyped scalar enum keeps the key' => ['1', '{"enum":1}', '1'],
       'untyped enum skips non-scalar members' => ['1', '{"enum":[[1],{"a":1},1]}', 1],
       'untyped enum leaves a float alone' => [1.5, '{"enum":[1.5]}', 1.5],
       'typed enum casts by its type' => ['1.5', '{"type":"string","enum":[1.5]}', '1.5'],
@@ -225,6 +228,26 @@ class RecursiveTypeCasterTest extends TestCase {
   public function testPatternPropertiesArray(): void {
     $schema = (object) ['type' => 'object', 'patternProperties' => ['^n' => (object) ['type' => 'integer']]];
     $this->assertSame(['n1' => 5], RecursiveTypeCaster::recursiveTypeRefinements(['n1' => '5'], $schema));
+  }
+
+  /**
+   * A patternProperties value that is not a map is skipped without a warning.
+   */
+  public function testScalarPatternPropertiesIsSkipped(): void {
+    $schema = json_decode('{"type":"object","patternProperties":5,"additionalProperties":{"type":"integer"}}');
+    $warnings = [];
+    set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+      $warnings[] = $message;
+      return TRUE;
+    });
+    try {
+      $actual = RecursiveTypeCaster::recursiveTypeRefinements(['x' => '3'], $schema);
+    }
+    finally {
+      restore_error_handler();
+    }
+    $this->assertSame([], $warnings);
+    $this->assertSame(['x' => 3], $actual);
   }
 
   /**
