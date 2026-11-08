@@ -196,7 +196,7 @@ A type with no element in this list, such as `null`, renders as a disabled item 
 
 When `type` is a list, the generator uses the first type other than `"null"`. The position of `"null"` does not matter: `["null", "string"]` and `["string", "null"]` both render a textfield. A list containing only `"null"` renders the "cannot be edited" item.
 
-The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way. The members `true`, `false` and `null` are labelled "True", "False" and "None".
+The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way. The members `true`, `false` and `null` are labelled "True", "False" and "None", and the empty string "Empty".
 
 ### Accessibility
 
@@ -257,6 +257,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 ### Labels and markup
 
 - Enum options for `true`, `false` and `null` are labelled "True", "False" and "None". They used to be labelled "1" and two empty strings.
+- An enum option for the empty string is labelled "Empty" unless `ui:enum` maps it. It used to have an empty label.
 - A `const` property renders as an `item` element with its title as a label, and its description when it has one. It used to render as bare text with no label.
 - Remove buttons have the accessible name "Remove Tags (value 2)" instead of the `title` "Remove item", and grew from 20 to 24 pixels.
 - Item titles count rendered items, so they stay "value 1", "value 2" after a removal instead of skipping a number.
