@@ -109,7 +109,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *   For every URI except the bundled draft-04 meta-schema.
    */
   public function retrieve($uri, $baseUri = NULL) {
-    $resolved = (new UriResolver())->resolve($uri, $baseUri);
+    $resolved = self::resolveUri($uri, $baseUri);
     $metadata_path = dirname(__DIR__) . '/meta-schema-draft4.json';
     // Registered schemas are served by SchemaStorage without a retrieval. Only
     // these exact metadata URIs may reach disk. Never pass a target to a
@@ -124,6 +124,33 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
       throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
     return json_decode(file_get_contents($metadata_path), FALSE, 512, JSON_THROW_ON_ERROR);
+  }
+
+  /**
+   * Resolves a URI without touching the local filesystem.
+   *
+   * UriResolver reads a base without a scheme as a local path and runs
+   * is_file(), is_dir() and realpath() on it. Schemas supply these values, so
+   * such a base is refused before it reaches the resolver.
+   *
+   * @param mixed $uri
+   *   The URI to resolve.
+   * @param mixed $base_uri
+   *   The base URI, or NULL.
+   *
+   * @return string|null
+   *   The resolved URI, or NULL when both inputs are empty.
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   When the base URI has no scheme.
+   */
+  private static function resolveUri(mixed $uri, mixed $base_uri): ?string {
+    $is_absolute = is_string($base_uri)
+      && (preg_match('|^[^/]+://|u', $base_uri) === 1 || filter_var($base_uri, FILTER_VALIDATE_URL) !== FALSE);
+    if ($base_uri !== NULL && !$is_absolute) {
+      throw new UnsupportedReferenceException('External schema retrieval is disabled.');
+    }
+    return (new UriResolver())->resolve($uri, $base_uri);
   }
 
   /**
@@ -158,7 +185,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
       self::checkReferences($storage->getSchema($target), $storage, $visited);
     }
     if (isset($schema->extends) && is_string($schema->extends)) {
-      $target = (new UriResolver())->resolve($schema->id ?? NULL, $schema->extends);
+      $target = self::resolveUri($schema->id ?? NULL, $schema->extends);
       self::checkReferences($storage->getSchema($target), $storage, $visited);
     }
     foreach (['properties', 'patternProperties', 'definitions', '$defs', 'dependencies', 'dependentSchemas'] as $keyword) {

@@ -125,6 +125,48 @@ final class SchemaReferenceResolverTest extends TestCase {
     $this->assertEquals(json_decode($json), $schema);
   }
 
+  /**
+   * A local path as a base URI is refused before any filesystem check.
+   *
+   * UriResolver runs is_file() and is_dir() on such a base, which a stat
+   * recorder on the file wrapper observes.
+   */
+  #[DataProvider('localBaseProvider')]
+  public function testLocalBaseIsNotProbed(string $entry): void {
+    $sentinel = sys_get_temp_dir() . '/schema-forms-sentinel-' . bin2hex(random_bytes(8));
+    $operation = match ($entry) {
+      'extends' => static fn () => SchemaReferenceResolver::createFactory((object) ['type' => 'object', 'extends' => $sentinel]),
+      'retrieve' => static fn () => (new SchemaReferenceResolver())->retrieve('schema.json', $sentinel),
+    };
+    // Load every class the operation needs before observing the wrapper.
+    try {
+      $operation();
+    }
+    catch (UnsupportedReferenceException) {
+    }
+    try {
+      StatRecorder::observe($operation);
+      $this->fail('A local base URI must be refused.');
+    }
+    catch (UnsupportedReferenceException $e) {
+      $this->assertStringContainsString('retrieval is disabled', $e->getMessage());
+    }
+    $this->assertSame([], array_values(array_filter(StatRecorder::$paths, static fn (string $path) => str_contains($path, $sentinel))));
+  }
+
+  /**
+   * An absolute "extends" URI still reaches the bundled metadata.
+   */
+  public function testAbsoluteExtendsIsResolved(): void {
+    $factory = SchemaReferenceResolver::createFactory((object) ['extends' => 'http://json-schema.org/draft-04/schema#']);
+    $metadata = $factory->getSchemaStorage()->getSchema('http://json-schema.org/draft-04/schema#');
+    $this->assertSame('http://json-schema.org/draft-04/schema#', $metadata->id);
+  }
+
+  public static function localBaseProvider(): array {
+    return ['extends' => ['extends'], 'retrieve' => ['retrieve']];
+  }
+
   #[DataProvider('metadataProvider')]
   public function testBundledMetadata(string $uri): void {
     $schema = (object) ['$ref' => $uri];
@@ -144,6 +186,40 @@ final class SchemaReferenceResolverTest extends TestCase {
       'HTTP alias' => ['http://json-schema.org/draft-04/schema'],
       'HTTPS alias' => ['https://json-schema.org/draft-04/schema#'],
     ];
+  }
+
+}
+
+/**
+ * Records the paths the file wrapper is asked to stat.
+ */
+final class StatRecorder {
+
+  public $context;
+  public static array $paths = [];
+
+  public static function observe(callable $callback): mixed {
+    self::$paths = [];
+    if (!stream_wrapper_unregister('file') || !stream_wrapper_register('file', self::class)) {
+      throw new \RuntimeException('Cannot replace the file wrapper.');
+    }
+    try {
+      return $callback();
+    }
+    finally {
+      stream_wrapper_unregister('file');
+      stream_wrapper_restore('file');
+    }
+  }
+
+  public function url_stat(string $path, int $flags): array|false {
+    self::$paths[] = $path;
+    return FALSE;
+  }
+
+  public function stream_open(string $path, string $mode, int $options, ?string &$opened_path): bool {
+    self::$paths[] = $path;
+    return FALSE;
   }
 
 }
