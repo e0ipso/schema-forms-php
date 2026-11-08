@@ -68,7 +68,7 @@ final class RecursiveTypeCaster {
         $sub_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
         $refined_value = static::refineValue($value, $sub_schema, $factory);
         // Nullable refinements take precedence over omitting untouched fields.
-        if ($value === '' && $refined_value === '' && !in_array($key, $schema->required ?? [], TRUE)) {
+        if ($value === '' && $refined_value === '' && !static::isRequired($key, $schema)) {
           $validator = new Validator($factory);
           $validator->validate($value, $sub_schema);
           if (!$validator->isValid()) {
@@ -100,6 +100,28 @@ final class RecursiveTypeCaster {
       FALSE
     );
     return $data;
+  }
+
+  /**
+   * Checks whether the object schema lists a property as required.
+   *
+   * PHP turns a decimal property name such as "123" into an integer array key,
+   * while the schema lists it as a string.
+   *
+   * @param int|string $key
+   *   The property name, as PHP keys it.
+   * @param object $schema
+   *   The object schema.
+   *
+   * @return bool
+   *   TRUE when the property is required.
+   */
+  private static function isRequired($key, object $schema): bool {
+    $required = $schema->required ?? [];
+    if (!is_array($required)) {
+      return FALSE;
+    }
+    return in_array((string) $key, $required, TRUE) || in_array($key, $required, TRUE);
   }
 
   /**

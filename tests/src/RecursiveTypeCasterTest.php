@@ -60,6 +60,22 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"a":{"type":["string","null"]},"b":{"type":["integer","null"]},"c":{"type":["string","null"]}}}',
         ['a' => '', 'b' => NULL, 'c' => '0'],
       ],
+      // A decimal property name becomes an integer key in a PHP array.
+      'required decimal property name keeps its blank' => [
+        ['123' => '', 'abc' => '', '456' => ''],
+        '{"type":"object","required":["123","abc"],"properties":{"123":{"type":"string","minLength":1},"abc":{"type":"string","minLength":1},"456":{"type":"string","minLength":1}}}',
+        ['123' => '', 'abc' => ''],
+      ],
+      'required decimal property name on stdClass keeps its blank' => [
+        (object) ['123' => '', 'abc' => ''],
+        '{"type":"object","required":["123"],"properties":{"123":{"type":"string","minLength":1},"abc":{"type":"string","minLength":1}}}',
+        (object) ['123' => ''],
+      ],
+      'a non-list required keyword is ignored' => [
+        ['a' => ''],
+        '{"type":"object","required":"a","properties":{"a":{"type":"string","minLength":1}}}',
+        [],
+      ],
       // Unsafe numeric conversions must retain the input string.
       'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
       'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
@@ -99,6 +115,10 @@ class RecursiveTypeCasterTest extends TestCase {
   #[DataProvider('dataProviderRecursiveTypeRefinements')]
   public function testRecursiveTypeRefinements($data, string $schema, $expected): void {
     $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, json_decode($schema));
+    if (is_object($expected)) {
+      $this->assertEquals($expected, $actual);
+      return;
+    }
     $this->assertSame($expected, $actual);
   }
 
