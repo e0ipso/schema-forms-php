@@ -16,6 +16,13 @@ use Shaper\Validator\JsonSchemaValidator;
 final class JsonSchemaFormValidator extends JsonSchemaValidator {
 
   /**
+   * The schema every form root must match, built on first use.
+   *
+   * It is not serialized; an unserialized validator builds it again.
+   */
+  private ?object $formRoot = NULL;
+
+  /**
    * Validates schemas against the bundled draft-04 meta-schema.
    *
    * @param \JsonSchema\Validator $validator
@@ -71,16 +78,15 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
    *   TRUE if the root is an object schema.
    */
   private function isFormRoot(mixed $data): bool {
-    $root_schema = (object) [
+    $this->formRoot ??= (object) [
       'type' => 'object',
       'required' => ['type'],
       'properties' => (object) [
         'type' => (object) ['enum' => ['object']],
       ],
     ];
-    $num_errors = $this->validator->validate($data, $root_schema, Constraint::CHECK_MODE_NORMAL);
-    $this->errors = $this->validator->getErrors();
-    return !$num_errors;
+    // getErrors() reads the validator, so its errors need no copy here.
+    return $this->validator->validate($data, $this->formRoot, Constraint::CHECK_MODE_NORMAL) === 0;
   }
 
 }
