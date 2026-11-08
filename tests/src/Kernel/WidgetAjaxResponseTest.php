@@ -54,6 +54,19 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
   }
 
   /**
+   * Without an item to announce, the response only replaces the widget.
+   */
+  public function testAppendResponseWithoutItems(): void {
+    $result = $this->browserSubmit($this->form([]));
+    $form = $result->form;
+    $result->formState->setTriggeringElement($form['items']['add_more']);
+
+    $commands = FormGeneratorDrupal::addMoreAjax($form, $result->formState)->getCommands();
+
+    $this->assertSame(['insert', 'insert'], array_column($commands, 'command'));
+  }
+
+  /**
    * Remove focuses the item that took the removed item's place.
    */
   public function testRemoveFocusesTheNextItem(): void {

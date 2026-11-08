@@ -83,6 +83,21 @@ final class FormGeneratorDrupalCostTest extends TestCase {
   }
 
   /**
+   * A schema that cannot be fingerprinted is validated every time.
+   */
+  public function testUnserializableSchemaIsValidatedEachTime(): void {
+    $generator = new FormGeneratorDrupal();
+    $schema = (object) ['type' => 'object', 'x-handler' => static fn (): bool => TRUE];
+    $this->assertTrue($generator->conformsToExpectedInputShape($schema));
+    $validator = $generator->getInputValidator();
+    $validator->isValid('not a schema');
+
+    $this->assertTrue($generator->conformsToExpectedInputShape($schema));
+
+    $this->assertSame([], $validator->getErrors());
+  }
+
+  /**
    * A rejected schema is rejected every time.
    */
   public function testRejectedSchemaIsNotRemembered(): void {
