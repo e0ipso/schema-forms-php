@@ -8,7 +8,15 @@ use Drupal\Core\Form\FormState;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use SchemaForms\Drupal\ElementDataPaths;
+use SchemaForms\Drupal\ErrorElementMapper;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\MultivalueWidget;
+use SchemaForms\Drupal\SubmissionPreparer;
+use SchemaForms\Drupal\SubmissionValidator;
+use SchemaForms\Drupal\SubmittedValue;
+use SchemaForms\Drupal\UserInputCleaner;
+use SchemaForms\Drupal\ValidationMessages;
 use SchemaForms\Tests\Kernel\Form\BridgeCountingFormState;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 
@@ -16,6 +24,14 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
  * Schema validation runs wherever the generated container sits in the form.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
+#[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SubmissionValidator::class)]
+#[CoversClass(ErrorElementMapper::class)]
+#[CoversClass(ElementDataPaths::class)]
+#[CoversClass(MultivalueWidget::class)]
+#[CoversClass(UserInputCleaner::class)]
+#[CoversClass(SubmittedValue::class)]
+#[CoversClass(ValidationMessages::class)]
 #[RunTestsInSeparateProcesses]
 final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
 

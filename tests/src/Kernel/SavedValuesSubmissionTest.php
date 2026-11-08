@@ -8,15 +8,21 @@ use Drupal\Core\Render\Element;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use SchemaForms\Drupal\ElementDataPaths;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormValidatorDrupal;
+use SchemaForms\Drupal\MultivalueWidget;
+use SchemaForms\Drupal\SubmissionPreparer;
+use SchemaForms\Drupal\UserInputCleaner;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 
 /**
  * Saved values survive an actual Save rather than an implicit Append submit.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(FormValidatorDrupal::class)]
+#[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(ElementDataPaths::class)]
+#[CoversClass(MultivalueWidget::class)]
+#[CoversClass(UserInputCleaner::class)]
 #[RunTestsInSeparateProcesses]
 final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
 

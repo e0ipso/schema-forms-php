@@ -6,14 +6,18 @@ namespace SchemaForms\Tests\Kernel;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use SchemaForms\Drupal\ErrorElementMapper;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormValidatorDrupal;
+use SchemaForms\Drupal\SubmissionPreparer;
+use SchemaForms\Drupal\SubmissionValidator;
 
 /**
  * Submits the README example schema through Drupal form processing.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(FormValidatorDrupal::class)]
+#[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SubmissionValidator::class)]
+#[CoversClass(ErrorElementMapper::class)]
 #[RunTestsInSeparateProcesses]
 final class ReadmeExampleSubmissionTest extends SchemaFormsKernelTestBase {
 
