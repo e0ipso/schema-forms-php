@@ -14,6 +14,10 @@ use Drupal\Core\Render\Element\RenderCallbackInterface;
  * Nested properties only show the marker, because Form API would reject a
  * blank value the schema accepts. Schema validation enforces both.
  *
+ * A marker that Form API does not enforce is visual only, so the control
+ * also gets aria-required. The HTML required attribute is not an option:
+ * the browser would refuse to submit the blank value the schema accepts.
+ *
  * Generated render arrays name afterBuild() and preRender(), and cached forms
  * keep those names, so the class and both methods keep their names.
  *
@@ -102,7 +106,11 @@ final class RequiredMarker implements RenderCallbackInterface {
    * Lets core render its own required marker.
    *
    * Validation is over when an element renders, so #required set here only
-   * changes the markup.
+   * changes the markup. Attributes set here reach only the fieldset, because
+   * the options copied the group's attributes when they were built. A radio
+   * group tells assistive technology it is required through the radiogroup
+   * role; ARIA has no required state for a group of checkboxes, so those
+   * keep the visible marker alone.
    *
    * @param array<int|string, mixed> $element
    *   The element.
@@ -112,7 +120,10 @@ final class RequiredMarker implements RenderCallbackInterface {
    */
   public static function preRender(array $element): array {
     $element['#required'] = TRUE;
-    return $element;
+    if (($element['#type'] ?? NULL) !== EnumElements::RADIOS) {
+      return $element;
+    }
+    return self::withAttributes($element, ['role' => 'radiogroup', 'aria-required' => 'true']);
   }
 
   /**
@@ -159,6 +170,23 @@ final class RequiredMarker implements RenderCallbackInterface {
     $classes = is_array($attributes['class'] ?? NULL) ? $attributes['class'] : [];
     $attributes['class'] = [...$classes, 'form-required'];
     $element['#label_attributes'] = $attributes;
+    return self::withAttributes($element, ['aria-required' => 'true']);
+  }
+
+  /**
+   * Adds HTML attributes to an element.
+   *
+   * @param array<int|string, mixed> $element
+   *   The element.
+   * @param array<string, string> $attributes
+   *   The attributes to add.
+   *
+   * @return array<int|string, mixed>
+   *   The element.
+   */
+  private static function withAttributes(array $element, array $attributes): array {
+    $existing = is_array($element['#attributes'] ?? NULL) ? $element['#attributes'] : [];
+    $element['#attributes'] = $attributes + $existing;
     return $element;
   }
 

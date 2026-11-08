@@ -500,6 +500,7 @@ class FormGeneratorDrupalTest extends TestCase {
               '#disabled' => FALSE,
               '#visible' => TRUE,
               '#label_attributes' => ['class' => ['form-required']],
+              '#attributes' => ['aria-required' => 'true'],
             ],
             '#disabled' => FALSE,
             '#visible' => TRUE,
