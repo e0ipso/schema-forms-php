@@ -166,6 +166,8 @@ Semantic versioning covers these symbols, with Shaper's `Context` as the options
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
 - `SchemaForms\Exception\UnsupportedReferenceException`: a schema reference outside the registered documents.
 
+`tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
+
 ### Context keys
 
 The `Context` accepts four keys, all optional:
