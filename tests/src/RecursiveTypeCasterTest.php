@@ -76,6 +76,12 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","required":"a","properties":{"a":{"type":"string","minLength":1}}}',
         [],
       ],
+      // A value with no string spelling is left for validation to report.
+      'string keeps a list' => [['x'], '{"type":"string"}', ['x']],
+      'string keeps a map' => [['a' => 'x'], '{"type":"string"}', ['a' => 'x']],
+      'string spells a float' => [1.5, '{"type":"string"}', '1.5'],
+      'string spells TRUE' => [TRUE, '{"type":"string"}', '1'],
+      'string spells NULL' => [NULL, '{"type":"string"}', ''],
       // Unsafe numeric conversions must retain the input string.
       'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
       'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
@@ -120,6 +126,47 @@ class RecursiveTypeCasterTest extends TestCase {
       return;
     }
     $this->assertSame($expected, $actual);
+  }
+
+  /**
+   * An object where a string is expected stays an object.
+   */
+  public function testStringKeepsAnObject(): void {
+    $value = (object) ['a' => 'x'];
+    $actual = RecursiveTypeCaster::recursiveTypeRefinements(['field' => $value], json_decode('{"type":"object","properties":{"field":{"type":"string"}}}'));
+    $this->assertSame(['field' => $value], $actual);
+  }
+
+  /**
+   * Every draft-04 type keeps its boolean refinement result.
+   *
+   * The type list is matched strictly. Only a non-string type member could
+   * match differently, and the validator rejects such a schema.
+   */
+  #[DataProvider('dataProviderBooleanTypes')]
+  public function testBooleanTypeMatching(array $types, mixed $input, mixed $expected): void {
+    $schema = (object) ['type' => $types];
+    $this->assertSame($expected, RecursiveTypeCaster::recursiveTypeRefinements($input, $schema));
+  }
+
+  /**
+   * Data provider for testBooleanTypeMatching.
+   */
+  public static function dataProviderBooleanTypes(): array {
+    $cases = [];
+    foreach (['array', 'boolean', 'integer', 'null', 'number', 'object', 'string'] as $type) {
+      foreach (['0', '1', 0, 1, 'true', ''] as $input) {
+        $expected = match (TRUE) {
+          $type === 'boolean' && in_array($input, ['0', '1', 0, 1], TRUE) => (bool) $input,
+          in_array($type, ['integer', 'number'], TRUE) && is_numeric($input) => (int) $input,
+          $type === 'null' && $input === '' => NULL,
+          $type === 'string' => (string) $input,
+          default => $input,
+        };
+        $cases[sprintf('%s %s', $type, var_export($input, TRUE))] = [[$type], $input, $expected];
+      }
+    }
+    return $cases;
   }
 
   /**

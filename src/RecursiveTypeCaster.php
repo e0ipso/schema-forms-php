@@ -136,7 +136,9 @@ final class RecursiveTypeCaster {
    *   TRUE if casting was possible. FALSE otherwise.
    */
   private static function tryCastingString(&$input, array $types): bool {
-    if (in_array('string', $types, TRUE)) {
+    // Arrays and objects have no string spelling; validation reports them.
+    $has_string_spelling = is_scalar($input) || $input === NULL;
+    if ($has_string_spelling && in_array('string', $types, TRUE)) {
       $input = (string) $input;
       return TRUE;
     }
@@ -223,7 +225,7 @@ final class RecursiveTypeCaster {
    */
   private static function tryCastingBoolean(&$input, array $types): bool {
     $is_quasi_boolean = $input === '0' || $input === '1' || $input === 0 || $input === 1;
-    if (in_array('boolean', $types) && $is_quasi_boolean) {
+    if (in_array('boolean', $types, TRUE) && $is_quasi_boolean) {
       $input = (bool) $input;
       return TRUE;
     }
