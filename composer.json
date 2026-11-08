@@ -28,7 +28,7 @@
     },
     "require-dev": {
         "drupal/coder": "^8.3",
-        "drupal/core-dev": "~11.3.0",
+        "drupal/core-dev": "~11.3.0 || ~11.4.0",
         "drupal/core-recommended": "^11",
         "ergebnis/composer-normalize": "^2.47",
         "nikic/php-parser": "^5.6",
@@ -62,6 +62,7 @@
             "php-http/discovery": true,
             "phpro/grumphp-shim": true,
             "phpstan/extension-installer": true,
+            "symfony/runtime": false,
             "tbachert/spi": true
         },
         "platform": {
