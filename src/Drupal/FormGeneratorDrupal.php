@@ -96,7 +96,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       $ui_schema_data = $ui_hints[$key] ?? [];
       $element[$key] = $this->doTransformOneField($prop, $key, [$key], $ui_schema_data, $form_state, $current_input[$key] ?? NULL, TRUE, array_key_exists($key, $current_input));
     }
-    return $this->addValidationRules($element, $context);
+    return $this->addValidationRules(ButtonNames::deduplicate($element));
   }
 
   /**
@@ -1089,7 +1089,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       );
 
       $container_id = Html::getUniqueId(sprintf('%s-%d-container', $id_prefix, $delta));
-      $remove_name = sprintf('%s-%d-remove', $id_prefix, $delta);
+      $remove_name = ButtonNames::remove($new_prop_parents);
       $form_element[$delta] = [
         '#type' => 'container',
         '#prefix' => '<div id="' . $container_id . '">',
@@ -1125,7 +1125,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
     $form_element['add_more'] = [
       '#type' => 'submit',
-      '#name' => strtr($id_prefix, '-', '_') . '_add_more',
+      '#name' => ButtonNames::append($prop_parents),
       '#value' => new TranslatableMarkup('Append an item'),
       '#attributes' => ['class' => ['field-add-more-submit']],
       '#submit' => [[static::class, 'addMoreSubmit']],
