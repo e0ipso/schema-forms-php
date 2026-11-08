@@ -5,7 +5,9 @@ namespace SchemaForms\Tests;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\SchemaReferenceResolver;
 
 /**
  * Unit tests for the \SchemaForms\RecursiveTypeCaster class.
@@ -82,6 +84,11 @@ class RecursiveTypeCasterTest extends TestCase {
       'string spells a float' => [1.5, '{"type":"string"}', '1.5'],
       'string spells TRUE' => [TRUE, '{"type":"string"}', '1'],
       'string spells NULL' => [NULL, '{"type":"string"}', ''],
+      'each optional blank is checked on its own' => [
+        ['a' => '', 'b' => '', 'c' => ''],
+        '{"type":"object","properties":{"a":{"type":"string","minLength":1},"b":{"type":"string"},"c":{"type":"string","minLength":1}}}',
+        ['b' => ''],
+      ],
       // Unsafe numeric conversions must retain the input string.
       'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
       'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
@@ -126,6 +133,19 @@ class RecursiveTypeCasterTest extends TestCase {
       return;
     }
     $this->assertSame($expected, $actual);
+  }
+
+  /**
+   * A supplied factory resolves references the schema makes.
+   */
+  public function testSuppliedFactory(): void {
+    $factory = SchemaReferenceResolver::createFactory(json_decode('{"type":"object"}'));
+    $factory->getSchemaStorage()->addSchema('internal://labels/', json_decode('{"definitions":{"label":{"type":"string","minLength":2}}}'));
+    $schema = json_decode('{"type":"object","properties":{"field":{"type":"string","allOf":[{"$ref":"internal://labels/#/definitions/label"}]},"count":{"type":"integer"}}}');
+    $data = ['field' => '', 'count' => '3'];
+    $this->assertSame(['count' => 3], RecursiveTypeCaster::recursiveTypeRefinements($data, $schema, $factory));
+    $this->expectException(UnsupportedReferenceException::class);
+    RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
   }
 
   /**
