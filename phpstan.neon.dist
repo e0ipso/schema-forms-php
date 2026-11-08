@@ -1,0 +1,10 @@
+parameters:
+  level: max
+  paths:
+    - src
+    - scripts
+  excludePaths:
+    # The Drupal adapter is not analysed yet.
+    - src/Drupal
+  parallel:
+    maximumNumberOfProcesses: 2
