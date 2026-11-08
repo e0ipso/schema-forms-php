@@ -178,13 +178,20 @@ The `Context` accepts four keys, all optional:
 | `array` whose `items` has an `enum` | `checkboxes`, options from the enum |
 | any other `array` whose `items` is one schema object | an open `details` element with one control per item, an "Append an item" button and a remove button per item. Both buttons use AJAX. A positive integer `maxItems` hides Append at the limit; saved items above the limit remain editable for correction. |
 | `object` with `properties` | an open `details` element with one control per sub-property |
-| a property with `const` | escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
+| a property with `const` | an `item` element: the title as its label and the value as escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
 
 A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form. An `array` with no `items`, or with a list of item schemas, renders the same item and its saved value is kept unchanged.
 
 When `type` is a list, the generator uses the first type other than `"null"`. The position of `"null"` does not matter: `["null", "string"]` and `["string", "null"]` both render a textfield. A list containing only `"null"` renders the "cannot be edited" item.
 
-The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way.
+The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way. The members `true`, `false` and `null` are labelled "True", "False" and "None".
+
+### Accessibility
+
+- Each item of a multivalue widget has a visually hidden title, such as "Tags (value 2)". Items are numbered by their position, so the numbers have no gaps after a removal.
+- Each remove button shows "⨯" and has the accessible name "Remove Tags (value 2)" in its `aria-label` and `title`. It is 24 by 24 pixels, the WCAG 2.2 minimum target size. The library ships no CSS asset, so the size and position are an inline style on the button.
+- After Append or Remove, the AJAX response announces the change through `Drupal.announce()`, for example "Item added: Tags (value 3).", and moves focus: to the new item after Append, and after Remove to the item that took the removed item's place, else the Append button, else the widget.
+- The announcements, item titles and button names are translatable.
 
 ### UI schema data
 
@@ -197,7 +204,7 @@ Supported controls:
 - `ui:placeholder`: placeholder text for the input.
 - `ui:widget`: a Drupal Form API element type, such as `select`, `textarea`, `password` or `hidden`. The generator uses the value as `#type` unchanged and does not check it. A name Drupal does not know, such as the react-jsonschema-form widget `updown`, renders nothing. A widget on an `array` or `object` property replaces the multivalue widget or the nested sub-elements, because the widget wins over the schema type. For example, `"tags": {"ui:widget": "textarea"}` on an array property renders one textarea and no per-item controls.
 - `ui:enabled`: `0` sets `#disabled` on the element and on every element nested in it, including array items and their sub-properties. A disabled parent wins over a child's own `ui:enabled: 1`.
-- `ui:visible`: `0` sets `#visible` to `FALSE`. Drupal core does not read `#visible`, so the element still renders unless your code acts on that key.
+- `ui:visible`: `0` or `false` hides the element and everything nested in it. It sets `#visible` to `FALSE` and `#access` to `FALSE`. Drupal ignores submitted input for an inaccessible element and keeps its `#default_value`, so a saved value is saved again unchanged. A property with `const` ignores this key.
 - `ui:enum`: controls the labels for select, radio and checkbox options. `ui:enum.labels.mappings` maps each enum value to a label, e.g. `{"uuid1": "Super duper product"}`.
 
 Other keys are ignored.
@@ -215,7 +222,7 @@ When Drupal validates the form, the schema validation:
 ### Limitations
 
 - Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
-- Only the root `required` list sets `#required`. A `required` list inside a nested object does not mark its sub-properties.
+- Only the root `required` list sets Form API `#required`, which rejects blank values. Checkboxes at the root and properties in a nested object's `required` list show Drupal's required marker without `#required`, because the schema accepts `FALSE`, an empty selection or an empty string there; schema validation still requires the key. That marker is visual only: the inputs carry no `required` or `aria-required` attribute, so assistive technology does not announce these properties as required.
 
 ## Upgrading
 
@@ -234,6 +241,16 @@ Semantic versioning covers the public API named under Usage. The GitHub release 
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
 - A property missing from `properties` is cast by the first matching `patternProperties` schema, then by an `additionalProperties` schema. Any other property is left as submitted. It used to be cast against the object's `items` keyword, or against a schema that turned an empty string into `NULL`.
 - In multivalue (array) widgets, constants and saved values of unsupported types follow their item when another item is removed, and validation checks the value Drupal stores instead of the raw input. Errors for properties named `add_more`, `remove_one` or `removable_element` land on their element.
+
+### Labels and markup
+
+- Enum options for `true`, `false` and `null` are labelled "True", "False" and "None". They used to be labelled "1" and two empty strings.
+- A `const` property renders as an `item` element with its title as a label, and its description when it has one. It used to render as bare text with no label.
+- Remove buttons have the accessible name "Remove Tags (value 2)" instead of the `title` "Remove item", and grew from 20 to 24 pixels.
+- Item titles count rendered items, so they stay "value 1", "value 2" after a removal instead of skipping a number.
+- `ui:visible: 0` now hides the element; see the UI schema section.
+- The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
+- Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
 
 ### Schemas and dependencies
 

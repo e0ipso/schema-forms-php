@@ -30,8 +30,12 @@ final class MultivalueWidgetBuilder {
 
   /**
    * The inline style that puts the Remove button on the item's corner.
+   *
+   * The package is a library, not a module, so it has no asset library to
+   * hold this rule, and core has no class for a small round button. The
+   * 24 by 24 pixel size is the WCAG 2.2 minimum target size.
    */
-  private const REMOVE_BUTTON_STYLE = 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;';
+  private const REMOVE_BUTTON_STYLE = 'opacity: 0.9;display: block;position: absolute;top: -12px;left: -12px;margin: 0;overflow: hidden;width: 24px;height: 24px;padding: 0;border-radius: 15px;';
 
   /**
    * Builds the widget.
@@ -75,8 +79,10 @@ final class MultivalueWidgetBuilder {
       // The callbacks find the widget state through it.
       $element[RenderKeys::NAMESPACE] = $context->namespace;
     }
-    foreach ($state->deltas() as $delta) {
-      $element[$delta] = $this->item($element, $context->item($delta, $items), $fields, $wrapper_id);
+    // Items are numbered by position, so the numbers have no gaps after a
+    // removal.
+    foreach (array_values($state->deltas()) as $position => $delta) {
+      $element[$delta] = $this->item($element, $context->item($delta, $items), $fields, $wrapper_id, $position + 1);
     }
     $element[RenderKeys::APPEND_BUTTON] = $this->appendButton($context, $wrapper_id);
     if ($state->isFull($cardinality)) {
@@ -117,19 +123,22 @@ final class MultivalueWidgetBuilder {
    *   Builds the item control.
    * @param string $wrapper_id
    *   The HTML ID of the widget wrapper.
+   * @param int $number
+   *   The position of the item among the rendered items, from 1.
    *
    * @return array<int|string, mixed>
    *   The item container.
    */
-  private function item(array $widget, FieldContext $context, FieldBuilder $fields, string $wrapper_id): array {
+  private function item(array $widget, FieldContext $context, FieldBuilder $fields, string $wrapper_id, int $number): array {
     // The wrapping details element shows the title and description, even
     // when maxItems is 1; each item gets an invisible numbered title.
     $title = $widget['#title'] ?? '';
+    $arguments = [
+      '@title' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
+      '@number' => $number,
+    ];
     $control = [
-      '#title' => new TranslatableMarkup('@title (value @number)', [
-        '@title' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
-        '@number' => (int) $context->name + 1,
-      ]),
+      '#title' => new TranslatableMarkup('@title (value @number)', $arguments),
       '#title_display' => 'invisible',
       '#description' => '',
     ] + $fields->build($context);
@@ -143,7 +152,7 @@ final class MultivalueWidgetBuilder {
       '#suffix' => '</div>',
       '#attributes' => ['style' => 'position: relative;'],
       RenderKeys::ITEM => $control,
-      RenderKeys::REMOVE_BUTTON => $this->removeButton($context, $wrapper_id),
+      RenderKeys::REMOVE_BUTTON => $this->removeButton($context, $wrapper_id, new TranslatableMarkup('Remove @title (value @number)', $arguments)),
     ];
   }
 
@@ -154,11 +163,13 @@ final class MultivalueWidgetBuilder {
    *   The field context of the item.
    * @param string $wrapper_id
    *   The HTML ID of the widget wrapper, which the response replaces.
+   * @param \Drupal\Core\StringTranslation\TranslatableMarkup $name
+   *   The accessible name, which tells the Remove buttons apart.
    *
    * @return array<string, mixed>
    *   The button.
    */
-  private function removeButton(FieldContext $context, string $wrapper_id): array {
+  private function removeButton(FieldContext $context, string $wrapper_id, TranslatableMarkup $name): array {
     return [
       '#delta' => (int) $context->name,
       '#type' => 'submit',
@@ -169,7 +180,9 @@ final class MultivalueWidgetBuilder {
       '#attributes' => [
         'class' => ['field-remove-one-submit'],
         'style' => self::REMOVE_BUTTON_STYLE,
-        'title' => new TranslatableMarkup('Remove item'),
+        // The visible "⨯" names no item, so screen readers get the name.
+        'aria-label' => $name,
+        'title' => $name,
       ],
       '#limit_validation_errors' => [],
       '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],

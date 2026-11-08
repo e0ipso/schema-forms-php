@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Form\FormStateInterface;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Exception\ExceptionInterface;
@@ -20,11 +21,20 @@ use Shaper\Validator\ValidateableInterface;
  *
  * Call transform() to build a form. The public methods other than
  * transform(), getInputValidator() and getOutputValidator() are Form API
- * callbacks that the generated render arrays name; they are internal.
+ * callbacks that the generated render arrays name. They stay public for
+ * forms built by earlier releases; host code does not call them.
  *
  * @api
  */
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {
+
+  /**
+   * How many accepted schemas one generator remembers.
+   *
+   * A form usually builds one schema; the limit bounds memory when a
+   * long-lived generator builds many.
+   */
+  private const CHECKED_SCHEMA_LIMIT = 16;
 
   /**
    * The input validator, kept so a rejection message can read its errors.
@@ -33,6 +43,20 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * the TypeError message. A new instance each time would print no errors.
    */
   private ?JsonSchemaFormValidator $inputValidator = NULL;
+
+  /**
+   * Schemas that passed the input validation, keyed by their fingerprint.
+   *
+   * Every AJAX rebuild transforms the same schema again, and validating it
+   * against the meta-schema, then registering it and walking its references,
+   * would repeat the same work each time. Each value is the registered copy
+   * once doTransform() has made it. The map belongs to this instance, so a
+   * long-running worker never shares it between requests, and it is not
+   * serialized with the form.
+   *
+   * @var array<string, \stdClass|null>
+   */
+  private array $checkedSchemas = [];
 
   /**
    * Creates the generator.
@@ -68,12 +92,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>
    *   The generated container.
-   *
-   * @internal
    */
   public function doTransform($data, ?Context $context = NULL): array {
     try {
-      $schema = $this->schemas->prepare($data);
+      $schema = $this->prepare($data);
     }
     catch (ExceptionInterface $e) {
       return $this->withValidation([
@@ -84,6 +106,25 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
       ]);
     }
     return $this->withValidation($this->tree->build($schema, $context ?? new Context()));
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * A schema this generator already accepted is not validated again.
+   */
+  public function conformsToExpectedInputShape($data, ?Context $context = NULL): bool {
+    $fingerprint = self::fingerprint($data);
+    if ($fingerprint !== NULL && array_key_exists($fingerprint, $this->checkedSchemas)) {
+      return TRUE;
+    }
+    if (!$this->getInputValidator()->isValid($data)) {
+      return FALSE;
+    }
+    if ($fingerprint !== NULL) {
+      $this->remember($fingerprint, NULL);
+    }
+    return TRUE;
   }
 
   /**
@@ -118,14 +159,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Validates a generated container against its schema.
    *
-   * The #element_validate callback of the generated container.
+   * The #element_validate callback of the generated container. Form API
+   * calls it; callers build forms with transform().
    *
    * @param array<int|string, mixed> $element
    *   The generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
     $schema = $element[RenderKeys::SCHEMA] ?? NULL;
@@ -156,14 +196,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * and the values of elements the module added next to the generated ones.
    * Only the schema's properties are validated, so those keys cannot fail a
    * schema that forbids additional properties. The other values are put
-   * back afterwards.
+   * back afterwards. Form API calls it; callers build forms with transform().
    *
    * @param array<int|string, mixed> $form
    *   The form, which is the generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public function validateFormWithSchema(array &$form, FormStateInterface $form_state): void {
     $schema = $form[RenderKeys::SCHEMA] ?? NULL;
@@ -185,15 +223,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Limits Append validation to the widget's final form value path.
    *
-   * The #process callback of multivalue widgets.
+   * The #process callback of multivalue widgets. Form API calls it; callers
+   * build forms with transform().
    *
    * @param array<int|string, mixed> $element
    *   The widget, with its Form API parents assigned.
    *
    * @return array<int|string, mixed>
    *   The widget.
-   *
-   * @internal
    */
   public static function multiValueProcess(array $element): array {
     return MultivalueCallbacks::process($element);
@@ -202,7 +239,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Cleans the widget value and records where the widget was built.
    *
-   * The #after_build callback of multivalue widgets.
+   * The #after_build callback of multivalue widgets. Form API calls it;
+   * callers build forms with transform().
    *
    * @param array<int|string, mixed> $element
    *   The widget.
@@ -211,8 +249,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>
    *   The widget.
-   *
-   * @internal
    */
   public static function multiValueAfterBuild(array $element, FormStateInterface $form_state): array {
     return MultivalueCallbacks::afterBuild($element, $form_state);
@@ -221,74 +257,76 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Removes an item; the #submit callback of Remove buttons.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public static function removeOneSubmit(array $form, FormStateInterface $form_state): void {
     MultivalueCallbacks::removeSubmit($form, $form_state);
   }
 
   /**
-   * Returns the rebuilt widget; the #ajax callback of Remove buttons.
+   * Replaces the widget after a removal; the #ajax callback of Remove buttons.
+   *
+   * Form API calls it; callers build forms with transform(). The response
+   * also announces the removal and moves focus to a remaining control.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array<int|string, mixed>|null
-   *   The widget, or NULL when no Remove button triggered the request.
-   *
-   * @internal
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response. It is empty when no Remove button triggered the request.
    */
-  public static function removeOneAjax(array $form, FormStateInterface $form_state): ?array {
+  public static function removeOneAjax(array $form, FormStateInterface $form_state): AjaxResponse {
     return MultivalueCallbacks::removeAjax($form, $form_state);
   }
 
   /**
    * Appends an item; the #submit callback of Append buttons.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public static function addMoreSubmit(array $form, FormStateInterface $form_state): void {
     MultivalueCallbacks::appendSubmit($form, $form_state);
   }
 
   /**
-   * Returns the rebuilt widget; the #ajax callback of Append buttons.
+   * Replaces the widget after an append; the #ajax callback of Append buttons.
+   *
+   * Form API calls it; callers build forms with transform(). The response
+   * also announces the new item and moves focus into it.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array<int|string, mixed>
-   *   The widget.
-   *
-   * @internal
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response.
    */
-  public static function addMoreAjax(array $form, FormStateInterface $form_state): array {
+  public static function addMoreAjax(array $form, FormStateInterface $form_state): AjaxResponse {
     return MultivalueCallbacks::appendAjax($form, $form_state);
   }
 
   /**
    * Turns checked keys into a list; the #element_validate of checkboxes.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $element
    *   The checkboxes element.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public static function validateCheckboxes(array &$element, FormStateInterface $form_state): void {
     EnumElements::validateCheckboxes($element, $form_state);
@@ -296,6 +334,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
   /**
    * Gets the stored state of a multivalue widget.
+   *
+   * The multivalue widget callbacks use it; callers build forms with
+   * transform().
    *
    * @param array<mixed> $parents
    *   The schema path of the widget.
@@ -308,8 +349,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return mixed
    *   The stored array, with 'items_indices' and 'array_parents', or NULL.
-   *
-   * @internal
    */
   public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, ?string $namespace = NULL): mixed {
     return WidgetStateStorage::get($form_state, $parents, $prop_name, $namespace);
@@ -317,6 +356,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
   /**
    * Stores the state of a multivalue widget.
+   *
+   * The multivalue widget callbacks use it; callers build forms with
+   * transform().
    *
    * @param array<mixed> $parents
    *   The schema path of the widget.
@@ -328,11 +370,69 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The state to store.
    * @param string|null $namespace
    *   The 'namespace' context key the container was built with, if any.
-   *
-   * @internal
    */
   public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
     WidgetStateStorage::set($form_state, $parents, $prop_name, $prop_state, $namespace);
+  }
+
+  /**
+   * Registers a schema, reusing the copy made for an accepted schema.
+   *
+   * @param mixed $data
+   *   The decoded schema.
+   *
+   * @return \stdClass
+   *   The registered copy.
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   When the schema references a document outside itself.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
+   * @throws \InvalidArgumentException
+   *   When the schema is not an object or a property name starts with '#'.
+   */
+  private function prepare(mixed $data): \stdClass {
+    $fingerprint = self::fingerprint($data);
+    // Only a schema that passed the input validation is kept: doTransform()
+    // is public, and a direct call must not mark a schema as valid.
+    if ($fingerprint === NULL || !array_key_exists($fingerprint, $this->checkedSchemas)) {
+      return $this->schemas->prepare($data);
+    }
+    $schema = $this->checkedSchemas[$fingerprint] ?? $this->schemas->prepare($data);
+    $this->remember($fingerprint, $schema);
+    return $schema;
+  }
+
+  /**
+   * Records an accepted schema, dropping the oldest beyond the limit.
+   *
+   * @param string $fingerprint
+   *   The schema fingerprint.
+   * @param \stdClass|null $schema
+   *   The registered copy, or NULL until doTransform() makes it.
+   */
+  private function remember(string $fingerprint, ?\stdClass $schema): void {
+    unset($this->checkedSchemas[$fingerprint]);
+    $this->checkedSchemas[$fingerprint] = $schema;
+    $this->checkedSchemas = array_slice($this->checkedSchemas, -self::CHECKED_SCHEMA_LIMIT, NULL, TRUE);
+  }
+
+  /**
+   * Fingerprints a decoded schema by value.
+   *
+   * @param mixed $data
+   *   The decoded schema.
+   *
+   * @return string|null
+   *   The fingerprint, or NULL when the value cannot be serialized.
+   */
+  private static function fingerprint(mixed $data): ?string {
+    try {
+      return hash('xxh128', serialize($data));
+    }
+    catch (\Exception $e) {
+      return NULL;
+    }
   }
 
   /**

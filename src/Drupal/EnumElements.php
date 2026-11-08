@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Component\Render\MarkupInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Render\Element\Checkboxes;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
 
 /**
  * Builds the option controls of enums.
@@ -133,9 +135,31 @@ final class EnumElements {
     $options = [];
     foreach ($members as $member) {
       $key = is_float($member) ? (string) $member : self::scalarKey($member);
-      $options[$key] = Labels::markup($mappings[$key] ?? Labels::humanName(is_scalar($member) ? (string) $member : ''));
+      $mapped = $mappings[$key] ?? NULL;
+      $options[$key] = $mapped === NULL ? self::label($member) : Labels::markup($mapped);
     }
     return $options;
+  }
+
+  /**
+   * Gives the label of an enum member that no mapping labels.
+   *
+   * Casting TRUE, FALSE and NULL to a string gives "1" or an empty label,
+   * which leaves the option without an accessible name.
+   *
+   * @param mixed $member
+   *   The scalar enum member.
+   *
+   * @return \Drupal\Component\Render\MarkupInterface|string
+   *   The label.
+   */
+  private static function label(mixed $member): MarkupInterface|string {
+    return match (TRUE) {
+      $member === TRUE => new TranslatableMarkup('True'),
+      $member === FALSE => new TranslatableMarkup('False'),
+      $member === NULL => new TranslatableMarkup('None'),
+      default => Labels::markup(Labels::humanName(is_scalar($member) ? (string) $member : '')),
+    };
   }
 
   /**

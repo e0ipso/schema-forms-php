@@ -98,7 +98,7 @@ class RenderArrayValidatorTest extends TestCase {
           '#va' => [['Foo\Bar', 'validateWithSchema']],
           'fa' => ['#fa' => 'mily'],
         ],
-        TRUE
+        TRUE,
       ],
       // A render property holds any value, not only a string.
       [

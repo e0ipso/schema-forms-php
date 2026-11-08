@@ -27,6 +27,7 @@ use SchemaForms\Drupal\ValidationMessages;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
 /**
@@ -54,6 +55,8 @@ use Shaper\Util\Context;
 #[CoversClass(ValidationMessages::class)]
 final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
 
+  use TranslationContainer;
+
   /**
    * Enums with array or object members render the "cannot be edited" item.
    */
@@ -74,6 +77,12 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
     $this->assertArrayNotHasKey('#schema_fixed_value', $field);
   }
 
+  /**
+   * Provides enums with structured members, which have no options.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function nonScalarEnumProvider(): array {
     $cases = [];
     foreach ([
@@ -114,6 +123,12 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
     $this->assertArrayNotHasKey('#schema_fixed_value', $field);
   }
 
+  /**
+   * Provides saved scalars on compound or union types.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function savedScalarProvider(): array {
     return [
       'string in an array or string union' => [['array', 'string'], 'abc', 'textfield'],

@@ -65,6 +65,9 @@ use SchemaForms\Drupal\WidgetStateStorage;
 #[RunTestsInSeparateProcesses]
 final class PropertyNameSubmissionTest extends SchemaFormsKernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   /**
@@ -100,7 +103,10 @@ final class PropertyNameSubmissionTest extends SchemaFormsKernelTestBase {
       $path[] = $name;
     }
     if ($placement === 'item') {
-      $property = (object) ['type' => 'array', 'items' => (object) ['type' => 'object', 'properties' => (object) [$name => $leaf]]];
+      $property = (object) [
+        'type' => 'array',
+        'items' => (object) ['type' => 'object', 'properties' => (object) [$name => $leaf]],
+      ];
       $input = [$name => [0 => ['removable_element' => [$name => 'x']]]];
       $saved = [$name => [[$name => 'valid']]];
       $path = [...$path, 0, 'removable_element', $name];
@@ -111,6 +117,12 @@ final class PropertyNameSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertStringContainsString('minLength', implode(' ', $result->errors));
   }
 
+  /**
+   * Provides property names that match the widget scaffolding keys.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function widgetNameProvider(): array {
     $cases = [];
     foreach (['add_more', 'remove_one', 'removable_element'] as $name) {

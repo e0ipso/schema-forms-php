@@ -73,6 +73,11 @@ final class FieldBuilder {
     }
     $element['#disabled'] = !$context->enabled;
     $element['#visible'] = (bool) ($context->hints['ui:visible'] ?? TRUE);
+    if (!$element['#visible']) {
+      // Core never reads #visible. Form API submits an inaccessible element's
+      // default value and ignores its input, so the saved value survives.
+      $element['#access'] = FALSE;
+    }
     if ($saved_scalar && $type === $guessed) {
       $element = UnsupportedElement::apply($element, $type, ValidationMessages::mismatchedSavedValue($type));
       $element[RenderKeys::FIXED_VALUE] = $context->currentInput;
@@ -96,6 +101,9 @@ final class FieldBuilder {
   /**
    * Turns the element into the plain text of a constant.
    *
+   * An item element shows the title as a label next to the text; without a
+   * type the text would render with no label at all.
+   *
    * @param array<int|string, mixed> $element
    *   The element.
    * @param mixed $value
@@ -105,7 +113,7 @@ final class FieldBuilder {
    *   The element, which collects no input.
    */
   private function constant(array $element, mixed $value): array {
-    unset($element['#type']);
+    $element['#type'] = 'item';
     $element['#plain_text'] = is_string($value) ? $value : json_encode($value, JSON_THROW_ON_ERROR);
     $element['#input'] = FALSE;
     $element[RenderKeys::FIXED_VALUE] = $value;
@@ -206,8 +214,12 @@ final class FieldBuilder {
     // The paths of nested properties have always used string names, even
     // where the array conversion makes a numeric name an integer key.
     $names = array_map('strval', array_keys($schemas));
+    $required = is_array($context->schema->required ?? NULL) ? $context->schema->required : [];
     $children = array_map(
-      fn (\stdClass $schema, string $name): array => $this->build($context->child($name, $schema, self::childHints($context->hints, $name))),
+      fn (\stdClass $schema, string $name): array => RequiredMarker::nested(
+        $this->build($context->child($name, $schema, self::childHints($context->hints, $name))),
+        in_array($name, $required, TRUE)
+      ),
       $schemas,
       $names
     );

@@ -75,6 +75,9 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 #[RunTestsInSeparateProcesses]
 final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   private const SCHEMA = '{"type":"object","properties":{"name":{"type":"string","title":"Name","minLength":3},"count":{"type":"integer","title":"Count"}}}';
@@ -154,7 +157,12 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
    */
   #[DataProvider('checkboxProvider')]
   public function testCheckboxLists(string $type, array $enum, array $submitted, array $expected): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) ['choices' => (object) ['type' => 'array', 'items' => (object) ['type' => $type, 'enum' => $enum]]]];
+    $schema = (object) [
+      'type' => 'object',
+      'properties' => (object) [
+        'choices' => (object) ['type' => 'array', 'items' => (object) ['type' => $type, 'enum' => $enum]],
+      ],
+    ];
     $result = $this->submitSchemaForm($schema, ['schema' => ['choices' => $submitted]], [], 'schema');
     $this->assertSame([], $result->errors);
     $this->assertSame($expected, $result->values['schema']['choices']);
@@ -163,10 +171,21 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertSame($expected, $seen['schema']['choices']);
   }
 
+  /**
+   * Provides checkbox submissions and the lists they become.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function checkboxProvider(): array {
     return [
       'reversed string selections' => ['string', ['a', 'b', 'c'], ['c' => 'c', 'a' => 'a'], ['a', 'c']],
-      'fractional selections in schema order' => ['number', [0.5, 1.5, 1.75], ['1.75' => '1.75', '0.5' => '0.5'], [0.5, 1.75]],
+      'fractional selections in schema order' => [
+        'number',
+        [0.5, 1.5, 1.75],
+        ['1.75' => '1.75', '0.5' => '0.5'],
+        [0.5, 1.75],
+      ],
       'none checked' => ['string', ['a', 'b'], [], []],
       'checked integer zero' => ['integer', [0, 12, 5], [5 => '5', 0 => '0'], [0, 5]],
       'unchecked integer zero' => ['integer', [0, 12, 5], [12 => '12'], [12]],
@@ -179,7 +198,9 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
    */
   public function testNestedBlankRules(): void {
     $schema = json_decode('{"type":"object","required":["profile"],"properties":{"profile":{"type":"object","required":["needed"],"properties":{"needed":{"type":"string","minLength":1},"optional":{"type":"string","minLength":1},"plain":{"type":"string"},"nullable":{"type":["integer","null"]}}}}}');
-    $result = $this->submitSchemaForm($schema, ['schema' => ['profile' => ['needed' => '', 'optional' => '', 'plain' => '', 'nullable' => '']]], [], 'schema');
+    $result = $this->submitSchemaForm($schema, [
+      'schema' => ['profile' => ['needed' => '', 'optional' => '', 'plain' => '', 'nullable' => '']],
+    ], [], 'schema');
     $this->assertSame(['schema][profile][needed'], array_keys($result->errors));
     $this->assertSame(['needed' => '', 'plain' => '', 'nullable' => NULL], $result->values['schema']['profile']);
   }
@@ -189,7 +210,10 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
    */
   public function testNestedMultivalueInNonTreeHost(): void {
     $schema = json_decode('{"type":"object","properties":{"profile":{"type":"object","properties":{"age":{"type":"integer"}}},"scores":{"type":"array","items":{"type":"integer"}}}}');
-    $values = ['profile' => ['age' => '42'], 'scores' => [0 => ['removable_element' => '7'], 1 => ['removable_element' => '9']]];
+    $values = [
+      'profile' => ['age' => '42'],
+      'scores' => [0 => ['removable_element' => '7'], 1 => ['removable_element' => '9']],
+    ];
     $result = $this->submitSchemaForm($schema, ['schema' => $values], [], 'schema', current_input: ['scores' => [1, 2]]);
     $this->assertFalse($result->form['#tree']);
     $this->assertTrue($result->form['schema']['#tree']);
@@ -210,7 +234,9 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
       $property->const = $value;
     }
     $schema = (object) ['type' => 'object', 'required' => ['fixed'], 'properties' => (object) ['fixed' => $property]];
-    $result = $this->submitSchemaForm($schema, ['schema' => ['fixed' => 'tampered']], [], 'schema', current_input: $constant ? [] : ['fixed' => $value]);
+    $result = $this->submitSchemaForm($schema, ['schema' => ['fixed' => 'tampered']], [], 'schema', current_input: $constant ? [] : [
+      'fixed' => $value,
+    ]);
     $this->assertSame([], $result->errors);
     $this->assertArrayHasKey('fixed', $result->values['schema']);
     $this->assertSame(get_debug_type($value), get_debug_type($result->values['schema']['fixed']));
@@ -218,6 +244,12 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertEmpty($result->form['schema']['fixed']['#required']);
   }
 
+  /**
+   * Provides constants and unsupported values that collect no input.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function fixedValueProvider(): array {
     return [
       'const null' => ['null', NULL, TRUE],
@@ -232,6 +264,9 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     ];
   }
 
+  /**
+   * A required property with no control and no value still fails.
+   */
   public function testUnsupportedMissingValueStillErrors(): void {
     $schema = json_decode('{"type":"object","required":["fixed"],"properties":{"fixed":{"type":"null"}}}');
     $result = $this->submitSchemaForm($schema, ['schema' => []], [], 'schema');
@@ -241,18 +276,21 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertEmpty($result->form['schema']['fixed']['#required']);
   }
 
-
   /**
    * Removed positions do not shift error paths onto another item.
    */
   #[DataProvider('removedDeltaProvider')]
   public function testErrorsAfterRemoval(int $removed, int $invalid): void {
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string","minLength":3}}}}');
-    $values = ['schema' => ['items' => [
+    $values = [
+      'schema' => [
+        'items' => [
       ['removable_element' => 'first'],
       ['removable_element' => 'middle'],
       ['removable_element' => 'last'],
-    ]]];
+        ],
+      ],
+    ];
     $saved = ['items' => ['first', 'middle', 'last']];
     $initial = $this->submitSchemaForm($schema, $values, [], 'schema', current_input: $saved);
     $this->assertSame([], $initial->errors);
@@ -272,6 +310,12 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertTrue(array_is_list($result->values['schema']['items']));
   }
 
+  /**
+   * Provides removed and invalid item positions.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function removedDeltaProvider(): array {
     return ['first' => [0, 2], 'middle' => [1, 2], 'last' => [2, 1]];
   }
@@ -304,7 +348,11 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
       $property->items = (object) ['type' => 'string', 'enum' => ['a', 'b']];
       $property->minItems = $minimum;
     }
-    $schema = (object) ['type' => 'object', 'required' => ['choice'], 'properties' => (object) ['choice' => $property, 'text' => (object) ['type' => 'string']]];
+    $schema = (object) [
+      'type' => 'object',
+      'required' => ['choice'],
+      'properties' => (object) ['choice' => $property, 'text' => (object) ['type' => 'string']],
+    ];
     $result = $this->submitSchemaForm($schema, ['schema' => ['choice' => $expected]], [], 'schema');
     $this->assertSame($expected, $result->values['schema']['choice']);
     if ($minimum) {
@@ -319,10 +367,23 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertStringContainsString('Required choice', $html);
   }
 
+  /**
+   * Provides required properties with empty values.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function requiredEmptyProvider(): array {
-    return ['false boolean' => ['boolean', FALSE, 0], 'empty array' => ['array', [], 0], 'minimum still enforced' => ['array', [], 1]];
+    return [
+      'false boolean' => ['boolean', FALSE, 0],
+      'empty array' => ['array', [], 0],
+      'minimum still enforced' => ['array', [], 1],
+    ];
   }
 
+  /**
+   * A required root textfield still rejects an empty value.
+   */
   public function testRequiredTextfieldStillRejectsEmpty(): void {
     $schema = json_decode('{"type":"object","required":["text"],"properties":{"text":{"type":"string"}}}');
     $result = $this->submitSchemaForm($schema, ['schema' => ['text' => '']], [], 'schema');
@@ -330,13 +391,15 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertSame(['schema][text'], array_keys($result->errors));
   }
 
+  /**
+   * A fractional radio option is saved as a float.
+   */
   public function testFractionalRadioSubmission(): void {
     $schema = json_decode('{"type":"object","properties":{"choice":{"type":"number","enum":[0.5,1.5,1.75]}}}');
     $result = $this->submitSchemaForm($schema, ['schema' => ['choice' => '1.75']], [], 'schema');
     $this->assertSame([], $result->errors);
     $this->assertSame(1.75, $result->values['schema']['choice']);
   }
-
 
   /**
    * Unsupported references become root or container form errors.
@@ -347,7 +410,10 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     file_put_contents($file, '{"type":"string"}');
     try {
       $uri = $scheme === 'file' ? 'file://' . $file : $scheme . '://127.0.0.1:9/sentinel.json';
-      $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => (object) ['type' => 'string', '$ref' => $uri]]];
+      $schema = (object) [
+        'type' => 'object',
+        'properties' => (object) ['field' => (object) ['type' => 'string', '$ref' => $uri]],
+      ];
       $result = $this->submitSchemaForm($schema, $parent === NULL ? [] : [$parent => []], [], $parent);
       $this->assertSame([$parent ?? ''], array_keys($result->errors));
       $this->assertStringContainsString('unsupported reference', implode(' ', $result->errors));
@@ -357,11 +423,20 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     }
   }
 
+  /**
+   * Provides refused reference schemes and container placements.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function rejectedReferenceProvider(): array {
     return [
-      'file root' => ['file', NULL], 'file container' => ['file', 'schema'],
-      'http root' => ['http', NULL], 'http container' => ['http', 'schema'],
-      'https root' => ['https', NULL], 'https container' => ['https', 'schema'],
+      'file root' => ['file', NULL],
+      'file container' => ['file', 'schema'],
+      'http root' => ['http', NULL],
+      'http container' => ['http', 'schema'],
+      'https root' => ['https', NULL],
+      'https container' => ['https', 'schema'],
     ];
   }
 
@@ -382,7 +457,10 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
       $path[] = $name;
     }
     if ($placement === 'gapped') {
-      $property = (object) ['type' => 'array', 'items' => (object) ['type' => 'object', 'properties' => (object) [$name => $leaf]]];
+      $property = (object) [
+        'type' => 'array',
+        'items' => (object) ['type' => 'object', 'properties' => (object) [$name => $leaf]],
+      ];
       $input = [$name => [2 => ['removable_element' => [$name => 'x']]]];
       $saved = [$name => [2 => [$name => 'valid']]];
       FormGeneratorDrupal::setPropFormState([$name], $name, $state, ['items_indices' => [2]]);
@@ -399,6 +477,12 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertSame($path, $element['#parents']);
   }
 
+  /**
+   * Provides property names that Form API scaffolding also uses.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function specialPropertyProvider(): array {
     $cases = [];
     foreach (['a/b', 'a~b', 'a%b', 'a~/b%'] as $name) {
@@ -423,6 +507,12 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $this->assertSame($expected, $seen['schema']['choice']);
   }
 
+  /**
+   * Provides untyped enum members and their submitted keys.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function untypedEnumProvider(): array {
     return [
       'boolean true' => [[FALSE, TRUE], '1', TRUE],
@@ -442,6 +532,9 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     ];
   }
 
+  /**
+   * Checked FALSE and integer members of an untyped enum keep their types.
+   */
   public function testUntypedEnumCheckboxZero(): void {
     $schema = json_decode('{"type":"object","properties":{"choices":{"type":"array","items":{"enum":[false,12,"a"]}}}}');
     $result = $this->submitSchemaForm($schema, ['schema' => ['choices' => [12 => '12', 0 => '0']]], [], 'schema');

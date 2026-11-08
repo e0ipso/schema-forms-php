@@ -15,11 +15,20 @@ use SchemaForms\Drupal\JsonShape;
 #[CoversClass(JsonShape::class)]
 final class JsonShapeTest extends TestCase {
 
+  /**
+   * Saved values keep the JSON shape their schema gives them.
+   */
   #[DataProvider('shapeProvider')]
   public function testShape(mixed $data, string $schema, string $json): void {
     $this->assertSame($json, json_encode(JsonShape::fromSchema($data, json_decode($schema))));
   }
 
+  /**
+   * Provides schemas and saved values with the JSON shape they keep.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function shapeProvider(): array {
     $nested = '{"type":"object","properties":{"o":{"type":"object","properties":{"0":{"type":"string"}}},"l":{"type":"array","items":{"type":"object"}}}}';
     return [

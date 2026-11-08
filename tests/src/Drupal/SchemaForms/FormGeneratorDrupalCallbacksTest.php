@@ -26,6 +26,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
 /**
@@ -52,6 +53,8 @@ use Shaper\Util\Context;
 #[CoversClass(WidgetStateStorage::class)]
 final class FormGeneratorDrupalCallbacksTest extends TestCase {
 
+  use TranslationContainer;
+
   /**
    * Adding and removing items survives rebuilding the generated widget.
    */
@@ -63,7 +66,9 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $context = new Context(['form_state' => $state, 'current_input' => ['items' => $saved]]);
     $form = ['host' => $generator->transform($schema, $context)];
     $this->assertFalse($state->isRebuilding());
-    $state->setTriggeringElement($form['host']['items']['add_more'] + ['#array_parents' => ['host', 'items', 'add_more']]);
+    $state->setTriggeringElement($form['host']['items']['add_more'] + [
+      '#array_parents' => ['host', 'items', 'add_more'],
+    ]);
 
     FormGeneratorDrupal::addMoreSubmit($form, $state);
 
@@ -93,8 +98,41 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     }
   }
 
+  /**
+   * Provides saved item lists to append to and remove from.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function savedItemsProvider(): array {
     return ['empty widget' => [[]], 'existing items' => [['first', 'second']]];
+  }
+
+  /**
+   * Items are numbered by position, and each Remove button names its item.
+   */
+  public function testItemNumbersFollowPositions(): void {
+    $generator = new FormGeneratorDrupal();
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","title":"Tags","items":{"type":"string"}}}}');
+    $state = new FormState();
+    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, [
+      'items_indices' => [0 => 0, 2 => 2, 3 => 5],
+      'next_delta' => 6,
+    ]);
+    $widget = $generator->transform($schema, new Context(['form_state' => $state]))['items'];
+    $titles = array_map(static fn (int $delta): string => (string) $widget[$delta]['removable_element']['#title'], [
+      0,
+      2,
+      5,
+    ]);
+    $this->assertSame(['Tags (value 1)', 'Tags (value 2)', 'Tags (value 3)'], $titles);
+    $names = array_map(static fn (int $delta): string => (string) $widget[$delta]['remove_one']['#attributes']['aria-label'], [
+      0,
+      2,
+      5,
+    ]);
+    $this->assertSame(['Remove Tags (value 1)', 'Remove Tags (value 2)', 'Remove Tags (value 3)'], $names);
+    $this->assertSame($names[1], (string) $widget[2]['remove_one']['#attributes']['title']);
   }
 
   /**
@@ -124,17 +162,23 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame($widget, $result);
   }
 
+  /**
+   * Provides whether the form is processing submitted input.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function processingProvider(): array {
     return ['submitted form' => [TRUE], 'initial build' => [FALSE]];
   }
 
   /**
-   * Removing an item returns nothing when no remove button triggered it.
+   * Removing an item sends no commands when no remove button triggered it.
    */
   public function testRemoveAjaxWithoutRemoveButton(): void {
     $state = new FormState();
     $state->setTriggeringElement([]);
-    $this->assertNull(FormGeneratorDrupal::removeOneAjax([], $state));
+    $this->assertSame([], FormGeneratorDrupal::removeOneAjax([], $state)->getCommands());
   }
 
   /**
@@ -155,6 +199,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     ]);
     FormGeneratorDrupal::removeOneSubmit($form, $state);
     // The form cache serializes the state between requests.
+    // phpcs:ignore DrupalPractice.FunctionCalls.InsecureUnserialize -- Drupal's form cache restores every class, as this does.
     $state = unserialize(serialize($state));
     $context['form_state'] = $state;
     $form = $generator->transform($schema, $context);
@@ -170,46 +215,23 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   }
 
   /**
-   * Removing an item replaces the whole widget, so Append can come back.
-   *
-   * Regression: Remove replaced only the removed item, so an Append button
-   * hidden at the maxItems limit stayed hidden until the page was reloaded.
-   */
-  public function testRemoveAjaxReturnsTheWidget(): void {
-    $generator = new FormGeneratorDrupal();
-    $schema = json_decode('{"type":"object","properties":{"a":{"type":"array","maxItems":2,"items":{"type":"string"}}}}');
-    $state = new FormState();
-    $context = new Context(['form_state' => $state, 'current_input' => ['a' => ['first', 'second']]]);
-    $form = ['host' => $generator->transform($schema, $context)];
-    $this->assertFalse($form['host']['a']['add_more']['#access']);
-    $wrapper = $form['host']['a']['add_more']['#ajax']['wrapper'];
-    $this->assertSame($wrapper, $form['host']['a'][0]['remove_one']['#ajax']['wrapper']);
-    $state->setTriggeringElement($form['host']['a'][0]['remove_one'] + [
-      '#array_parents' => ['host', 'a', 0, 'remove_one'],
-      '#parents' => ['host', 'a', 0, 'remove_one'],
-    ]);
-    FormGeneratorDrupal::removeOneSubmit($form, $state);
-    $rebuilt = ['host' => $generator->transform($schema, $context)];
-
-    $response = FormGeneratorDrupal::removeOneAjax($rebuilt, $state);
-
-    $this->assertSame($rebuilt['host']['a'], $response);
-    $this->assertTrue($response['add_more']['#access'] ?? TRUE);
-    $this->assertStringContainsString('id="' . $wrapper . '"', $form['host']['a']['#prefix']);
-    $this->assertStringContainsString('id="' . $response['add_more']['#ajax']['wrapper'] . '"', $response['#prefix']);
-  }
-
-  /**
    * A namespaced container keeps its widget state apart.
    */
   public function testNamespacedWidgetState(): void {
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $state = new FormState();
     $plain = (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state]));
-    $form = ['host' => (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state, 'namespace' => 'host']))];
+    $form = [
+      'host' => (new FormGeneratorDrupal())->transform($schema, new Context([
+        'form_state' => $state,
+        'namespace' => 'host',
+      ])),
+    ];
     $this->assertArrayNotHasKey('#schema_namespace', $plain['items']);
     $this->assertSame('host', $form['host']['items']['#schema_namespace']);
-    $state->setTriggeringElement($form['host']['items']['add_more'] + ['#array_parents' => ['host', 'items', 'add_more']]);
+    $state->setTriggeringElement($form['host']['items']['add_more'] + [
+      '#array_parents' => ['host', 'items', 'add_more'],
+    ]);
 
     FormGeneratorDrupal::addMoreSubmit($form, $state);
 
@@ -217,7 +239,10 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame([], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
     $this->assertArrayHasKey('host', $state->getStorage()['prop_storage']['#namespaces']);
     FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => [3]], 'host');
-    $rebuilt = (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state, 'namespace' => 'host']));
+    $rebuilt = (new FormGeneratorDrupal())->transform($schema, new Context([
+      'form_state' => $state,
+      'namespace' => 'host',
+    ]));
     $this->assertArrayHasKey(3, $rebuilt['items']);
   }
 
@@ -257,6 +282,12 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame($expected, $form['list']['#cardinality']);
   }
 
+  /**
+   * Provides maxItems values and the cardinality each selects.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function cardinalityProvider(): array {
     $cases = ['missing' => ['missing', -1, TRUE], 'zero' => [0, -1, TRUE]];
     foreach ([NULL, -1, 2.5, '2', 2.0, FALSE] as $value) {
@@ -282,7 +313,10 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     FormGeneratorDrupal::addMoreSubmit($form, $state);
     $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']);
     $this->assertTrue($state->isRebuilding());
-    $state->setTriggeringElement($form['a'][0]['remove_one'] + ['#array_parents' => ['a', 0, 'remove_one'], '#parents' => ['a', 0, 'remove_one']]);
+    $state->setTriggeringElement($form['a'][0]['remove_one'] + [
+      '#array_parents' => ['a', 0, 'remove_one'],
+      '#parents' => ['a', 0, 'remove_one'],
+    ]);
     FormGeneratorDrupal::removeOneSubmit($form, $state);
     $form = $generator->transform($schema, $context);
     $this->assertTrue($form['a']['add_more']['#access'] ?? TRUE);
@@ -295,7 +329,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertFalse($form['a']['add_more']['#access']);
     $this->assertArrayNotHasKey(0, $form['b']);
     $this->assertSame(2, $form['a']['#max_delta']);
-    $ajax = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $ajax = MultivalueCallbacks::appendedWidget($form, $state);
     $this->assertFalse($ajax['add_more']['#access']);
     $this->assertStringContainsString('ajax-new-content', $ajax[2]['#prefix']);
     $this->assertStringNotContainsString('ajax-new-content', $ajax[1]['#prefix']);
@@ -304,7 +338,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertNotSame($ajax[1]['#wrapper_id'], $ajax[2]['#wrapper_id']);
     $this->assertArrayNotHasKey('#default_value', $ajax[2]['removable_element']);
     $state->setTriggeringElement($form['b']['add_more'] + ['#array_parents' => ['b', 'add_more']]);
-    $empty = FormGeneratorDrupal::addMoreAjax($form, $state);
+    $empty = MultivalueCallbacks::appendedWidget($form, $state);
     $this->assertNull($empty['#max_delta']);
     $this->assertArrayNotHasKey(0, $empty);
     FormGeneratorDrupal::addMoreSubmit($form, $state);

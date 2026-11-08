@@ -56,6 +56,9 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
 
   use ConstantSchemas;
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   private const LABEL = '<img src="x" onerror="alert(1)"><em>emphasis</em><strong>strong</strong><a href="https://example.com">link</a>';
@@ -90,6 +93,12 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
     $this->assertStringContainsString('<a href="https://example.com">link</a>', $html);
   }
 
+  /**
+   * Provides the sources an untrusted label can come from.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function labelProvider(): array {
     return [
       'schema title' => ['schema title'],
@@ -100,16 +109,22 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * Constant markup escapes text and JSON and renders no input.
+   * Constant markup escapes text and JSON, labels it and renders no input.
    */
   #[DataProvider('renderedConstantProvider')]
   public function testRenderedConstants(mixed $value, string $text): void {
     $form = (new FormGeneratorDrupal())->transform(self::constantSchema($value));
     $html = (string) $this->container->get('renderer')->renderInIsolation($form['fixed']);
-    $this->assertSame(Html::escape($text), $html);
+    $this->assertMatchesRegularExpression('@<label[^>]*>Fixed</label>\s*' . preg_quote(Html::escape($text), '@') . '\s*</div>@', $html);
     $this->assertStringNotContainsString('<input', $html);
   }
 
+  /**
+   * Provides constants with the text they render.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function renderedConstantProvider(): array {
     return self::constantProvider() + [
       'unsafe array' => [['<img src=x onerror=alert(1)>'], '["<img src=x onerror=alert(1)>"]'],

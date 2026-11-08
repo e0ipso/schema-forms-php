@@ -232,7 +232,10 @@ final class UserInputCleanerTest extends TestCase {
         [[], ['kept']],
       ],
       'a saved NULL item is kept in place' => [
-        [0 => self::emptyListItem(['#schema_saved_null' => TRUE]), 2 => self::emptyListItem(['#default_value' => ['kept']])],
+        [
+          0 => self::emptyListItem(['#schema_saved_null' => TRUE]),
+          2 => self::emptyListItem(['#default_value' => ['kept']]),
+        ],
         $submitted,
         [[], ['kept']],
       ],

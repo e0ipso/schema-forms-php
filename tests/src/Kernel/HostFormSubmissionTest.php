@@ -66,6 +66,9 @@ use SchemaForms\Tests\Kernel\Form\SubformSchemaForm;
 #[RunTestsInSeparateProcesses]
 final class HostFormSubmissionTest extends SchemaFormsKernelTestBase {
 
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   private const SCHEMA = '{"type":"object","properties":{"name":{"type":"string","title":"Name","minLength":3},"count":{"type":"integer","title":"Count"}}}';
@@ -87,6 +90,12 @@ final class HostFormSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertSame(['name' => $name, 'count' => 5], $seen['settings']['schema']);
   }
 
+  /**
+   * Provides valid and invalid subform submissions.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function subformProvider(): array {
     return [
       'valid' => ['Chuck', []],
