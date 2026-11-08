@@ -20,7 +20,8 @@ use Shaper\Validator\ValidateableInterface;
  *
  * Call transform() to build a form. The public methods other than
  * transform(), getInputValidator() and getOutputValidator() are Form API
- * callbacks that the generated render arrays name; they are internal.
+ * callbacks that the generated render arrays name. They stay public for
+ * forms built by earlier releases; host code does not call them.
  *
  * @api
  */
@@ -68,8 +69,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>
    *   The generated container.
-   *
-   * @internal
    */
   public function doTransform($data, ?Context $context = NULL): array {
     try {
@@ -118,14 +117,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Validates a generated container against its schema.
    *
-   * The #element_validate callback of the generated container.
+   * The #element_validate callback of the generated container. Form API
+   * calls it; callers build forms with transform().
    *
    * @param array<int|string, mixed> $element
    *   The generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
     $schema = $element[RenderKeys::SCHEMA] ?? NULL;
@@ -156,14 +154,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * and the values of elements the module added next to the generated ones.
    * Only the schema's properties are validated, so those keys cannot fail a
    * schema that forbids additional properties. The other values are put
-   * back afterwards.
+   * back afterwards. Form API calls it; callers build forms with transform().
    *
    * @param array<int|string, mixed> $form
    *   The form, which is the generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public function validateFormWithSchema(array &$form, FormStateInterface $form_state): void {
     $schema = $form[RenderKeys::SCHEMA] ?? NULL;
@@ -185,15 +181,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Limits Append validation to the widget's final form value path.
    *
-   * The #process callback of multivalue widgets.
+   * The #process callback of multivalue widgets. Form API calls it; callers
+   * build forms with transform().
    *
    * @param array<int|string, mixed> $element
    *   The widget, with its Form API parents assigned.
    *
    * @return array<int|string, mixed>
    *   The widget.
-   *
-   * @internal
    */
   public static function multiValueProcess(array $element): array {
     return MultivalueCallbacks::process($element);
@@ -202,7 +197,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Cleans the widget value and records where the widget was built.
    *
-   * The #after_build callback of multivalue widgets.
+   * The #after_build callback of multivalue widgets. Form API calls it;
+   * callers build forms with transform().
    *
    * @param array<int|string, mixed> $element
    *   The widget.
@@ -211,8 +207,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>
    *   The widget.
-   *
-   * @internal
    */
   public static function multiValueAfterBuild(array $element, FormStateInterface $form_state): array {
     return MultivalueCallbacks::afterBuild($element, $form_state);
@@ -221,12 +215,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Removes an item; the #submit callback of Remove buttons.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public static function removeOneSubmit(array $form, FormStateInterface $form_state): void {
     MultivalueCallbacks::removeSubmit($form, $form_state);
@@ -235,6 +229,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Returns the rebuilt widget; the #ajax callback of Remove buttons.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
@@ -242,8 +238,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>|null
    *   The widget, or NULL when no Remove button triggered the request.
-   *
-   * @internal
    */
   public static function removeOneAjax(array $form, FormStateInterface $form_state): ?array {
     return MultivalueCallbacks::removeAjax($form, $form_state);
@@ -252,12 +246,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Appends an item; the #submit callback of Append buttons.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public static function addMoreSubmit(array $form, FormStateInterface $form_state): void {
     MultivalueCallbacks::appendSubmit($form, $form_state);
@@ -266,6 +260,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Returns the rebuilt widget; the #ajax callback of Append buttons.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
@@ -273,8 +269,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>
    *   The widget.
-   *
-   * @internal
    */
   public static function addMoreAjax(array $form, FormStateInterface $form_state): array {
     return MultivalueCallbacks::appendAjax($form, $form_state);
@@ -283,12 +277,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Turns checked keys into a list; the #element_validate of checkboxes.
    *
+   * Form API calls it; callers build forms with transform().
+   *
    * @param array<int|string, mixed> $element
    *   The checkboxes element.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   *
-   * @internal
    */
   public static function validateCheckboxes(array &$element, FormStateInterface $form_state): void {
     EnumElements::validateCheckboxes($element, $form_state);
@@ -296,6 +290,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
   /**
    * Gets the stored state of a multivalue widget.
+   *
+   * The multivalue widget callbacks use it; callers build forms with
+   * transform().
    *
    * @param array<mixed> $parents
    *   The schema path of the widget.
@@ -308,8 +305,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return mixed
    *   The stored array, with 'items_indices' and 'array_parents', or NULL.
-   *
-   * @internal
    */
   public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, ?string $namespace = NULL): mixed {
     return WidgetStateStorage::get($form_state, $parents, $prop_name, $namespace);
@@ -317,6 +312,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
   /**
    * Stores the state of a multivalue widget.
+   *
+   * The multivalue widget callbacks use it; callers build forms with
+   * transform().
    *
    * @param array<mixed> $parents
    *   The schema path of the widget.
@@ -328,8 +326,6 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The state to store.
    * @param string|null $namespace
    *   The 'namespace' context key the container was built with, if any.
-   *
-   * @internal
    */
   public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
     WidgetStateStorage::set($form_state, $parents, $prop_name, $prop_state, $namespace);
