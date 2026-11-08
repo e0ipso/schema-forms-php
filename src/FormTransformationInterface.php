@@ -12,7 +12,10 @@ use Shaper\Util\Context;
  *
  * Type-hint this interface in code that only builds forms. A replacement
  * generator then needs this one method; FormGeneratorInterface adds the
- * Shaper validation methods, which only Shaper pipelines call.
+ * Shaper validation methods, which only Shaper pipelines call. Extend
+ * FormTransformationContractTestCase to check an implementation.
+ *
+ * @see \SchemaForms\Testing\FormTransformationContractTestCase
  *
  * @api
  */
