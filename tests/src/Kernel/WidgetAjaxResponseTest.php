@@ -88,6 +88,19 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
   }
 
   /**
+   * Without a triggering widget, Append names no selector it cannot fill.
+   */
+  public function testAppendWithoutWidget(): void {
+    $result = $this->browserSubmit($this->form(['a']));
+    $result->formState->setTriggeringElement([]);
+
+    $commands = FormGeneratorDrupal::addMoreAjax($result->form, $result->formState)->getCommands();
+
+    $this->assertSame(['insert', 'insert'], array_column($commands, 'command'));
+    $this->assertNull($commands[1]['selector']);
+  }
+
+  /**
    * Remove focuses the item that took the removed item's place.
    */
   public function testRemoveFocusesTheNextItem(): void {

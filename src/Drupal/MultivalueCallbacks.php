@@ -28,12 +28,14 @@ final class MultivalueCallbacks {
    *   The widget, with its Form API parents assigned.
    *
    * @return array<int|string, mixed>
-   *   The widget.
+   *   The widget. An element without an Append button is returned as it
+   *   is, instead of gaining a button with no type.
    */
   public static function process(array $element): array {
-    $button = is_array($element[RenderKeys::APPEND_BUTTON] ?? NULL) ? $element[RenderKeys::APPEND_BUTTON] : [];
-    $button['#limit_validation_errors'] = [$element['#parents'] ?? []];
-    $element[RenderKeys::APPEND_BUTTON] = $button;
+    if (!is_array($element[RenderKeys::APPEND_BUTTON] ?? NULL)) {
+      return $element;
+    }
+    $element[RenderKeys::APPEND_BUTTON]['#limit_validation_errors'] = [$element['#parents'] ?? []];
     return $element;
   }
 
@@ -46,9 +48,13 @@ final class MultivalueCallbacks {
    *   The form state.
    *
    * @return array<int|string, mixed>
-   *   The widget.
+   *   The widget. Any other element is returned untouched, so that no state
+   *   is stored for a widget that does not exist.
    */
   public static function afterBuild(array $element, FormStateInterface $form_state): array {
+    if (!MultivalueWidget::is($element)) {
+      return $element;
+    }
     // Each widget cleans its own value here, before any ancestor's after-build
     // runs, so the schema bridge and the submit handlers of buttons that skip
     // it both receive a plain item list.
@@ -121,10 +127,14 @@ final class MultivalueCallbacks {
    */
   public static function appendSubmit(array $form, FormStateInterface $form_state): void {
     $widget = self::widget($form, self::triggeringButton($form_state), 1);
+    $form_state->setRebuild();
+    // Without its widget, the item would go to a state no widget reads.
+    if (!MultivalueWidget::is($widget)) {
+      return;
+    }
     $location = WidgetLocation::ofWidget($widget);
     $storage = new WidgetStateStorage($form_state);
     $state = $storage->load($location);
-    $form_state->setRebuild();
     $cardinality = $widget[RenderKeys::CARDINALITY] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
     // A forced submission of a hidden button cannot exceed the limit either.
     if ($state->isFull(is_int($cardinality) ? $cardinality : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED)) {
