@@ -1,28 +1,61 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Tests\Drupal;
 
+use Drupal\Component\Utility\Html;
+use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\Core\StringTranslation\TranslationInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use SchemaForms\Drupal\ElementDataPaths;
+use SchemaForms\Drupal\ErrorElementMapper;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormValidatorDrupal;
+use SchemaForms\Drupal\MultivalueWidget;
+use SchemaForms\Drupal\SubmissionPreparer;
+use SchemaForms\Drupal\SubmissionValidator;
+use SchemaForms\Drupal\SubmittedValue;
+use SchemaForms\Drupal\ValidationMessages;
 
 /**
  * Unit tests for the \SchemaForms\Drupal\FormValidatorDrupal class.
  *
- * The form state is a real \Drupal\Core\Form\FormState. It needs no container
- * as long as no TranslatableMarkup is rendered, so errors are asserted through
- * their untranslated string and arguments.
+ * The form state is a real \Drupal\Core\Form\FormState. Errors are rendered
+ * with a translator that returns each string untranslated, so assertions
+ * see the markup a site in English would show.
  *
  * @package SchemaForms
  */
 #[CoversClass(FormValidatorDrupal::class)]
 #[CoversClass(FormGeneratorDrupal::class)]
-class FormValidatorDrupalTest extends TestCase {
+#[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(SubmissionValidator::class)]
+#[CoversClass(ErrorElementMapper::class)]
+#[CoversClass(ElementDataPaths::class)]
+#[CoversClass(MultivalueWidget::class)]
+#[CoversClass(SubmittedValue::class)]
+#[CoversClass(ValidationMessages::class)]
+final class FormValidatorDrupalTest extends TestCase {
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function setUp(): void {
+    parent::setUp();
+    $translator = $this->createMock(TranslationInterface::class);
+    $translator->method('translateString')->willReturnCallback(
+      static fn (TranslatableMarkup $markup): string => $markup->getUntranslatedString()
+    );
+    $container = new ContainerBuilder();
+    $container->set('string_translation', $translator);
+    \Drupal::setContainer($container);
+  }
 
   /**
    * {@inheritdoc}
@@ -30,6 +63,7 @@ class FormValidatorDrupalTest extends TestCase {
   protected function tearDown(): void {
     // FormState records "any errors" in a static. Reset it between tests.
     (new FormState())->clearErrors();
+    \Drupal::unsetContainer();
     parent::tearDown();
   }
 
@@ -74,19 +108,44 @@ class FormValidatorDrupalTest extends TestCase {
   }
 
   /**
-   * Reduces the errors on a form state to their arguments.
+   * Renders the errors on a form state.
    *
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array
-   *   The arguments of each error's markup, keyed by the error name.
+   * @return array<string, string>
+   *   The rendered errors, keyed by the error name.
    */
-  private static function errorArguments(FormStateInterface $form_state): array {
-    return array_map(
-      static fn (TranslatableMarkup $error) => $error->getArguments(),
-      $form_state->getErrors()
-    );
+  private static function renderedErrors(FormStateInterface $form_state): array {
+    return array_map('strval', $form_state->getErrors());
+  }
+
+  /**
+   * Renders the error for an element that shows the violation.
+   *
+   * @param string $title
+   *   The element title.
+   * @param string $violation
+   *   The violation, as plain text.
+   *
+   * @return string
+   *   The markup.
+   */
+  private static function elementError(string $title, string $violation): string {
+    return '<em class="placeholder">' . $title . '</em>: ' . Html::escape($violation);
+  }
+
+  /**
+   * Renders the error for violations no element shows.
+   *
+   * @param string $violations
+   *   The violations, as plain text.
+   *
+   * @return string
+   *   The markup.
+   */
+  private static function containerError(string $violations): string {
+    return '<p>Invalid data, please make sure all data is valid according to the schema. Schema validation returned the following errors: ' . Html::escape($violations) . '</p>';
   }
 
   /**
@@ -204,30 +263,50 @@ class FormValidatorDrupalTest extends TestCase {
     // Library releases differ in whether minItems reports the actual count.
     $messages = [$message, str_replace(', 0 found', '', $message)];
     $this->assertContains(
-      self::errorArguments($form_state),
-      array_map(static fn(string $expected) => ['data' => ['@full_message' => $expected]], $messages)
+      self::renderedErrors($form_state),
+      array_map(static fn (string $expected): array => ['data' => self::containerError($expected)], $messages)
     );
   }
 
   /**
-   * Tests that the raw user input is validated when there is no value.
+   * Tests that the stored value is validated, never the raw user input.
+   *
+   * Regression: with no stored value the raw input was validated, so input
+   * that was never cleaned, cast or stored could satisfy the schema.
    */
-  public function testUserInputFallback(): void {
-    $schema = json_decode('{"type":"object","properties":{"foo":{"type":"integer"}}}');
+  #[DataProvider('dataProviderRawInputIgnored')]
+  public function testRawInputIsNotValidated(array $values, array $input, string $expected): void {
+    $schema = json_decode('{"type":"object","required":["foo"],"properties":{"foo":{"type":"integer"}}}');
     $element = self::element(['data'], 'Data', [
       'foo' => self::element(['data', 'foo'], 'Foo'),
     ]);
-    $form_state = self::formState([], ['data' => ['foo' => 'abc']]);
+    $form_state = self::formState($values, $input);
     FormValidatorDrupal::validateWithSchema($element, $form_state, $schema);
-    $this->assertSame(
-      [
-        'data][foo' => [
-          '%element' => 'Foo',
-          '@message' => 'String value found, but an integer is required [JSON Schema violation of "type"]',
-        ],
+    // The json-schema majors place a "required" error differently.
+    $errors = implode(' ', self::renderedErrors($form_state));
+    $this->assertSame($expected === '', $errors === '');
+    $this->assertStringContainsString($expected, $errors);
+  }
+
+  /**
+   * Data provider for testRawInputIsNotValidated.
+   *
+   * @return array
+   *   The data.
+   */
+  public static function dataProviderRawInputIgnored(): array {
+    return [
+      'raw input cannot satisfy the schema' => [
+        [],
+        ['data' => ['foo' => 3]],
+        Html::escape('The property foo is required [JSON Schema violation of "required"]'),
       ],
-      self::errorArguments($form_state)
-    );
+      'raw input cannot fail the schema' => [
+        ['data' => ['foo' => 3]],
+        ['data' => ['foo' => 'abc']],
+        '',
+      ],
+    ];
   }
 
   /**
@@ -236,17 +315,20 @@ class FormValidatorDrupalTest extends TestCase {
    * The element sits below a parent that is not part of the data, and the
    * multivalue item carries the remove button nesting: the pointer /list/0
    * maps to the item's removable_element, and the buttons are not mapped.
+   * The widget and its buttons carry the markers the generator gives them.
    */
   public function testErrorsOnMappedElements(): void {
     $schema = json_decode('{"type":"object","properties":{"foo":{"type":"integer"},"list":{"type":"array","items":{"type":"string","minLength":3}}}}');
     $element = self::element(['wrapper', 'data'], 'Data', [
       'foo' => self::element(['wrapper', 'data', 'foo'], 'Foo'),
       'list' => self::element(['wrapper', 'data', 'list'], 'List', [
+        '#max_delta' => 0,
         0 => self::element(['wrapper', 'data', 'list', 0], 'Item wrapper', [
+          '#type' => 'container',
           'removable_element' => self::element(['wrapper', 'data', 'list', 0, 'removable_element'], 'Item'),
-          'remove_one' => self::element(['wrapper', 'data', 'list', 0, 'remove_one'], 'Remove'),
+          'remove_one' => self::element(['wrapper', 'data', 'list', 0, 'remove_one'], 'Remove', ['#type' => 'submit']),
         ]),
-        'add_more' => self::element(['wrapper', 'data', 'list', 'add_more'], 'Append an item'),
+        'add_more' => self::element(['wrapper', 'data', 'list', 'add_more'], 'Append an item', ['#type' => 'submit']),
       ]),
     ]);
     $form_state = self::formState(['wrapper' => ['data' => ['foo' => 'abc', 'list' => ['ab']]]]);
@@ -256,52 +338,57 @@ class FormValidatorDrupalTest extends TestCase {
     $this->assertSame('%element: @message', $errors['wrapper][data][foo']->getUntranslatedString());
     $this->assertSame(
       [
-        'wrapper][data][foo' => [
-          '%element' => 'Foo',
-          '@message' => 'String value found, but an integer is required [JSON Schema violation of "type"]',
-        ],
-        'wrapper][data][list][0][removable_element' => [
-          '%element' => 'Item',
-          '@message' => 'Must be at least 3 characters long [JSON Schema violation of "minLength"]',
-        ],
+        'wrapper][data][foo' => self::elementError('Foo', 'String value found, but an integer is required [JSON Schema violation of "type"]'),
+        'wrapper][data][list][0][removable_element' => self::elementError('Item', 'Must be at least 3 characters long [JSON Schema violation of "minLength"]'),
       ],
-      self::errorArguments($form_state)
+      self::renderedErrors($form_state)
     );
   }
 
   /**
-   * Data provider for testConstraintSuffix.
+   * Data provider for testConstraintName.
    *
    * @return array
    *   The data.
    */
-  public static function dataProviderConstraintSuffix(): array {
+  public static function dataProviderConstraintName(): array {
     return [
       'json-schema 5.x names the constraint with a string' => [
         ['constraint' => 'minLength'],
-        ' [JSON Schema violation of "minLength"]',
+        'minLength',
       ],
       'json-schema 6.x names the constraint in an array' => [
         ['constraint' => ['name' => 'minLength', 'params' => ['minLength' => 3]]],
-        ' [JSON Schema violation of "minLength"]',
+        'minLength',
       ],
-      'an array constraint without a name' => [['constraint' => ['params' => []]], ''],
-      'an empty constraint name' => [['constraint' => ''], ''],
-      'a NULL constraint' => [['constraint' => NULL], ''],
-      'no constraint at all' => [[], ''],
+      'an array constraint without a name' => [['constraint' => ['params' => []]], NULL],
+      'an empty constraint name' => [['constraint' => ''], NULL],
+      'a NULL constraint' => [['constraint' => NULL], NULL],
+      'no constraint at all' => [[], NULL],
     ];
   }
 
   /**
-   * Tests the constraint suffix for both json-schema error shapes.
+   * Tests the constraint name for both json-schema error shapes.
    *
    * Only json-schema 6.x is installed, so the 5.x string shape cannot reach
    * this method through the validator. It is called directly instead.
    */
-  #[DataProvider('dataProviderConstraintSuffix')]
-  public function testConstraintSuffix(array $error, string $expected): void {
-    $method = new \ReflectionMethod(FormValidatorDrupal::class, 'constraintSuffix');
+  #[DataProvider('dataProviderConstraintName')]
+  public function testConstraintName(array $error, ?string $expected): void {
+    $method = new \ReflectionMethod(ErrorElementMapper::class, 'constraintName');
     $this->assertSame($expected, $method->invoke(NULL, $error));
+  }
+
+  /**
+   * Tests that a violation without a constraint name has no suffix.
+   */
+  public function testViolationWithoutConstraint(): void {
+    $this->assertSame('Plain message', ValidationMessages::violation('Plain message', NULL));
+    $this->assertSame(
+      'A &lt;b&gt; [JSON Schema violation of &quot;type&quot;]',
+      (string) ValidationMessages::violation('A <b>', 'type')
+    );
   }
 
   /**
@@ -319,13 +406,8 @@ class FormValidatorDrupalTest extends TestCase {
     $this->assertSame(['count' => 3, 'label' => 'ab'], $form_state->getValue('data'));
     // The validation set the error on the element.
     $this->assertSame(
-      [
-        'data][label' => [
-          '%element' => 'Label',
-          '@message' => 'Must be at least 3 characters long [JSON Schema violation of "minLength"]',
-        ],
-      ],
-      self::errorArguments($form_state)
+      ['data][label' => self::elementError('Label', 'Must be at least 3 characters long [JSON Schema violation of "minLength"]')],
+      self::renderedErrors($form_state)
     );
   }
 
@@ -342,28 +424,24 @@ class FormValidatorDrupalTest extends TestCase {
 
   /**
    * Unmatched messages are joined once without an empty title.
+   *
+   * Each violation is escaped exactly once: the validator's message and the
+   * quoted constraint name, but not the markup of the joined list.
    */
   public function testUnmatchedErrorsAreJoinedAndEscapedOnce(): void {
     $element = self::element(['schema'], '');
     $state = self::formState(['schema' => []]);
-    $schema = json_decode('{"type":"object","required":["first","second"]}');
+    $schema = json_decode('{"type":"object","required":["first","a&b"]}');
     FormValidatorDrupal::validateWithSchema($element, $state, $schema);
     $errors = $state->getErrors();
     $this->assertSame(['schema'], array_keys($errors));
-    $error = $errors['schema'];
-    $this->assertStringNotContainsString('errors errors', $error->getUntranslatedString());
-    $args = $error->getArguments();
-    $this->assertSame(['@full_message'], array_keys($args));
-    $this->assertSame(1, substr_count($args['@full_message'], 'first'));
-    $this->assertSame(1, substr_count($args['@full_message'], 'second'));
-    $this->assertStringContainsString('"required"', $args['@full_message']);
-    $this->assertStringNotContainsString('&quot;', $args['@full_message']);
-    // Use the real Drupal placeholder renderer with an identity translator.
-    $translator = $this->createMock(\Drupal\Core\StringTranslation\TranslationInterface::class);
-    $translator->method('translateString')->willReturn($error->getUntranslatedString());
-    $markup = new TranslatableMarkup($error->getUntranslatedString(), $args, [], $translator);
-    $this->assertStringContainsString('&quot;required&quot;', (string) $markup);
-    $this->assertStringNotContainsString('&amp;quot;', (string) $markup);
+    $this->assertStringNotContainsString('errors errors', $errors['schema']->getUntranslatedString());
+    $rendered = (string) $errors['schema'];
+    $this->assertSame(1, substr_count($rendered, 'first'));
+    $this->assertSame(1, substr_count($rendered, 'a&amp;b'));
+    $this->assertStringContainsString('&quot;required&quot;], ', $rendered);
+    $this->assertStringNotContainsString('&amp;quot;', $rendered);
+    $this->assertStringNotContainsString('&amp;amp;', $rendered);
   }
 
   /**
