@@ -46,9 +46,10 @@ function compat_install_path(array $versions, string $package): string {
 }
 
 $settings = json_decode((string) file_get_contents(__DIR__ . '/settings.json'), TRUE, flags: JSON_THROW_ON_ERROR);
-if (!is_array($settings) || !is_string($settings['root'] ?? NULL) || !is_string($settings['bootstrap'] ?? NULL)) {
+if (!is_array($settings) || !is_string($settings['root'] ?? NULL) || !is_string($settings['bootstrap'] ?? NULL) || !is_string($settings['json_schema_version'] ?? NULL)) {
   throw new RuntimeException('Invalid compatibility settings.');
 }
+$json_schema_version = $settings['json_schema_version'];
 $root = $settings['root'];
 require $settings['bootstrap'];
 // A shared development vendor tree must still test this checkout's source.
@@ -62,8 +63,9 @@ compat_check_installed($installed, $installed_path);
 $runtime_path = __DIR__ . '/runtime/vendor/composer/installed.php';
 $runtime = require $runtime_path;
 compat_check_installed($runtime, $runtime_path);
-if (($runtime['versions']['justinrainbow/json-schema']['version'] ?? NULL) !== '5.3.4.0') {
-  throw new RuntimeException('Expected isolated JSON Schema 5.3.4.');
+// Composer normalizes a three-part version such as 5.2.0 to 5.2.0.0.
+if (($runtime['versions']['justinrainbow/json-schema']['version'] ?? NULL) !== $json_schema_version . '.0') {
+  throw new RuntimeException('Expected isolated JSON Schema ' . $json_schema_version . '.');
 }
 $runtime_loader = require __DIR__ . '/runtime/vendor/autoload.php';
 if (!$runtime_loader instanceof ClassLoader) {

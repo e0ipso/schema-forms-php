@@ -246,7 +246,7 @@ Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms thr
 
 ### JSON Schema compatibility
 
-Run `composer test` with the normal development installation for JSON Schema 6.x. To run the same GrumPHP checks and complete PHPUnit suite against JSON Schema 5.3.4, use:
+Run `composer test` with the normal development installation for JSON Schema 6.x. To run the same GrumPHP checks and complete PHPUnit suite against JSON Schema 5.2.0, the lowest release `composer.json` allows, use:
 
 ```sh
 bash scripts/test-json-schema-5.sh

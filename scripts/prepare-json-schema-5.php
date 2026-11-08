@@ -11,7 +11,8 @@ use Symfony\Component\Yaml\Yaml;
 
 $root = dirname(__DIR__);
 require $root . '/vendor/autoload.php';
-$json_schema_version = '5.3.4';
+// The lowest release composer.json allows; the bootstrap checks it too.
+$json_schema_version = '5.2.0';
 $expected_arguments = 4;
 if ($argc !== $expected_arguments) {
   throw new RuntimeException('Usage: php scripts/prepare-json-schema-5.php <work-dir> <phpunit.xml> <grumphp.yml>');
@@ -67,6 +68,7 @@ $xpath = new DOMXPath($xml);
 $bootstrap = $phpunit->getAttribute('bootstrap');
 $settings = [
   'root' => $root,
+  'json_schema_version' => $json_schema_version,
   'bootstrap' => str_starts_with($bootstrap, '/') ? $bootstrap : dirname($phpunit_path) . '/' . $bootstrap,
 ];
 prepare_write($work . '/settings.json', json_encode($settings, JSON_THROW_ON_ERROR));
