@@ -39,6 +39,9 @@ final class GeneratedSchemaForm implements FormInterface {
    *   Previously saved values supplied to the generator.
    * @param bool $withSave
    *   Whether to include a real Save button for unchanged submissions.
+   * @param array|null $saveValidate
+   *   The Save button's own #validate handlers, which replace the form-level
+   *   ones, or NULL to use the form-level handlers.
    */
   public function __construct(
     private readonly object $schema,
@@ -47,6 +50,7 @@ final class GeneratedSchemaForm implements FormInterface {
     private readonly bool $tree = FALSE,
     private readonly array $currentInput = [],
     private readonly bool $withSave = FALSE,
+    private readonly ?array $saveValidate = NULL,
   ) {}
 
   /**
@@ -75,6 +79,9 @@ final class GeneratedSchemaForm implements FormInterface {
     }
     if ($this->withSave) {
       $form['actions']['save'] = ['#type' => 'submit', '#value' => 'Save'];
+    }
+    if ($this->withSave && $this->saveValidate !== NULL) {
+      $form['actions']['save']['#validate'] = $this->saveValidate;
     }
     return $form;
   }

@@ -75,7 +75,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         '#type' => 'container',
         '#tree' => TRUE,
         '#json_schema' => $data,
-        '#markup' => new TranslatableMarkup('The schema contains an unsupported reference. External schema retrieval is disabled.'),
+        '#markup' => ValidationMessages::unsupportedReference(),
       ]);
     }
     $visited = [];
@@ -139,10 +139,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
     $schema = $element['#json_schema'] ?? [];
-    // If the schema is empty do not perform additional validation.
-    if (!empty($schema)) {
-      FormValidatorDrupal::typeCastRecursive($element, $form_state, $schema);
-      FormValidatorDrupal::validateWithSchema($element, $form_state, $schema);
+    if (empty($schema)) {
+      return;
+    }
+    // Validation reads the value preparation stored, so it checks exactly
+    // what the submit handlers receive.
+    if (SubmissionPreparer::prepare($element, $form_state, $schema)) {
+      SubmissionValidator::validate($element, $form_state, $schema);
     }
   }
 
@@ -309,13 +312,12 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form element.
    */
   public static function multiValueAfterBuild(array $element, FormStateInterface $form_state) {
+    // Each widget cleans its own value here, before any ancestor's after-build
+    // runs, so the schema bridge and the submit handlers of buttons that skip
+    // it both receive a plain item list.
     if ($form_state->isProcessingInput()) {
       $element_parents = $element['#parents'];
-      $data = $form_state->getValue($element_parents);
-      // Mark saved NULL items before cleaning compacts their deltas.
-      FormValidatorDrupal::markUntouchedSavedNulls($element, count($element_parents), $data);
-      $clean_data = UserInputCleaner::cleanUserInput($data);
-      $form_state->setValue($element_parents, $clean_data);
+      $form_state->setValue($element_parents, UserInputCleaner::cleanUserInput($form_state->getValue($element_parents), $element));
     }
 
     $prop_parents = $element['#prop_parents'];

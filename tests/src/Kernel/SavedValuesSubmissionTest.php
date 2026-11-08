@@ -4,21 +4,25 @@ declare(strict_types=1);
 
 namespace SchemaForms\Tests\Kernel;
 
-use Drupal\Component\Utility\NestedArray;
-use Drupal\Core\Form\FormState;
 use Drupal\Core\Render\Element;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
+use SchemaForms\Drupal\ElementDataPaths;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormValidatorDrupal;
+use SchemaForms\Drupal\MultivalueWidget;
+use SchemaForms\Drupal\SubmissionPreparer;
+use SchemaForms\Drupal\UserInputCleaner;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 
 /**
  * Saved values survive an actual Save rather than an implicit Append submit.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(FormValidatorDrupal::class)]
+#[CoversClass(SubmissionPreparer::class)]
+#[CoversClass(ElementDataPaths::class)]
+#[CoversClass(MultivalueWidget::class)]
+#[CoversClass(UserInputCleaner::class)]
 #[RunTestsInSeparateProcesses]
 final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
 
@@ -41,58 +45,15 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
   }}';
 
   /**
-   * Collects successful browser controls using Drupal's final input paths.
-   */
-  private function browserValues(array $element, array &$values): void {
-    foreach (Element::children($element) as $key) {
-      $child = $element[$key];
-      if (($child['#access'] ?? TRUE) === FALSE || !empty($child['#disabled'])) {
-        continue;
-      }
-      $type = $child['#type'] ?? '';
-      if (in_array($type, ['submit', 'button', 'radio'], TRUE)) {
-        continue;
-      }
-      if (empty($child['#input']) || $type === 'checkboxes') {
-        $this->browserValues($child, $values);
-        continue;
-      }
-      if ($type === 'checkbox') {
-        if (!empty($child['#value'])) {
-          NestedArray::setValue($values, $child['#parents'], $child['#return_value']);
-        }
-        continue;
-      }
-      if ($type === 'radios' && ($child['#value'] ?? '') === '') {
-        continue;
-      }
-      NestedArray::setValue($values, $child['#parents'], $child['#value'] ?? '');
-    }
-  }
-
-  /**
    * Builds once, then submits the controls shown to the user with Save.
    */
   private function save(object $schema, array $current, array $edits = [], ?string $parent = NULL, string $button = 'op'): SchemaFormSubmission {
-    $request = $this->container->get('request_stack')->getCurrentRequest();
-    $request->setMethod('POST');
-    $request->attributes->set('_route', 'schema_forms_test');
-    $request->attributes->set('_route_object', new \Symfony\Component\Routing\Route('/schema-form'));
     $object = new GeneratedSchemaForm($schema, parentKey: $parent, tree: TRUE, currentInput: $current, withSave: TRUE);
-    $builder = $this->container->get('form_builder');
-    $built = $builder->getForm($object);
-    $values = [];
-    $this->browserValues($built, $values);
-    foreach ($edits as $path => $value) {
-      NestedArray::setValue($values, [...($parent === NULL ? [] : [$parent]), ...explode('.', $path)], $value);
-    }
-    $values[$button] = $button === 'op' ? 'Save' : 'Append an item';
-    $state = (new FormState())->setValues($values);
-    $builder->submitForm($object, $state);
+    $result = $this->browserSubmit($object, $edits, $parent, $button, $button === 'op' ? 'Save' : 'Append an item');
     if ($button === 'op') {
-      $this->assertSame('Save', (string) $state->getTriggeringElement()['#value']);
+      $this->assertSame('Save', (string) $result->formState->getTriggeringElement()['#value']);
     }
-    return new SchemaFormSubmission($state->getCompleteForm(), $state, array_map('strval', $state->getErrors()), $state->getValues());
+    return $result;
   }
 
   #[DataProvider('placementProvider')]
