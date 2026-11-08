@@ -12,6 +12,7 @@
 /SECURITY.md export-ignore
 /composer.lock export-ignore
 /grumphp.yml export-ignore
+/infection.json5 export-ignore
 /phpstan.neon.dist export-ignore
 /phpunit.xml export-ignore
 /scripts export-ignore

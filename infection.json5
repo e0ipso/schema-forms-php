@@ -1,0 +1,20 @@
+{
+  // Mutation testing for the framework-independent core. The Drupal adapter
+  // under src/Drupal is left out; its kernel tests need a booted Drupal.
+  source: {
+    directories: ["src"],
+    excludes: ["Drupal"],
+  },
+  // Run only the core unit tests, tests/src/*Test.php, without the
+  // repository configuration test, which covers no source.
+  testFrameworkOptions: "--filter=/^SchemaForms.Tests.(?!RepositoryConfigurationTest)[A-Za-z]+Test::/",
+  // Just below the measured score of 94%. Raise it when tests kill more
+  // mutants; most survivors change nothing a caller can observe.
+  minMsi: 93,
+  minCoveredMsi: 93,
+  logs: {
+    text: "build/infection/infection.log",
+    summary: "build/infection/summary.log",
+  },
+  tmpDir: "build/infection/tmp",
+}
