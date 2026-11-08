@@ -14,5 +14,6 @@
 /grumphp.yml export-ignore
 /phpstan.neon.dist export-ignore
 /phpunit.xml export-ignore
+/scripts export-ignore
 /skills-lock.json export-ignore
 /tests export-ignore
