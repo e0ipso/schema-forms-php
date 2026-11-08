@@ -25,6 +25,7 @@ use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
@@ -35,6 +36,7 @@ use SchemaForms\Tests\Kernel\Form\TwoSchemaForm;
  */
 #[CoversClass(FormGeneratorDrupal::class)]
 #[CoversClass(ButtonNames::class)]
+#[CoversClass(WidgetButtons::class)]
 #[CoversClass(MultivalueCallbacks::class)]
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]

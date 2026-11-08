@@ -26,6 +26,7 @@ use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
@@ -40,6 +41,7 @@ use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 #[CoversClass(SchemaTypes::class)]
 #[CoversClass(EnumElements::class)]
 #[CoversClass(ButtonNames::class)]
+#[CoversClass(WidgetButtons::class)]
 #[CoversClass(ElementScaffold::class)]
 #[CoversClass(FieldContext::class)]
 #[CoversClass(FormTreeBuilder::class)]

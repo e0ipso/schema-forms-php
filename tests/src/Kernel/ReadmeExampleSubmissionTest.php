@@ -29,6 +29,7 @@ use SchemaForms\Drupal\SubmissionPreparer;
 use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 
@@ -47,6 +48,7 @@ use SchemaForms\Drupal\WidgetStateStorage;
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
 #[CoversClass(ButtonNames::class)]
+#[CoversClass(WidgetButtons::class)]
 #[CoversClass(ElementScaffold::class)]
 #[CoversClass(EnumElements::class)]
 #[CoversClass(FieldBuilder::class)]
