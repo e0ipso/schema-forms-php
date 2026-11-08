@@ -11,7 +11,5 @@ use JsonSchema\Exception\UnresolvableJsonPointerException;
  *
  * External files and URLs are never retrieved. Inline the referenced schema,
  * or point the reference at a definition inside the same document.
- *
- * @api
  */
 final class UnsupportedReferenceException extends UnresolvableJsonPointerException implements ExceptionInterface {}

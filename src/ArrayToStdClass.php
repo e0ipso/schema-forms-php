@@ -2,6 +2,7 @@
 
 namespace SchemaForms;
 
+use SchemaForms\Exception\UnencodableDataException;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;
 use Shaper\Validator\AcceptValidator;
@@ -15,22 +16,49 @@ use Shaper\Validator\ValidateableInterface;
 final class ArrayToStdClass extends TransformationBase {
 
   /**
-   * {@inheritdoc}
+   * Converts data to the shape json_decode() gives it.
+   *
+   * Lists stay arrays; associative arrays and objects become stdClass, and an
+   * object keeps only its public properties.
+   *
+   * @param mixed $data
+   *   The data.
+   *
+   * @return mixed
+   *   The converted data.
+   *
+   * @throws \SchemaForms\Exception\UnencodableDataException
+   *   When the data has no JSON encoding.
    */
-  protected function doTransform($data, Context $context) {
+  public static function convert(mixed $data): mixed {
     try {
-      $encoded = json_encode($data, JSON_THROW_ON_ERROR);
-      return json_decode($encoded, FALSE, 512, JSON_THROW_ON_ERROR);
+      return json_decode(json_encode($data, JSON_THROW_ON_ERROR), FALSE, 512, JSON_THROW_ON_ERROR);
     }
     catch (\JsonException $e) {
-      // Intentionally left blank.
+      throw new UnencodableDataException('The data cannot be encoded as JSON: ' . $e->getMessage(), 0, $e);
     }
-    return new \stdClass();
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * Data with no JSON encoding becomes an empty stdClass. Call convert() to
+   * get an exception instead.
+   */
+  #[\Override]
+  protected function doTransform($data, Context $context): mixed {
+    try {
+      return self::convert($data);
+    }
+    catch (UnencodableDataException) {
+      return new \stdClass();
+    }
   }
 
   /**
    * {@inheritdoc}
    */
+  #[\Override]
   public function getInputValidator(): ValidateableInterface {
     return new AcceptValidator();
   }
@@ -38,6 +66,7 @@ final class ArrayToStdClass extends TransformationBase {
   /**
    * {@inheritdoc}
    */
+  #[\Override]
   public function getOutputValidator(): ValidateableInterface {
     return new AcceptValidator();
   }
