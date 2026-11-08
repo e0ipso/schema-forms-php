@@ -45,8 +45,7 @@ final class WidgetAjaxResponse {
     $response->addCommand(new AnnounceCommand((string) new TranslatableMarkup('Item added: @item.', [
       '@item' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
     ])));
-    $response->addCommand(new FocusFirstCommand(self::itemSelector($widget, $delta) ?? self::wrapperSelector($widget)));
-    return $response;
+    return self::focus($response, self::itemSelector($widget, $delta) ?? self::wrapperSelector($widget));
   }
 
   /**
@@ -73,26 +72,49 @@ final class WidgetAjaxResponse {
     ]);
     $response->addCommand(new AnnounceCommand((string) new TranslatableMarkup('Item removed: @item.', ['@item' => $item])));
     $next = $after === [] ? NULL : self::itemSelector($widget, $after[0]);
-    $response->addCommand(new FocusFirstCommand($next ?? self::appendSelector($widget) ?? self::wrapperSelector($widget)));
-    return $response;
+    return self::focus($response, $next ?? self::appendSelector($widget) ?? self::wrapperSelector($widget));
   }
 
   /**
-   * Starts a response that replaces the widget.
+   * Starts a response that replaces the widget and shows the messages.
    *
-   * The commands match the ones Drupal builds for a callback that returns a
-   * render array, so the clicked button's wrapper is replaced as before.
+   * The insert command replaces the clicked button's wrapper, as Drupal does
+   * for a callback that returns a render array. The messages cannot target
+   * that wrapper too: an AJAX rebuild gives the widget a new wrapper ID, so
+   * once the insert has run, the old ID is gone and the messages would land
+   * nowhere. They go into the rebuilt wrapper instead.
    *
    * @param array<int|string, mixed> $widget
    *   The rebuilt widget.
    *
    * @return \Drupal\Core\Ajax\AjaxResponse
-   *   The response.
+   *   The response. Without a rebuilt wrapper, the messages target the
+   *   clicked button's wrapper, as Drupal's own response does.
    */
   private static function replace(array $widget): AjaxResponse {
     $response = new AjaxResponse();
     $response->addCommand(new InsertCommand(NULL, $widget));
-    $response->addCommand(new PrependCommand(NULL, ['#type' => 'status_messages']));
+    $response->addCommand(new PrependCommand(self::wrapperSelector($widget), ['#type' => 'status_messages']));
+    return $response;
+  }
+
+  /**
+   * Adds the command that moves focus, when there is a target.
+   *
+   * @param \Drupal\Core\Ajax\AjaxResponse $response
+   *   The response.
+   * @param string|null $selector
+   *   The selector of the element to focus, or NULL when the rebuilt form
+   *   holds no widget to focus.
+   *
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response.
+   */
+  private static function focus(AjaxResponse $response, ?string $selector): AjaxResponse {
+    if ($selector === NULL) {
+      return $response;
+    }
+    $response->addCommand(new FocusFirstCommand($selector));
     return $response;
   }
 
@@ -148,14 +170,16 @@ final class WidgetAjaxResponse {
    * @param array<int|string, mixed> $widget
    *   The widget.
    *
-   * @return string
-   *   The selector of the element the buttons' AJAX responses replace.
+   * @return string|null
+   *   The selector of the element the buttons' AJAX responses replace, or
+   *   NULL when the element is not a widget. A bare "#" would make jQuery
+   *   throw in the browser.
    */
-  private static function wrapperSelector(array $widget): string {
+  private static function wrapperSelector(array $widget): ?string {
     $button = is_array($widget[RenderKeys::APPEND_BUTTON] ?? NULL) ? $widget[RenderKeys::APPEND_BUTTON] : [];
     $ajax = is_array($button['#ajax'] ?? NULL) ? $button['#ajax'] : [];
-    $wrapper = $ajax['wrapper'] ?? '';
-    return '#' . (is_string($wrapper) ? $wrapper : '');
+    $wrapper = $ajax['wrapper'] ?? NULL;
+    return is_string($wrapper) && $wrapper !== '' ? '#' . $wrapper : NULL;
   }
 
 }

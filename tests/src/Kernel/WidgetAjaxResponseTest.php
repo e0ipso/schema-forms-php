@@ -54,6 +54,27 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
   }
 
   /**
+   * Status messages go into the wrapper the response inserts.
+   *
+   * Regression: the messages targeted the clicked button's wrapper, whose ID
+   * the rebuild replaces, so after the insert they landed nowhere.
+   */
+  public function testMessagesTargetTheRebuiltWrapper(): void {
+    $form = $this->form(['a']);
+    $result = $this->browserSubmit($form, [], NULL, 'items_add_more', 'Append an item');
+    $clicked = $result->formState->getTriggeringElement()['#ajax']['wrapper'];
+    $rebuilt = $this->rebuild($result->formState, $form);
+    $wrapper = $rebuilt['items']['add_more']['#ajax']['wrapper'];
+
+    $commands = FormGeneratorDrupal::addMoreAjax($rebuilt, $result->formState)->getCommands();
+
+    $this->assertNotSame($clicked, $wrapper);
+    $this->assertSame('prepend', $commands[1]['method']);
+    $this->assertSame('#' . $wrapper, $commands[1]['selector']);
+    $this->assertStringContainsString('id="' . $wrapper . '"', (string) $commands[0]['data']);
+  }
+
+  /**
    * Without an item to announce, the response only replaces the widget.
    */
   public function testAppendResponseWithoutItems(): void {
@@ -98,6 +119,24 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
     $this->assertFalse($rebuilt['items']['add_more']['#access']);
     $this->assertSame('Item removed: Items (value 3).', $commands[2]['text']);
     $this->assertSame('#' . $rebuilt['items']['add_more']['#ajax']['wrapper'], $commands[3]['selector']);
+  }
+
+  /**
+   * Without a rebuilt widget, the response names no selector it cannot fill.
+   *
+   * A bare "#" makes jQuery throw, which stops every later command.
+   */
+  public function testRemoveWithoutRebuiltWidget(): void {
+    $result = $this->browserSubmit($this->form(['a']));
+    $result->formState->setTriggeringElement([
+      '#delta' => 0,
+      '#array_parents' => ['gone', 0, 'remove_one'],
+    ]);
+
+    $commands = FormGeneratorDrupal::removeOneAjax($result->form, $result->formState)->getCommands();
+
+    $this->assertSame(['insert', 'insert', 'announce'], array_column($commands, 'command'));
+    $this->assertNull($commands[1]['selector']);
   }
 
   /**
