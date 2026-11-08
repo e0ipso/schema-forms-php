@@ -10,6 +10,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormValidatorDrupal;
+use SchemaForms\Exception\ExceptionInterface;
+use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\Tests\Fixture\ReferenceSentinel;
@@ -52,6 +54,8 @@ final class SchemaReferenceResolverTest extends TestCase {
           }
           catch (UnresolvableJsonPointerException $e) {
             $this->assertStringContainsString('retriev', $e->getMessage());
+            $this->assertInstanceOf(UnsupportedReferenceException::class, $e);
+            $this->assertInstanceOf(ExceptionInterface::class, $e);
           }
           return;
         }

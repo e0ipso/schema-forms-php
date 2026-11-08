@@ -22,6 +22,11 @@ final class RecursiveTypeCaster {
    *
    * @return mixed
    *   The same data with refined types.
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   When the schema references a document outside itself.
+   * @throws \JsonSchema\Exception\ExceptionInterface
+   *   When a reference inside the schema cannot be resolved.
    */
   public static function recursiveTypeRefinements($data, object $schema) {
     $factory = SchemaReferenceResolver::createFactory($schema);

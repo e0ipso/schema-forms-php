@@ -4,11 +4,11 @@ namespace SchemaForms;
 
 use JsonSchema\Constraints\Factory;
 use JsonSchema\Entity\JsonPointer;
-use JsonSchema\Exception\UnresolvableJsonPointerException;
 use JsonSchema\SchemaStorage;
 use JsonSchema\SchemaStorageInterface;
 use JsonSchema\Uri\UriResolver;
 use JsonSchema\UriRetrieverInterface;
+use SchemaForms\Exception\UnsupportedReferenceException;
 
 /**
  * Keeps schema retrieval inside registered documents and bundled metadata.
@@ -30,6 +30,11 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *
    * @return \JsonSchema\Constraints\Factory
    *   A factory which cannot retrieve external schemas.
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   When the schema references a document outside itself.
+   * @throws \JsonSchema\Exception\ExceptionInterface
+   *   When a reference inside the schema cannot be resolved.
    */
   public static function createFactory(?object $schema = NULL): Factory {
     $retriever = new self();
@@ -99,6 +104,9 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
 
   /**
    * {@inheritdoc}
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   For every URI except the bundled draft-04 meta-schema.
    */
   public function retrieve($uri, $baseUri = NULL) {
     $resolved = (new UriResolver())->resolve($uri, $baseUri);
@@ -113,7 +121,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
       'https://json-schema.org/draft-04/schema',
       'https://json-schema.org/draft-04/schema#',
     ], TRUE)) {
-      throw new UnresolvableJsonPointerException('External schema retrieval is disabled.');
+      throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
     return json_decode(file_get_contents($metadata_path), FALSE, 512, JSON_THROW_ON_ERROR);
   }
