@@ -29,6 +29,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Tests\Fixture\ConstantSchemas;
 use Shaper\Util\Context;
 
 /**
@@ -56,6 +57,8 @@ use Shaper\Util\Context;
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
 class FormGeneratorDrupalTest extends TestCase {
+
+  use ConstantSchemas;
 
   /**
    * The form generator.
@@ -882,28 +885,32 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   #[DataProvider('constantProvider')]
   public function testEveryConstant(mixed $value, string $text): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => match (gettype($value)) {
-      'integer' => 'integer', 'double' => 'number', 'boolean' => 'boolean',
-      'array' => 'array', 'object' => 'object', 'NULL' => 'null', default => 'string',
-    }, 'const' => $value]]];
-    $field = $this->sut->transform($schema)['fixed'];
+    $field = $this->sut->transform(self::constantSchema($value))['fixed'];
     $this->assertSame($text, $field['#plain_text']);
     $this->assertFalse($field['#input']);
     $this->assertArrayNotHasKey('#type', $field);
     $this->assertEquals($value, $field['#schema_fixed_value']);
   }
 
-  public static function constantProvider(): array {
-    return [
-      'zero' => [0, '0'],
-      'false' => [FALSE, 'false'],
-      'empty string' => ['', ''],
-      'string zero' => ['0', '0'],
-      'array' => [['a'], '["a"]'],
-      'object' => [(object) ['k' => 1], '{"k":1}'],
-      'null' => [NULL, 'null'],
-      'unsafe text' => ['<script>alert(1)</script>', '<script>alert(1)</script>'],
-    ];
+  /**
+   * The label used to check that only titles and option labels are filtered.
+   */
+  private const UNTRUSTED_LABEL = '<img src="x" onerror="alert(1)"><em>emphasis</em><strong>strong</strong><a href="https://example.com">link</a>';
+
+  /**
+   * Title filtering preserves other metadata and fixed text.
+   */
+  public function testOtherMetadataIsUnchanged(): void {
+    $schema = (object) ['type' => 'object', 'properties' => (object) [
+      'fixed' => (object) ['type' => 'string', 'const' => self::UNTRUSTED_LABEL],
+      'field' => (object) ['type' => 'string', 'description' => self::UNTRUSTED_LABEL],
+    ]];
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context([
+      'ui_hints' => ['field' => ['ui:placeholder' => self::UNTRUSTED_LABEL]],
+    ]));
+    $this->assertSame(self::UNTRUSTED_LABEL, $form['fixed']['#plain_text']);
+    $this->assertSame(self::UNTRUSTED_LABEL, (string) $form['field']['#description']);
+    $this->assertSame(self::UNTRUSTED_LABEL, $form['field']['#placeholder']);
   }
 
   /**

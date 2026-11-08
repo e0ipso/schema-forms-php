@@ -27,8 +27,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
-use SchemaForms\Tests\Drupal\SchemaForms\FormGeneratorDrupalTest;
-use Shaper\Util\Context;
+use SchemaForms\Tests\Fixture\ConstantSchemas;
 
 /**
  * Untrusted labels retain only the accepted inline HTML.
@@ -54,6 +53,8 @@ use Shaper\Util\Context;
 #[CoversClass(WidgetStateStorage::class)]
 #[RunTestsInSeparateProcesses]
 final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
+
+  use ConstantSchemas;
 
   protected static $modules = ['system'];
 
@@ -99,39 +100,18 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * Title filtering preserves other metadata and fixed text.
-   */
-  public function testOtherMetadataIsUnchanged(): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) [
-      'fixed' => (object) ['type' => 'string', 'const' => self::LABEL],
-      'field' => (object) ['type' => 'string', 'description' => self::LABEL],
-    ]];
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context([
-      'ui_hints' => ['field' => ['ui:placeholder' => self::LABEL]],
-    ]));
-    $this->assertSame(self::LABEL, $form['fixed']['#plain_text']);
-    $this->assertSame(self::LABEL, (string) $form['field']['#description']);
-    $this->assertSame(self::LABEL, $form['field']['#placeholder']);
-  }
-
-
-  /**
    * Constant markup escapes text and JSON and renders no input.
    */
   #[DataProvider('renderedConstantProvider')]
   public function testRenderedConstants(mixed $value, string $text): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => match (gettype($value)) {
-      'integer' => 'integer', 'double' => 'number', 'boolean' => 'boolean',
-      'array' => 'array', 'object' => 'object', 'NULL' => 'null', default => 'string',
-    }, 'const' => $value]]];
-    $form = (new FormGeneratorDrupal())->transform($schema);
+    $form = (new FormGeneratorDrupal())->transform(self::constantSchema($value));
     $html = (string) $this->container->get('renderer')->renderInIsolation($form['fixed']);
     $this->assertSame(Html::escape($text), $html);
     $this->assertStringNotContainsString('<input', $html);
   }
 
   public static function renderedConstantProvider(): array {
-    return FormGeneratorDrupalTest::constantProvider() + [
+    return self::constantProvider() + [
       'unsafe array' => [['<img src=x onerror=alert(1)>'], '["<img src=x onerror=alert(1)>"]'],
       'unsafe object' => [(object) ['<b>' => '<script>'], '{"<b>":"<script>"}'],
     ];
