@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SchemaForms\Tests\Kernel;
 
+use Drupal\Core\Form\FormInterface;
+use Drupal\Core\Form\FormStateInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use SchemaForms\Drupal\ButtonNames;
@@ -26,6 +28,7 @@ use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
+use SchemaForms\Tests\Kernel\Form\TwoSchemaForm;
 
 /**
  * Multivalue buttons act on their own widget through the real FormBuilder.
@@ -103,6 +106,34 @@ final class WidgetButtonSubmissionTest extends SchemaFormsKernelTestBase {
   }
 
   /**
+   * Two containers with the same schema keep apart when namespaced.
+   */
+  public function testNamespacedContainers(): void {
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}', flags: JSON_THROW_ON_ERROR);
+    $form = new TwoSchemaForm($schema, ['left' => 'left', 'right' => 'right']);
+    $built = $this->browserSubmit($form)->form;
+    $left = $built['left']['items']['add_more']['#name'];
+    $this->assertNotSame($left, $built['right']['items']['add_more']['#name']);
+
+    $result = $this->browserSubmit($form, [], NULL, $left, 'Append an item');
+
+    $this->assertTrue($result->formState->isRebuilding());
+    $rebuilt = $this->rebuild($result->formState, $form);
+    $this->assertArrayHasKey(0, $rebuilt['left']['items']);
+    $this->assertArrayNotHasKey(0, $rebuilt['right']['items']);
+  }
+
+  /**
+   * Containers without a namespace keep today's names and shared state.
+   */
+  public function testContainersWithoutNamespace(): void {
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}', flags: JSON_THROW_ON_ERROR);
+    $built = $this->browserSubmit(new TwoSchemaForm($schema))->form;
+    $this->assertSame('items_add_more', $built['left']['items']['add_more']['#name']);
+    $this->assertSame('items_add_more', $built['right']['items']['add_more']['#name']);
+  }
+
+  /**
    * An item appended after the last one was removed is saved empty.
    *
    * Regression: the new item reused the removed item's delta, showed its
@@ -118,6 +149,15 @@ final class WidgetButtonSubmissionTest extends SchemaFormsKernelTestBase {
 
     $this->assertSame([], $result->errors);
     $this->assertSame(['a', ''], $result->values['items']);
+  }
+
+  /**
+   * Rebuilds a form from a submitted state, as the next request would.
+   */
+  private function rebuild(FormStateInterface $form_state, FormInterface $form): array {
+    $form_state->setRequestMethod('POST');
+    $form_state->setFormObject($form);
+    return $this->container->get('form_builder')->rebuildForm($form->getFormId(), $form_state);
   }
 
 }

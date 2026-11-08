@@ -31,10 +31,14 @@ final class FormTreeBuilder {
    * @param \stdClass $schema
    *   The registered root object schema.
    * @param \Shaper\Util\Context $context
-   *   The caller's options: 'ui_hints', 'form_state' and 'current_input'.
+   *   The caller's options: 'ui_hints', 'form_state', 'current_input' and
+   *   'namespace'.
    *
    * @return array<int|string, mixed>
    *   The container, without its validation callbacks.
+   *
+   * @throws \InvalidArgumentException
+   *   When the namespace is not a non-empty string.
    */
   public function build(\stdClass $schema, Context $context): array {
     $hints = is_array($context['ui_hints'] ?? NULL) ? $context['ui_hints'] : [];
@@ -48,6 +52,8 @@ final class FormTreeBuilder {
       $form_state instanceof FormStateInterface ? $form_state : new FormState(),
       is_array($input) ? $input : [],
       FALSE,
+      TRUE,
+      self::namespace($context),
     );
     $element = [
       '#type' => 'container',
@@ -80,6 +86,29 @@ final class FormTreeBuilder {
       $keys
     );
     return array_combine($keys, $controls);
+  }
+
+  /**
+   * Reads the namespace that keeps this container apart from others.
+   *
+   * @param \Shaper\Util\Context $context
+   *   The caller's options.
+   *
+   * @return string|null
+   *   The namespace, or NULL when the caller gave none.
+   *
+   * @throws \InvalidArgumentException
+   *   When the namespace is not a non-empty string.
+   */
+  private static function namespace(Context $context): ?string {
+    $namespace = $context['namespace'] ?? NULL;
+    if ($namespace === NULL) {
+      return NULL;
+    }
+    if (!is_string($namespace) || $namespace === '') {
+      throw new \InvalidArgumentException('The "namespace" context key must be a non-empty string.');
+    }
+    return $namespace;
   }
 
   /**

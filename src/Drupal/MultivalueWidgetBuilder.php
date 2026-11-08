@@ -71,6 +71,10 @@ final class MultivalueWidgetBuilder {
       '#prefix' => '<div id="' . $wrapper_id . '">',
       '#suffix' => '</div>',
     ] + $element;
+    if ($context->namespace !== NULL) {
+      // The callbacks find the widget state through it.
+      $element[RenderKeys::NAMESPACE] = $context->namespace;
+    }
     foreach ($state->deltas() as $delta) {
       $element[$delta] = $this->item($element, $context->item($delta, $items), $fields, $wrapper_id);
     }
@@ -92,13 +96,13 @@ final class MultivalueWidgetBuilder {
    *   The state.
    */
   private function state(FieldContext $context): WidgetState {
-    $stored = WidgetStateStorage::get($context->formState, $context->parents, $context->name);
+    $stored = WidgetStateStorage::get($context->formState, $context->parents, $context->name, $context->namespace);
     if (!empty($stored)) {
       return WidgetState::fromStorage($stored);
     }
     $count = is_array($context->currentInput) ? count($context->currentInput) : 0;
     $state = WidgetState::forSavedItems($count);
-    WidgetStateStorage::set($context->formState, $context->parents, $context->name, $state->toStorage());
+    WidgetStateStorage::set($context->formState, $context->parents, $context->name, $state->toStorage(), $context->namespace);
     return $state;
   }
 
@@ -158,7 +162,7 @@ final class MultivalueWidgetBuilder {
     return [
       '#delta' => (int) $context->name,
       '#type' => 'submit',
-      '#name' => ButtonNames::remove($context->parents),
+      '#name' => ButtonNames::remove($context->parents, $context->namespace),
       '#value' => new TranslatableMarkup('⨯'),
       '#validate' => [],
       RenderKeys::PROP_PARENTS => $context->parents,
@@ -192,7 +196,7 @@ final class MultivalueWidgetBuilder {
   private function appendButton(FieldContext $context, string $wrapper_id): array {
     return [
       '#type' => 'submit',
-      '#name' => ButtonNames::append($context->parents),
+      '#name' => ButtonNames::append($context->parents, $context->namespace),
       '#value' => new TranslatableMarkup('Append an item'),
       '#attributes' => ['class' => ['field-add-more-submit']],
       '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],

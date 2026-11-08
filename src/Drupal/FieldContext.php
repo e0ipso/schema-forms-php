@@ -32,6 +32,8 @@ final readonly class FieldContext {
    *   Whether a value was saved, including an explicit NULL.
    * @param bool $enabled
    *   FALSE when the control or one of its ancestors is disabled.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if the caller gave one.
    */
   public function __construct(
     public \stdClass $schema,
@@ -42,6 +44,7 @@ final readonly class FieldContext {
     public mixed $currentInput,
     public bool $hasCurrentInput,
     public bool $enabled = TRUE,
+    public ?string $namespace = NULL,
   ) {}
 
   /**
@@ -70,6 +73,7 @@ final readonly class FieldContext {
       $input[$key] ?? NULL,
       $inside_saved_null || array_key_exists($key, $input),
       $this->enabled,
+      $this->namespace,
     );
   }
 
@@ -95,6 +99,7 @@ final readonly class FieldContext {
       $input[$delta] ?? NULL,
       array_key_exists($delta, $input),
       $this->enabled,
+      $this->namespace,
     );
   }
 
@@ -108,7 +113,7 @@ final readonly class FieldContext {
    *   The context.
    */
   public function withCurrentInput(mixed $input): self {
-    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->formState, $input, $this->hasCurrentInput, $this->enabled);
+    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->formState, $input, $this->hasCurrentInput, $this->enabled, $this->namespace);
   }
 
   /**
@@ -119,7 +124,7 @@ final readonly class FieldContext {
    */
   public function withOwnEnabledHint(): self {
     $enabled = $this->enabled && (bool) ($this->hints['ui:enabled'] ?? TRUE);
-    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->formState, $this->currentInput, $this->hasCurrentInput, $enabled);
+    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->formState, $this->currentInput, $this->hasCurrentInput, $enabled, $this->namespace);
   }
 
 }

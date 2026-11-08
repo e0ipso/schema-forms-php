@@ -15,7 +15,9 @@ use Drupal\Component\Utility\NestedArray;
  * inside property names can make ambiguous: "tag-list" and "tag_list" share
  * an Append name, and ["a-b"] and ["a", "b"] share a Remove name. Only the
  * buttons whose names collide get a different, unambiguous name, so names
- * that worked before keep working.
+ * that worked before keep working. Inside a namespaced container every
+ * button gets an unambiguous name that starts with the namespace, so two
+ * containers in one form keep apart.
  *
  * @internal
  */
@@ -26,11 +28,16 @@ final class ButtonNames {
    *
    * @param list<int|string> $parents
    *   The schema path of the widget.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if it has one.
    *
    * @return string
    *   The name.
    */
-  public static function append(array $parents): string {
+  public static function append(array $parents, ?string $namespace = NULL): string {
+    if ($namespace !== NULL) {
+      return self::escaped($parents, ':add_more', $namespace);
+    }
     return strtr(implode('-', $parents), '-', '_') . '_add_more';
   }
 
@@ -39,11 +46,16 @@ final class ButtonNames {
    *
    * @param list<int|string> $parents
    *   The schema path of the item, ending with its delta.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if it has one.
    *
    * @return string
    *   The name.
    */
-  public static function remove(array $parents): string {
+  public static function remove(array $parents, ?string $namespace = NULL): string {
+    if ($namespace !== NULL) {
+      return self::escaped($parents, ':remove', $namespace);
+    }
     $delta = array_pop($parents);
     return sprintf('%s-%d-remove', implode('-', $parents), $delta);
   }
@@ -174,10 +186,6 @@ final class ButtonNames {
   /**
    * Builds a name no other path maps to.
    *
-   * Every character outside [A-Za-z0-9] is escaped, so hyphens only join
-   * segments. The ":remove" and ":add_more" endings never end a legacy name,
-   * which ends in "-remove" or "_add_more".
-   *
    * @param \SchemaForms\Drupal\WidgetButton $button
    *   The button.
    *
@@ -185,8 +193,30 @@ final class ButtonNames {
    *   The name.
    */
   private static function unambiguous(WidgetButton $button): string {
-    $segments = array_map([self::class, 'escape'], $button->parents);
-    return implode('-', $segments) . ($button->removes ? ':remove' : ':add_more');
+    return self::escaped($button->parents, $button->removes ? ':remove' : ':add_more');
+  }
+
+  /**
+   * Builds an escaped name.
+   *
+   * Every character outside [A-Za-z0-9] is escaped, so hyphens only join
+   * segments and "::" only ends the namespace. The ":remove" and ":add_more"
+   * endings never end a legacy name, which ends in "-remove" or "_add_more".
+   *
+   * @param array<int|string> $parents
+   *   The schema path.
+   * @param string $ending
+   *   The ending that tells Remove from Append names.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if it has one.
+   *
+   * @return string
+   *   The name.
+   */
+  private static function escaped(array $parents, string $ending, ?string $namespace = NULL): string {
+    $segments = array_map(static fn (int|string $segment): string => self::escape((string) $segment), $parents);
+    $prefix = $namespace === NULL ? '' : self::escape($namespace) . '::';
+    return $prefix . implode('-', $segments) . $ending;
   }
 
   /**

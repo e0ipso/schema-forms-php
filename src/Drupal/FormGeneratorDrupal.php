@@ -64,7 +64,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param mixed $data
    *   The decoded schema.
    * @param \Shaper\Util\Context|null $context
-   *   The options: 'ui_hints', 'form_state' and 'current_input'.
+   *   The options: 'ui_hints', 'form_state', 'current_input' and
+   *   'namespace'.
    *
    * @return array<int|string, mixed>
    *   The generated container.
@@ -303,14 +304,16 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The widget's property name.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   * @param string|null $namespace
+   *   The 'namespace' context key the container was built with, if any.
    *
    * @return mixed
    *   The stored array, with 'items_indices' and 'array_parents', or NULL.
    *
    * @internal
    */
-  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state): mixed {
-    return WidgetStateStorage::get($form_state, $parents, $prop_name);
+  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, ?string $namespace = NULL): mixed {
+    return WidgetStateStorage::get($form_state, $parents, $prop_name, $namespace);
   }
 
   /**
@@ -324,11 +327,13 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form state.
    * @param array<mixed> $prop_state
    *   The state to store.
+   * @param string|null $namespace
+   *   The 'namespace' context key the container was built with, if any.
    *
    * @internal
    */
-  public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state): void {
-    WidgetStateStorage::set($form_state, $parents, $prop_name, $prop_state);
+  public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
+    WidgetStateStorage::set($form_state, $parents, $prop_name, $prop_state, $namespace);
   }
 
   /**

@@ -6,9 +6,11 @@ namespace SchemaForms\Tests\Drupal;
 
 use Drupal\Core\Render\Element;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\FormTreeBuilder;
 use SchemaForms\Drupal\WidgetButton;
 use Shaper\Util\Context;
 
@@ -17,6 +19,7 @@ use Shaper\Util\Context;
  */
 #[CoversClass(ButtonNames::class)]
 #[CoversClass(WidgetButton::class)]
+#[CoversClass(FormTreeBuilder::class)]
 final class ButtonNamesTest extends TestCase {
 
   /**
@@ -49,6 +52,39 @@ final class ButtonNamesTest extends TestCase {
     $this->assertSame('other_name_add_more', $names['other-name.add_more']);
     $this->assertSame('a_b_add_more', $names['a.b.add_more']);
     $this->assertSame('a:2db:add_more', $names['a-b.add_more']);
+  }
+
+  /**
+   * A namespace starts every name and keeps containers apart.
+   */
+  public function testNamespacedNames(): void {
+    $schema = json_decode('{"type":"object","properties":{"tag_list":{"type":"array","items":{"type":"string"}}}}');
+    $names = array_map(
+      static fn (string $namespace): array => self::names((new FormGeneratorDrupal())->transform($schema, new Context([
+        'namespace' => $namespace,
+        'current_input' => ['tag_list' => ['a']],
+      ]))),
+      ['left' => 'left', 'odd' => 'a-b::c']
+    );
+    $this->assertSame([
+      'tag_list.0.remove_one' => 'left::tag:5flist-0:remove',
+      'tag_list.add_more' => 'left::tag:5flist:add_more',
+    ], $names['left']);
+    $this->assertSame('a:2db:3a:3ac::tag:5flist:add_more', $names['odd']['tag_list.add_more']);
+  }
+
+  /**
+   * A namespace that is not a non-empty string is refused.
+   */
+  #[DataProvider('invalidNamespaceProvider')]
+  public function testInvalidNamespace(mixed $namespace): void {
+    $schema = json_decode('{"type":"object","properties":{"a":{"type":"string"}}}');
+    $this->expectException(\InvalidArgumentException::class);
+    (new FormGeneratorDrupal())->transform($schema, new Context(['namespace' => $namespace]));
+  }
+
+  public static function invalidNamespaceProvider(): array {
+    return ['empty' => [''], 'integer' => [1], 'array' => [['a']]];
   }
 
   /**

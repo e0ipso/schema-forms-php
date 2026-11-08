@@ -200,6 +200,28 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   }
 
   /**
+   * A namespaced container keeps its widget state apart.
+   */
+  public function testNamespacedWidgetState(): void {
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
+    $state = new FormState();
+    $plain = (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state]));
+    $form = ['host' => (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state, 'namespace' => 'host']))];
+    $this->assertArrayNotHasKey('#schema_namespace', $plain['items']);
+    $this->assertSame('host', $form['host']['items']['#schema_namespace']);
+    $state->setTriggeringElement($form['host']['items']['add_more'] + ['#array_parents' => ['host', 'items', 'add_more']]);
+
+    FormGeneratorDrupal::addMoreSubmit($form, $state);
+
+    $this->assertSame([0], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state, 'host')['items_indices']);
+    $this->assertSame([], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
+    $this->assertArrayHasKey('host', $state->getStorage()['prop_storage']['#namespaces']);
+    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => [3]], 'host');
+    $rebuilt = (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state, 'namespace' => 'host']));
+    $this->assertArrayHasKey(3, $rebuilt['items']);
+  }
+
+  /**
    * Widgets with matching names in different parents keep separate state.
    */
   public function testWidgetStateIsIsolated(): void {
