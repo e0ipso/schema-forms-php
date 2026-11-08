@@ -49,7 +49,7 @@ final class FormTreeBuilder {
       '',
       [],
       $hints,
-      $form_state instanceof FormStateInterface ? $form_state : new FormState(),
+      new WidgetStateStorage($form_state instanceof FormStateInterface ? $form_state : new FormState()),
       is_array($input) ? $input : [],
       FALSE,
       TRUE,

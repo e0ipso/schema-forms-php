@@ -42,6 +42,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\ValidationMessages;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 
@@ -85,6 +86,7 @@ use SchemaForms\Drupal\WidgetStateStorage;
 #[CoversClass(WidgetButton::class)]
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
+#[CoversClass(WidgetLocation::class)]
 final class FormValidatorDrupalTest extends TestCase {
 
   /**

@@ -26,6 +26,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\ValidationMessages;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\Tests\Fixture\TranslationContainer;
@@ -54,6 +55,7 @@ use Shaper\Util\Context;
 #[CoversClass(WidgetButton::class)]
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
+#[CoversClass(WidgetLocation::class)]
 #[CoversClass(ValidationMessages::class)]
 final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
 

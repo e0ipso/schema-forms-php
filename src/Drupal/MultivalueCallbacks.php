@@ -58,8 +58,9 @@ final class MultivalueCallbacks {
     }
     // Host code may read where the widget ended up in the form.
     $array_parents = is_array($element['#array_parents'] ?? NULL) ? $element['#array_parents'] : [];
-    $state = WidgetStateStorage::load($form_state, $element);
-    WidgetStateStorage::save($form_state, $element, $state->withArrayParents($array_parents));
+    $storage = new WidgetStateStorage($form_state);
+    $location = WidgetLocation::ofWidget($element);
+    $storage->save($location, $storage->load($location)->withArrayParents($array_parents));
     return $element;
   }
 
@@ -72,15 +73,17 @@ final class MultivalueCallbacks {
    *   The form state.
    */
   public static function removeSubmit(array $form, FormStateInterface $form_state): void {
-    $delta = self::triggeringDelta($form_state);
+    $button = self::triggeringButton($form_state);
+    $delta = self::delta($button);
     if ($delta === NULL) {
       return;
     }
     // The widget is two levels up from the button: widget, item, button.
-    $widget = self::widget($form, $form_state, 2);
-    $state = WidgetStateStorage::load($form_state, $widget);
+    $location = WidgetLocation::ofWidget(self::widget($form, $button, 2));
+    $storage = new WidgetStateStorage($form_state);
+    $state = $storage->load($location);
     if (in_array($delta, $state->deltas(), TRUE)) {
-      WidgetStateStorage::save($form_state, $widget, $state->withoutItem($delta));
+      $storage->save($location, $state->withoutItem($delta));
     }
     $form_state->setRebuild();
   }
@@ -100,11 +103,12 @@ final class MultivalueCallbacks {
    *   The response. It is empty when no Remove button triggered the request.
    */
   public static function removeAjax(array $form, FormStateInterface $form_state): AjaxResponse {
-    $delta = self::triggeringDelta($form_state);
+    $button = self::triggeringButton($form_state);
+    $delta = self::delta($button);
     if ($delta === NULL) {
       return new AjaxResponse();
     }
-    return WidgetAjaxResponse::removed(self::widget($form, $form_state, 2), $delta);
+    return WidgetAjaxResponse::removed(self::widget($form, $button, 2), $delta);
   }
 
   /**
@@ -116,15 +120,17 @@ final class MultivalueCallbacks {
    *   The form state.
    */
   public static function appendSubmit(array $form, FormStateInterface $form_state): void {
-    $widget = self::widget($form, $form_state, 1);
-    $state = WidgetStateStorage::load($form_state, $widget);
+    $widget = self::widget($form, self::triggeringButton($form_state), 1);
+    $location = WidgetLocation::ofWidget($widget);
+    $storage = new WidgetStateStorage($form_state);
+    $state = $storage->load($location);
     $form_state->setRebuild();
     $cardinality = $widget[RenderKeys::CARDINALITY] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
     // A forced submission of a hidden button cannot exceed the limit either.
     if ($state->isFull(is_int($cardinality) ? $cardinality : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED)) {
       return;
     }
-    WidgetStateStorage::save($form_state, $widget, $state->withAppendedItem());
+    $storage->save($location, $state->withAppendedItem());
   }
 
   /**
@@ -156,7 +162,7 @@ final class MultivalueCallbacks {
    *   The widget, with the new item wrapped for the AJAX effect.
    */
   public static function appendedWidget(array $form, FormStateInterface $form_state): array {
-    $widget = self::widget($form, $form_state, 1);
+    $widget = self::widget($form, self::triggeringButton($form_state), 1);
     $delta = $widget[RenderKeys::MAX_DELTA] ?? NULL;
     if (!is_int($delta) || !is_array($widget[$delta] ?? NULL)) {
       return $widget;
@@ -169,16 +175,29 @@ final class MultivalueCallbacks {
   }
 
   /**
-   * Reads the item delta of the button that submitted the form.
+   * Gets the button that submitted the form.
    *
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
+   * @return array<int|string, mixed>
+   *   The button, or an empty array when no element submitted the form.
+   */
+  private static function triggeringButton(FormStateInterface $form_state): array {
+    return $form_state->getTriggeringElement() ?? [];
+  }
+
+  /**
+   * Reads the item delta of a Remove button.
+   *
+   * @param array<int|string, mixed> $button
+   *   The button that submitted the form.
+   *
    * @return int|null
    *   The delta, or NULL when the button is not a Remove button.
    */
-  private static function triggeringDelta(FormStateInterface $form_state): ?int {
-    $delta = ($form_state->getTriggeringElement() ?? [])['#delta'] ?? NULL;
+  private static function delta(array $button): ?int {
+    $delta = $button['#delta'] ?? NULL;
     return is_int($delta) ? $delta : NULL;
   }
 
@@ -187,16 +206,16 @@ final class MultivalueCallbacks {
    *
    * @param array<int|string, mixed> $form
    *   The form.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
+   * @param array<int|string, mixed> $button
+   *   The button that submitted the form.
    * @param int $levels
    *   How many levels the widget sits above the button.
    *
    * @return array<int|string, mixed>
    *   The widget, or an empty array when the form holds none there.
    */
-  private static function widget(array $form, FormStateInterface $form_state, int $levels): array {
-    $array_parents = ($form_state->getTriggeringElement() ?? [])['#array_parents'] ?? [];
+  private static function widget(array $form, array $button, int $levels): array {
+    $array_parents = $button['#array_parents'] ?? [];
     $widget = NestedArray::getValue($form, array_slice(is_array($array_parents) ? $array_parents : [], 0, -$levels));
     return is_array($widget) ? $widget : [];
   }

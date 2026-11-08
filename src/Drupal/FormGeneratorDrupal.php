@@ -283,7 +283,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The stored array, with 'items_indices' and 'array_parents', or NULL.
    */
   public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, ?string $namespace = NULL): mixed {
-    return WidgetStateStorage::get($form_state, $parents, $prop_name, $namespace);
+    return (new WidgetStateStorage($form_state))->get(new WidgetLocation($parents, $prop_name, $namespace));
   }
 
   /**
@@ -301,7 +301,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The 'namespace' context key the container was built with, if any.
    */
   public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
-    WidgetStateStorage::set($form_state, $parents, $prop_name, $prop_state, $namespace);
+    (new WidgetStateStorage($form_state))->set(new WidgetLocation($parents, $prop_name, $namespace), $prop_state);
   }
 
   /**
