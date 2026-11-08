@@ -11,7 +11,7 @@ use Shaper\Validator\JsonSchemaValidator;
  *
  * @internal
  */
-class JsonSchemaFormValidator extends JsonSchemaValidator {
+final class JsonSchemaFormValidator extends JsonSchemaValidator {
 
   /**
    * {@inheritdoc}
@@ -26,6 +26,27 @@ class JsonSchemaFormValidator extends JsonSchemaValidator {
    */
   public function isValid($data) {
     return parent::isValid($data) && $this->isFormRoot($data);
+  }
+
+  /**
+   * Keeps the check mode, so an unserialized validator validates the same way.
+   *
+   * @return string[]
+   *   The names of the properties to serialize.
+   */
+  #[\Override]
+  public function __sleep(): array {
+    return [...parent::__sleep(), 'checkMode'];
+  }
+
+  /**
+   * Restores the restricted reference resolver after unserialization.
+   *
+   * The parent would install a validator that retrieves any URI.
+   */
+  #[\Override]
+  public function __wakeup(): void {
+    $this->setValidator(new Validator(SchemaReferenceResolver::createFactory()));
   }
 
   /**
