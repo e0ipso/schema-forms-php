@@ -26,7 +26,7 @@ final class FormValidatorDrupal {
    * @param object $schema
    *   The form schema.
    */
-  public static function validateWithSchema(array &$element, FormStateInterface $form_state, object $schema): void {
+  public static function validateWithSchema(array $element, FormStateInterface $form_state, object $schema): void {
     SubmissionValidator::validate($element, $form_state, $schema);
   }
 
