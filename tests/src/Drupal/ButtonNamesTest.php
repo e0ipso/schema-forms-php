@@ -12,6 +12,7 @@ use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormTreeBuilder;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
 /**
@@ -21,6 +22,8 @@ use Shaper\Util\Context;
 #[CoversClass(WidgetButton::class)]
 #[CoversClass(FormTreeBuilder::class)]
 final class ButtonNamesTest extends TestCase {
+
+  use TranslationContainer;
 
   /**
    * Colliding names change; unique and unambiguous ones stay.

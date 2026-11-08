@@ -30,6 +30,7 @@ use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\Tests\Fixture\ConstantSchemas;
+use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
 /**
@@ -59,6 +60,7 @@ use Shaper\Util\Context;
 class FormGeneratorDrupalTest extends TestCase {
 
   use ConstantSchemas;
+  use TranslationContainer;
 
   /**
    * The form generator.

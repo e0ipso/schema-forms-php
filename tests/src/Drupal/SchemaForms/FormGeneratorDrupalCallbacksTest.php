@@ -26,6 +26,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
 /**
@@ -51,6 +52,8 @@ use Shaper\Util\Context;
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
 final class FormGeneratorDrupalCallbacksTest extends TestCase {
+
+  use TranslationContainer;
 
   /**
    * Adding and removing items survives rebuilding the generated widget.

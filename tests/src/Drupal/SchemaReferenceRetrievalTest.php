@@ -13,6 +13,7 @@ use SchemaForms\Drupal\SubmissionPreparer;
 use SchemaForms\Drupal\SubmissionValidator;
 use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\Tests\Fixture\ReferenceSentinel;
+use SchemaForms\Tests\Fixture\TranslationContainer;
 
 /**
  * Generation and submission keep retrieval inside registered schemas.
@@ -24,6 +25,8 @@ use SchemaForms\Tests\Fixture\ReferenceSentinel;
 #[CoversClass(SubmissionPreparer::class)]
 #[CoversClass(SubmissionValidator::class)]
 final class SchemaReferenceRetrievalTest extends TestCase {
+
+  use TranslationContainer;
 
   /**
    * The sentinel also detects the pre-fix retrieval without external hosts.
