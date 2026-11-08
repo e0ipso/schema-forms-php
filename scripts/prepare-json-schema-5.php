@@ -90,6 +90,13 @@ foreach ($xpath->query('//@outputFile | //@outputDirectory | //@cacheDirectory |
     $attribute->value = $work . '/' . basename($attribute->value);
   }
 }
+// The run checks behaviour, not coverage. A coverage report without a driver
+// is a PHPUnit warning, and the CI job for this run installs no driver.
+foreach (iterator_to_array($xpath->query('/phpunit/coverage') ?: []) as $node) {
+  if ($node instanceof DOMElement) {
+    $node->parentNode?->removeChild($node);
+  }
+}
 $phpunit->setAttribute('cacheDirectory', $work . '/phpunit-cache');
 if ($xml->save($work . '/phpunit.xml') === FALSE) {
   throw new RuntimeException('Cannot write ' . $work . '/phpunit.xml');

@@ -263,6 +263,30 @@ SH);
   }
 
   /**
+   * The compatibility run needs no coverage driver.
+   *
+   * The CI job that runs it installs PHP without one, and PHPUnit reports a
+   * coverage report without a driver as a warning that fails the run.
+   */
+  public function testCompatibilityConfigHasNoCoverageReport(): void {
+    $directory = sys_get_temp_dir() . '/schema-prepare-' . bin2hex(random_bytes(8));
+    // The runner creates the work directory before preparing it.
+    $this->assertTrue(mkdir($directory));
+    try {
+      $process = new Process($this->prepareCommand($directory), $this->root(), timeout: 30);
+      $this->assertSame(0, $process->run(), $process->getErrorOutput());
+      $xml = new \DOMDocument();
+      $this->assertTrue($xml->load($directory . '/phpunit.xml', LIBXML_NONET));
+      $xpath = new \DOMXPath($xml);
+      $this->assertSame(0, $xpath->query('/phpunit/coverage')->length);
+      $this->assertSame(1, $xpath->query('/phpunit/testsuite')->length);
+    }
+    finally {
+      (new Filesystem())->remove($directory);
+    }
+  }
+
+  /**
    * The preparation script fails loudly on bad arguments and failed writes.
    */
   #[DataProvider('preparationFailureProvider')]
