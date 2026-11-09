@@ -46,6 +46,7 @@ use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\RegisteredSchema;
 use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
 
 /**
  * Unit tests for submission preparation and schema validation.
@@ -460,24 +461,40 @@ final class SubmissionPipelineTest extends TestCase {
   }
 
   /**
-   * The generator runs with collaborators its caller constructs.
+   * The generator registers schemas with the registry it was given.
+   *
+   * The generated container's validation uses the same registry.
    */
-  public function testGeneratorWithExplicitCollaborators(): void {
-    $generator = new FormGeneratorDrupal(
-      new SchemaPreparer(),
-      new FormTreeBuilder(new FieldBuilder(new MultivalueWidgetBuilder())),
-      new SubmissionPreparer(new PreservedValues()),
-      new SubmissionValidator(new ErrorElementMapper()),
-    );
+  public function testGeneratorUsesItsRegistry(): void {
+    $registry = new class() implements SchemaRegistryInterface {
+
+      /**
+       * The number of schemas registered.
+       */
+      public int $calls = 0;
+
+      /**
+       * {@inheritdoc}
+       */
+      public function register(object $schema): RegisteredSchema {
+        $this->calls++;
+        return (new RestrictedSchemaRegistry())->register($schema);
+      }
+
+    };
     $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer","const":3},"label":{"type":"string","minLength":3}}}');
-    $element = $generator->transform($schema);
-    $this->assertSame('textfield', $element['label']['#type']);
+    $built = (new FormGeneratorDrupal($registry))->transform($schema);
+    $this->assertSame('textfield', $built['label']['#type']);
+    $this->assertSame(1, $registry->calls);
     $element = self::element(['data'], 'Data', [
       'count' => self::element(['data', 'count'], 'Count') + ['#schema_fixed_value' => 3],
       'label' => self::element(['data', 'label'], 'Label'),
-    ]) + ['#json_schema' => $element['#json_schema']];
+    ]) + array_filter($built, static fn (int|string $key): bool => str_starts_with((string) $key, '#'), ARRAY_FILTER_USE_KEY);
     $form_state = self::formState(['data' => ['label' => 'ab']]);
-    $generator->validateWithSchema($element, $form_state);
+
+    call_user_func_array($element['#element_validate'][0], [&$element, $form_state]);
+
+    $this->assertSame(2, $registry->calls);
     $this->assertSame(['label' => 'ab', 'count' => 3], $form_state->getValue('data'));
     $this->assertSame(['data][label'], array_keys(self::renderedErrors($form_state)));
   }

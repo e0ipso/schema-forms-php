@@ -8,8 +8,11 @@ use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Form\FormStateInterface;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Exception\ExceptionInterface;
+use SchemaForms\Exception\InvalidOptionException;
 use SchemaForms\FormGeneratorInterface;
 use SchemaForms\JsonSchemaFormValidator;
+use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;
 use Shaper\Validator\ValidateableInterface;
@@ -44,36 +47,51 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
 
   /**
    * The schemas that passed the input validation.
-   *
-   * Not promoted: a generator that a form cached before this property
-   * existed unserializes with NULL here instead of an uninitialized
-   * property.
    */
   private ?AcceptedSchemas $accepted = NULL;
 
   /**
+   * The registry of the generated forms' schemas, or NULL for the default.
+   */
+  private ?SchemaRegistryInterface $registry = NULL;
+
+  /**
+   * The element mappers to ask before the generator's own.
+   *
+   * @var list<\SchemaForms\Drupal\ElementMapperInterface>
+   */
+  private array $elementMappers = [];
+
+  /**
    * Creates the generator.
    *
-   * @param \SchemaForms\Drupal\SchemaPreparer $schemas
-   *   Registers the schema and checks its property names.
-   * @param \SchemaForms\Drupal\FormTreeBuilder $tree
-   *   Builds the generated container.
-   * @param \SchemaForms\Drupal\SubmissionPreparer $preparer
-   *   Cleans and casts submitted values.
-   * @param \SchemaForms\Drupal\SubmissionValidator $validator
-   *   Validates the prepared values against the schema.
-   * @param \SchemaForms\Drupal\AcceptedSchemas|null $accepted
-   *   Remembers the schemas that passed the input validation, or NULL for a
-   *   memory with the default limit.
+   * The properties are not promoted and have defaults, so a generator that a
+   * form cached before they existed unserializes with the defaults.
+   *
+   * @param \SchemaForms\SchemaRegistryInterface|null $registry
+   *   Registers each schema, so its references resolve; NULL for a
+   *   RestrictedSchemaRegistry. Validation registers the schema again with
+   *   the same registry.
+   * @param array<mixed> $element_mappers
+   *   ElementMapperInterface objects to ask, in order, before the generator's
+   *   own mapper, for the element of a schema with no compound control.
+   *
+   * @throws \SchemaForms\Exception\InvalidOptionException
+   *   When an element mapper does not implement ElementMapperInterface.
    */
   public function __construct(
-    private readonly SchemaPreparer $schemas = new SchemaPreparer(),
-    private readonly FormTreeBuilder $tree = new FormTreeBuilder(),
-    private readonly SubmissionPreparer $preparer = new SubmissionPreparer(),
-    private readonly SubmissionValidator $validator = new SubmissionValidator(),
-    ?AcceptedSchemas $accepted = NULL,
+    ?SchemaRegistryInterface $registry = NULL,
+    array $element_mappers = [],
   ) {
-    $this->accepted = $accepted;
+    $mappers = array_values(array_filter(
+      $element_mappers,
+      static fn (mixed $mapper): bool => $mapper instanceof ElementMapperInterface
+    ));
+    if (count($mappers) !== count($element_mappers)) {
+      throw new InvalidOptionException('Every element mapper must implement ' . ElementMapperInterface::class . '.');
+    }
+    $this->registry = $registry;
+    $this->elementMappers = $mappers;
   }
 
   /**
@@ -93,7 +111,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public function doTransform($data, ?Context $context = NULL): array {
     try {
-      $schema = $this->accepted()->register($data, $this->schemas);
+      $schema = $this->accepted()->register($data, new SchemaPreparer($this->registry()));
     }
     catch (ExceptionInterface $e) {
       return $this->withValidation([
@@ -103,7 +121,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         '#markup' => ValidationMessages::unsupportedReference(),
       ]);
     }
-    return $this->withValidation($this->tree->build($schema, ContextOptions::read($context ?? new Context())));
+    $tree = new FormTreeBuilder(new FieldBuilder(new MultivalueWidgetBuilder(), $this->elementMappers));
+    return $this->withValidation($tree->build($schema, ContextOptions::read($context ?? new Context())));
   }
 
   /**
@@ -148,7 +167,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The names of the properties to serialize.
    */
   public function __sleep(): array {
-    return ['schemas', 'tree', 'preparer', 'validator', 'accepted'];
+    return ['accepted', 'registry', 'elementMappers'];
   }
 
   /**
@@ -310,14 +329,24 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Builds the bridge the validation callbacks delegate to.
    *
-   * It is built on demand from the injected collaborators, so a generator
-   * that a form cached before the bridge existed still validates.
+   * It is built on demand, so a generator that a form cached before the
+   * bridge existed still validates.
    *
    * @return \SchemaForms\Drupal\SchemaValidationBridge
    *   The bridge.
    */
   private function bridge(): SchemaValidationBridge {
-    return new SchemaValidationBridge($this->preparer, $this->validator);
+    return new SchemaValidationBridge(registry: $this->registry());
+  }
+
+  /**
+   * Gets the schema registry.
+   *
+   * @return \SchemaForms\SchemaRegistryInterface
+   *   The registry the caller gave, or a RestrictedSchemaRegistry.
+   */
+  private function registry(): SchemaRegistryInterface {
+    return $this->registry ?? new RestrictedSchemaRegistry();
   }
 
   /**

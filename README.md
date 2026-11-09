@@ -161,7 +161,8 @@ The input schema must be a valid draft-04 JSON Schema whose root `type` is `obje
 
 Semantic versioning covers these symbols, with Shaper's `Context` carrying a `FormOptions` as the options input. Every other class in `src/` is marked `@internal` and can change in any release.
 
-- `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator.
+- `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator. Its constructor takes an optional `SchemaRegistryInterface` and a list of element mappers.
+- `SchemaForms\Drupal\ElementMapperInterface`: picks the element of a scalar schema. See [Mapping more types to elements](#mapping-more-types-to-elements).
 - `SchemaForms\FormOptions`: the options of one `transform()` call. See [Options](#options).
 - `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
@@ -262,11 +263,32 @@ The separate context keys `ui_hints`, `form_state`, `current_input` and `namespa
 | `object` with `properties` | an open `details` element with one control per sub-property |
 | a property with `const` | an `item` element: the title as its label and the value as escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
 
-A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form. An `array` with no `items`, or with a list of item schemas, renders the same item and its saved value is kept unchanged.
+A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited, unless an element mapper you pass maps it. It does not disappear from the form. An `array` with no `items`, or with a list of item schemas, renders the same item and its saved value is kept unchanged.
 
 When `type` is a list, the generator uses the first type other than `"null"`. The position of `"null"` does not matter: `["null", "string"]` and `["string", "null"]` both render a textfield. A list containing only `"null"` renders the "cannot be edited" item.
 
 The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way. The members `true`, `false` and `null` are labelled "True", "False" and "None", and the empty string "Empty".
+
+### Mapping more types to elements
+
+To edit a type or a format with an element the table above does not list, pass an `ElementMapperInterface` to the generator. Its `map()` method returns the render properties of the element, including `#type`, or `NULL` for a schema it does not handle. The generator asks your mappers in order, then its own, and uses the first answer. It never asks for `array` and `object`; an `enum` still renders radios and a `ui:widget` still wins. This mapper renders `"format": "date"` strings as Drupal `date` elements:
+
+```php
+use SchemaForms\Drupal\ElementMapperInterface;
+use SchemaForms\Drupal\FormGeneratorDrupal;
+
+final class DateElementMapper implements ElementMapperInterface {
+
+  public function map(\stdClass $schema, string $type): ?array {
+    return $type === 'string' && ($schema->format ?? NULL) === 'date' ? ['#type' => 'date'] : NULL;
+  }
+
+}
+
+$generator = new FormGeneratorDrupal(element_mappers: [new DateElementMapper()]);
+```
+
+The first constructor argument is the `SchemaRegistryInterface` that registers each schema, by default a `RestrictedSchemaRegistry`. Both arguments are optional.
 
 ### Accessibility
 

@@ -96,35 +96,18 @@ final class AcceptedSchemasTest extends TestCase {
   }
 
   /**
-   * The generator remembers accepted schemas in the memory it was given.
+   * A generator that a form cached before its properties existed still works.
+   *
+   * Release 3.1.1 serialized the generator with no properties at all.
    */
-  public function testGeneratorUsesInjectedMemory(): void {
-    $memory = new AcceptedSchemas();
+  public function testGeneratorCachedWithoutProperties(): void {
     $schema = json_decode('{"type":"object","properties":{"a":{"type":"string"}}}');
-
-    (new FormGeneratorDrupal(accepted: $memory))->transform($schema);
-
-    $this->assertTrue($memory->contains($schema));
-  }
-
-  /**
-   * A generator cached before the memory existed still builds forms.
-   */
-  public function testGeneratorCachedWithoutMemory(): void {
-    $schema = json_decode('{"type":"object","properties":{"a":{"type":"string"}}}');
-    $property = "\0" . FormGeneratorDrupal::class . "\0accepted";
-    $current = serialize(new FormGeneratorDrupal());
-    $entry = serialize($property) . 'N;';
-    $this->assertStringContainsString($entry, $current);
-    $earlier = str_replace(
-      [':5:{', $entry],
-      [':4:{', ''],
-      $current
-    );
+    $earlier = 'O:' . strlen(FormGeneratorDrupal::class) . ':"' . FormGeneratorDrupal::class . '":0:{}';
 
     // phpcs:ignore DrupalPractice.FunctionCalls.InsecureUnserialize -- Drupal's form cache restores every class, as this does.
     $generator = unserialize($earlier);
 
+    $this->assertInstanceOf(FormGeneratorDrupal::class, $generator);
     $this->assertArrayHasKey('a', $generator->transform($schema));
     $this->assertArrayHasKey('a', $generator->transform($schema));
   }

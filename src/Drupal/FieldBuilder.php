@@ -19,36 +19,30 @@ final class FieldBuilder {
   private const DETAILS = 'details';
 
   /**
+   * The element types the compound builders produce.
+   */
+  private const COMPOUND_ELEMENT_TYPES = [EnumElements::RADIOS, EnumElements::CHECKBOXES, self::DETAILS];
+
+  /**
+   * The element mappers, the default one last.
+   *
+   * @var list<\SchemaForms\Drupal\ElementMapperInterface>
+   */
+  private readonly array $mappers;
+
+  /**
    * Creates the builder.
    *
    * @param \SchemaForms\Drupal\MultivalueWidgetBuilder $multivalue
    *   Builds the widgets of arrays with one item schema.
+   * @param list<\SchemaForms\Drupal\ElementMapperInterface> $element_mappers
+   *   Mappers to ask before ScalarElementMapper.
    */
   public function __construct(
     private readonly MultivalueWidgetBuilder $multivalue = new MultivalueWidgetBuilder(),
-  ) {}
-
-  /**
-   * Lists the element types this builder produces on purpose.
-   *
-   * Any other value means a JSON Schema type reached '#type' unchanged, and
-   * no JSON Schema type is a Drupal element: ElementInfoManager::getInfo()
-   * returns an empty array for an unknown type, so the element renders as an
-   * empty string with no exception, no warning and no log entry. The
-   * property then looks exactly like one the schema never declared, so such
-   * an element is replaced by an explanation instead. The list is derived
-   * from the mappings, so a new mapping is supported as soon as it exists.
-   *
-   * @return list<string>
-   *   The element types.
-   */
-  public static function supportedElementTypes(): array {
-    return [
-      ...ElementScaffold::scalarElementTypes(),
-      EnumElements::RADIOS,
-      EnumElements::CHECKBOXES,
-      self::DETAILS,
-    ];
+    array $element_mappers = [],
+  ) {
+    $this->mappers = [...$element_mappers, new ScalarElementMapper()];
   }
 
   /**
@@ -68,7 +62,8 @@ final class FieldBuilder {
     $saved_scalar = SchemaTypes::isCompound($guessed) && $context->hasCurrentInput
       && $context->currentInput !== NULL && !is_array($context->currentInput);
     $type = $saved_scalar ? SchemaTypes::forScalar($context->schema, $context->currentInput) ?? $guessed : $guessed;
-    $element = ElementScaffold::create($context, $type);
+    $mapped = SchemaTypes::isCompound($type) ? [] : $this->map($context->schema, $type);
+    $element = ElementScaffold::create($context, $type, $mapped);
     $element[RenderKeys::PROP_PARENTS] = $context->parents;
     if (property_exists($context->schema, 'const')) {
       return $this->constant($element, $context->schema->const);
@@ -89,7 +84,7 @@ final class FieldBuilder {
       return $this->unsupported($element, $context, $type);
     }
     $element = $this->typedElement($element, $this->withCompoundDefault($context, $type), $type);
-    if (!$this->isSupported($element, $context->hints)) {
+    if (!$this->isSupported($element, $context->hints, $mapped)) {
       return $this->unsupported($element, $context, $type);
     }
     // An editable control cannot show NULL, so an untouched one would submit
@@ -268,20 +263,51 @@ final class FieldBuilder {
   }
 
   /**
+   * Asks the element mappers for the properties of a control.
+   *
+   * @param \stdClass $schema
+   *   The schema.
+   * @param string $type
+   *   The type the control is built for.
+   *
+   * @return array<string, mixed>
+   *   The first answer, or an empty array when no mapper handles the schema.
+   */
+  private function map(\stdClass $schema, string $type): array {
+    $answers = array_filter(array_map(
+      static fn (ElementMapperInterface $mapper): ?array => $mapper->map($schema, $type),
+      $this->mappers
+    ));
+    return reset($answers) ?: [];
+  }
+
+  /**
    * Decides whether the generator built the element on purpose.
+   *
+   * Otherwise a JSON Schema type reached '#type' unchanged, and no JSON
+   * Schema type is a Drupal element: ElementInfoManager::getInfo() returns
+   * an empty array for an unknown type, so the element renders as an empty
+   * string with no exception, no warning and no log entry. The property
+   * would then look exactly like one the schema never declared, so such an
+   * element is replaced by an explanation instead.
    *
    * @param array<int|string, mixed> $element
    *   The element.
    * @param array<mixed> $hints
    *   The UI hints.
+   * @param array<string, mixed> $mapped
+   *   The properties an element mapper gave the element.
    *
    * @return bool
    *   TRUE for a supported element. A 'ui:widget' names an element the caller
-   *   picked deliberately, so it is taken at face value.
+   *   picked deliberately, so it is taken at face value, and so is the
+   *   element a mapper picked.
    */
-  private function isSupported(array $element, array $hints): bool {
+  private function isSupported(array $element, array $hints, array $mapped): bool {
+    $type = $element['#type'] ?? NULL;
     return SchemaTypes::widget($hints) !== NULL
-      || in_array($element['#type'] ?? '', self::supportedElementTypes(), TRUE);
+      || in_array($type, self::COMPOUND_ELEMENT_TYPES, TRUE)
+      || ($type !== NULL && $type === ($mapped['#type'] ?? NULL));
   }
 
   /**
