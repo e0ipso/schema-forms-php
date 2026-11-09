@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Core\Form\FormState;
