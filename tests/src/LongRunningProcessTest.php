@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
-use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\JsonSchemaFormValidator;
@@ -77,7 +76,7 @@ final class LongRunningProcessTest extends TestCase {
    * One validator checks a sequence of schemas independently.
    */
   public function testValidatorIsolatesSchemas(): void {
-    $validator = new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    $validator = new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
     $invalid = json_decode('{"type":"object","required":"name"}');
     $valid = json_decode('{"type":"object","properties":{"name":{"type":"string"}}}');
     $this->assertFalse($validator->isValid($invalid));

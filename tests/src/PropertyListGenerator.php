@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
-use JsonSchema\Validator;
 use SchemaForms\FormGeneratorInterface;
 use SchemaForms\JsonSchemaFormValidator;
-use SchemaForms\SchemaReferenceResolver;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;
 use Shaper\Validator\AcceptValidator;
@@ -55,7 +53,7 @@ final class PropertyListGenerator extends TransformationBase implements FormGene
    */
   #[\Override]
   public function getInputValidator(): ValidateableInterface {
-    $this->inputValidator ??= new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    $this->inputValidator ??= new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
     return $this->inputValidator;
   }
 

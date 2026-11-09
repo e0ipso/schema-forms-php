@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
-use JsonSchema\Validator;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\FormTransformationInterface;
 use SchemaForms\JsonSchemaFormValidator;
-use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\Testing\FormTransformationContractTestCase;
 use Shaper\Util\Context;
 
@@ -25,7 +23,7 @@ final class FormTransformationContractTestCaseTest extends TestCase {
    * The shipped cases agree with the input validator FormGeneratorDrupal uses.
    */
   public function testCasesMatchTheLibraryValidator(): void {
-    $validator = new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    $validator = new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
     foreach (FormTransformationContractTestCase::supportedSchemaProvider() as $name => [$schema]) {
       $this->assertTrue($validator->isValid($schema), $name);
     }
