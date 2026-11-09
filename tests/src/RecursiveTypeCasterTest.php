@@ -141,6 +141,16 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","patternProperties":{"^a~b$":{"type":"integer"}}}',
         ['a~b' => 3],
       ],
+      'a pattern may escape the delimiter' => [
+        ['a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a\\\\~b$":{"type":"integer"}}}',
+        ['a~b' => 3],
+      ],
+      'a pattern may escape a backslash before the delimiter' => [
+        ['a\\~b' => '3', 'a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a\\\\\\\\~b$":{"type":"integer"}}}',
+        ['a\\~b' => 3, 'a~b' => '3'],
+      ],
       'a non-object property schema is skipped' => [
         ['x' => '3'],
         '{"type":"object","properties":{"x":true},"additionalProperties":{"type":"integer"}}',
@@ -228,6 +238,31 @@ class RecursiveTypeCasterTest extends TestCase {
   public function testPatternPropertiesArray(): void {
     $schema = (object) ['type' => 'object', 'patternProperties' => ['^n' => (object) ['type' => 'integer']]];
     $this->assertSame(['n1' => 5], RecursiveTypeCaster::recursiveTypeRefinements(['n1' => '5'], $schema));
+  }
+
+  /**
+   * An invalid pattern raises no warning and leaves the error handler alone.
+   */
+  public function testInvalidPatternIsQuiet(): void {
+    $schema = json_decode('{"type":"object","patternProperties":{"(":{"type":"integer"}}}');
+    $warnings = [];
+    $handler = static function (int $severity, string $message) use (&$warnings): bool {
+      $warnings[] = $message;
+      return TRUE;
+    };
+    set_error_handler($handler);
+    try {
+      $actual = RecursiveTypeCaster::recursiveTypeRefinements(['x' => '3'], $schema);
+    }
+    finally {
+      // Read the installed handler, then remove it and the test's own.
+      $current = set_error_handler(NULL);
+      restore_error_handler();
+      restore_error_handler();
+    }
+    $this->assertSame([], $warnings);
+    $this->assertSame($handler, $current);
+    $this->assertSame(['x' => '3'], $actual);
   }
 
   /**
