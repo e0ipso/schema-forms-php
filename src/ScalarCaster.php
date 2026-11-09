@@ -16,7 +16,7 @@ final class ScalarCaster {
    *
    * @param mixed $data
    *   The value.
-   * @param array<mixed> $types
+   * @param list<string> $types
    *   The declared types.
    * @param object $schema
    *   The schema of the value.
@@ -25,15 +25,16 @@ final class ScalarCaster {
    *   The cast value, or the value unchanged when no cast applies.
    */
   public static function cast(mixed $data, array $types, object $schema): mixed {
-    // The first cast that applies wins, so the order matters.
-    if (self::tryCastingNumber($data, $types)) {
-      return $data;
+    // The first cast that applies wins, so the order matters. A numeric
+    // string a number cannot hold stays as it is: no later cast changes it.
+    if (is_numeric($data) && array_intersect(['integer', 'number'], $types) !== []) {
+      return is_string($data) ? self::castNumericString($data) : $data;
     }
-    if (self::tryCastingBoolean($data, $types)) {
-      return $data;
+    if (in_array($data, ['0', '1', 0, 1], TRUE) && in_array('boolean', $types, TRUE)) {
+      return (bool) $data;
     }
-    if (self::tryCastingNull($data, $types, $schema)) {
-      return $data;
+    if (in_array('null', $types, TRUE) && self::meansAbsence($data, $types, $schema)) {
+      return NULL;
     }
     return self::castToString($data, $types);
   }
@@ -43,7 +44,7 @@ final class ScalarCaster {
    *
    * @param mixed $input
    *   The input data.
-   * @param array<mixed> $types
+   * @param list<string> $types
    *   The possible types.
    *
    * @return mixed
@@ -59,7 +60,7 @@ final class ScalarCaster {
   }
 
   /**
-   * Attempts to cast the data to NULL.
+   * Decides whether a value on a nullable property means "nothing here".
    *
    * Only values that already mean "there is nothing here" become NULL. `null`
    * in a type union means the property *also* accepts absence; it does not
@@ -76,34 +77,24 @@ final class ScalarCaster {
    * list "" all rule it out -- so those become NULL too.
    *
    * @param mixed $input
-   *   The input data. Passed by reference to change its type.
-   * @param array<mixed> $types
+   *   The input data.
+   * @param list<string> $types
    *   The possible types.
    * @param object $schema
    *   The schema of the property the value belongs to. Read for the keywords
    *   that decide whether a `string` type can hold the empty string.
    *
    * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
+   *   TRUE when the value becomes NULL.
    */
-  private static function tryCastingNull(mixed &$input, array $types, object $schema): bool {
-    if (!in_array('null', $types, TRUE)) {
-      return FALSE;
-    }
-    if ($input === NULL) {
-      return TRUE;
-    }
-    if ($input === '' && !self::acceptsTheEmptyString($types, $schema)) {
-      $input = NULL;
-      return TRUE;
-    }
-    return FALSE;
+  private static function meansAbsence(mixed $input, array $types, object $schema): bool {
+    return $input === NULL || ($input === '' && !self::acceptsTheEmptyString($types, $schema));
   }
 
   /**
    * Decides whether any declared type can hold the empty string.
    *
-   * @param array<mixed> $types
+   * @param list<string> $types
    *   The possible types.
    * @param object $schema
    *   The schema of the property the value belongs to.
@@ -126,62 +117,28 @@ final class ScalarCaster {
   }
 
   /**
-   * Attempts to cast the data to a boolean.
-   *
-   * @param mixed $input
-   *   The input data. Passed by reference to change its type.
-   * @param array<mixed> $types
-   *   The possible types.
-   *
-   * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
-   */
-  private static function tryCastingBoolean(mixed &$input, array $types): bool {
-    $is_quasi_boolean = $input === '0' || $input === '1' || $input === 0 || $input === 1;
-    if (!$is_quasi_boolean || !in_array('boolean', $types, TRUE)) {
-      return FALSE;
-    }
-    $input = (bool) $input;
-    return TRUE;
-  }
-
-  /**
-   * Attempts to cast the data to a number.
+   * Casts a numeric string to the number it spells.
    *
    * A numeric string becomes an integer when it has no dot and spells a whole
    * number PHP can hold, and a float otherwise. Non-finite values and
    * integers out of range stay strings for validation to report.
    *
-   * @param mixed $input
-   *   The input data. Passed by reference to change its type.
-   * @param array<mixed> $types
-   *   The possible types.
+   * @param numeric-string $input
+   *   The numeric string.
    *
-   * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
+   * @return int|float|string
+   *   The number, or the string unchanged when no number holds it.
    */
-  private static function tryCastingNumber(mixed &$input, array $types): bool {
-    $is_numeric_definition = in_array('integer', $types, TRUE) || in_array('number', $types, TRUE);
-    if (!$is_numeric_definition || !is_numeric($input)) {
-      return FALSE;
-    }
-    if (!is_string($input)) {
-      return TRUE;
-    }
+  private static function castNumericString(string $input): int|float|string {
     $number = (float) $input;
     if (!is_finite($number)) {
-      return FALSE;
+      return $input;
     }
     // An exponent can spell a fraction without a dot, such as "1e-3".
     if (str_contains($input, '.') || floor($number) !== $number) {
-      $input = $number;
-      return TRUE;
+      return $number;
     }
-    if (!self::fitsInInteger($input, $number)) {
-      return FALSE;
-    }
-    $input = (int) $input;
-    return TRUE;
+    return self::fitsInInteger($input, $number) ? (int) $input : $input;
   }
 
   /**

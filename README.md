@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 8.3 or later. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or a later 8.x release (`^8.3`); Composer refuses PHP 9 until CI tests it. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
@@ -55,13 +55,14 @@ Pass both to the generator. Decode the schema to objects and the UI schema to ar
 
 ```php
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
 $schema_data = json_decode($schema_json);
 $ui_schema_data = json_decode($ui_schema_json, TRUE);
 
 $generator = new FormGeneratorDrupal();
-$context = new Context(['ui_hints' => $ui_schema_data]);
+$context = new Context(['options' => new FormOptions(uiHints: $ui_schema_data)]);
 $form = $generator->transform($schema_data, $context);
 ```
 
@@ -154,17 +155,25 @@ Code that only builds forms should type-hint `FormTransformationInterface`, whic
 ]
 ```
 
-The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`, decoded to objects. Anything else, including an associative array, makes `transform()` throw a `TypeError` whose message lists the validation errors. A property name that starts with `#`, at any depth, makes `transform()` throw an `\InvalidArgumentException` naming the property path, because Drupal would read the name as a render property.
+The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`, decoded to objects. Anything else, including an associative array, makes `transform()` throw a `TypeError` whose message lists the validation errors. A property name that starts with `#`, at any depth, makes `transform()` throw a `SchemaForms\Exception\InvalidSchemaException` naming the property path, because Drupal would read the name as a render property. A context value the generator does not accept, such as an empty `namespace`, makes it throw a `SchemaForms\Exception\InvalidOptionException`. Both extend `\InvalidArgumentException`. A schema reference outside the registered documents does not throw: the generator renders the container with an error message instead.
 
 ### Public API
 
-Semantic versioning covers these symbols, with Shaper's `Context` as the options input. Every other class in `src/` is marked `@internal` and can change in any release.
+Semantic versioning covers these symbols, with Shaper's `Context` carrying a `FormOptions` as the options input. Every other class in `src/` is marked `@internal` and can change in any release.
 
 - `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator.
+- `SchemaForms\FormOptions`: the options of one `transform()` call. See [Options](#options).
 - `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
+- `SchemaForms\Exception\InvalidOptionException`: a context value or constructor option the library does not accept.
+- `SchemaForms\Exception\InvalidSchemaException`: a valid schema the generator cannot represent, such as a property name that starts with `#`.
 - `SchemaForms\Exception\UnsupportedReferenceException`: a schema reference outside the registered documents.
+- `SchemaForms\Exception\UnreadableMetaSchemaException`: the bundled draft-04 meta-schema file is missing or broken. Reinstall the package.
+- `SchemaForms\RegisteredSchema`: a registered schema and the `JsonSchema\Constraints\Factory` whose storage resolves its references.
+- `SchemaForms\RestrictedSchemaRegistry`: the default `SchemaRegistryInterface`. It allows references inside the schema and to the bundled draft-04 meta-schema, and fetches nothing.
+- `SchemaForms\SchemaRegistryInterface`: registers a schema so its references resolve. Implement it to change which documents a schema may reference.
+- `SchemaForms\SubmissionRefiner`: casts submitted values to the types of a schema, without Drupal. See [Refining submissions without Drupal](#refining-submissions-without-drupal).
 - `SchemaForms\Testing\FormTransformationContractTestCase`: a PHPUnit test case that checks your own `FormTransformationInterface` implementation. See [Wrapping or replacing the generator](#wrapping-or-replacing-the-generator).
 
 `tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
@@ -214,16 +223,27 @@ final class ContextDefaultsContractTest extends FormTransformationContractTestCa
 }
 ```
 
-The case checks that a decoded draft-04 object schema builds a form with and without a context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
+The case checks that a decoded draft-04 object schema builds a form with and without a context, that an empty context builds the same form as no context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. By default it only requires a result other than `NULL`; override `assertForm()` to check the type and shape your implementation returns. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
 
-### Context keys
+### Options
 
-The `Context` accepts four keys, all optional:
+Pass a `SchemaForms\FormOptions` as the `options` key of the `Context`. Every argument is optional:
 
-- `ui_hints`: the UI schema, as an array keyed by property name.
-- `form_state`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
-- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
-- `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes.
+```php
+$context = new Context(['options' => new FormOptions(
+  uiHints: $ui_schema_data,
+  formState: $form_state,
+  currentInput: $saved_values,
+  namespace: 'settings',
+)]);
+```
+
+- `uiHints`: the UI schema, as an array keyed by property name.
+- `formState`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
+- `currentInput`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
+- `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes. `FormOptions` throws `InvalidOptionException` for an empty string.
+
+The separate context keys `ui_hints`, `form_state`, `current_input` and `namespace` still work and mean the same as the arguments above. They are deprecated in 3.2.0 and are removed in 4.0.0.
 
 ### How schema types become elements
 
@@ -282,6 +302,20 @@ When Drupal validates the form, the schema validation:
 2. Casts the submitted strings to the schema types. Numeric strings become `int` or `float`, `"0"` and `"1"` become booleans on a `boolean` property, and an empty string becomes `NULL` on a nullable property that cannot hold it.
 3. Validates the result against the schema with `justinrainbow/json-schema`. Each error is set on the element it belongs to. Errors that match no element are joined into one error on the container.
 
+### Refining submissions without Drupal
+
+`SubmissionRefiner` runs step 2 on its own, for a form built with another framework:
+
+```php
+use SchemaForms\SubmissionRefiner;
+
+$schema = json_decode('{"type":"object","properties":{"age":{"type":"integer"},"nickname":{"type":["string","null"],"minLength":1}}}');
+$values = (new SubmissionRefiner())->refine(['age' => '42', 'nickname' => ''], $schema);
+// ['age' => 42, 'nickname' => NULL]
+```
+
+`refine()` leaves the schema unchanged and leaves values it cannot cast as they are, for validation to report. It throws `UnsupportedReferenceException` when the schema references a document outside itself. The constructor takes a `SchemaRegistryInterface`; the default, `RestrictedSchemaRegistry`, never fetches a file or URL.
+
 ### Limitations
 
 - Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
@@ -296,14 +330,26 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - Every exception the library throws implements `SchemaForms\Exception\ExceptionInterface`. Catch it to handle any failure from the library at once.
 - A schema reference outside the registered documents throws `SchemaForms\Exception\UnsupportedReferenceException`. It extends `JsonSchema\Exception\UnresolvableJsonPointerException`, the exception thrown before, so existing `catch` blocks still match. `transform()` still catches it and renders the container with the unsupported-reference message.
 - An `extends` value without a URI scheme is refused with the same exception before any filesystem check. Before, the resolver probed it as a local path first.
+- A property name that starts with `#` throws `SchemaForms\Exception\InvalidSchemaException`, and an empty `namespace` throws `SchemaForms\Exception\InvalidOptionException`. Both used to be a plain `\InvalidArgumentException`, which they extend, so existing `catch` blocks still match.
+- When the bundled `meta-schema-draft4.json` is missing, unreadable or not a JSON object, the library throws `SchemaForms\Exception\UnreadableMetaSchemaException`. It used to throw a `\JsonException`, which the marker interface did not cover.
 
 ### Submission values
 
+- `SchemaForms\SubmissionRefiner` is the public way to cast submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()` and `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated and are removed in 4.0.0.
 - A numeric string with an exponent and a fraction, such as `"1e-3"`, becomes the float `0.001`. It used to become the integer `0`.
 - An empty value of a required property with a numeric name, such as `"123"`, is kept, so validation reports it. It used to be dropped.
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
 - A property missing from `properties` is cast by the first matching `patternProperties` schema, then by an `additionalProperties` schema. Any other property is left as submitted. It used to be cast against the object's `items` keyword, or against a schema that turned an empty string into `NULL`.
 - In multivalue (array) widgets, constants and saved values of unsupported types follow their item when another item is removed, and validation checks the value Drupal stores instead of the raw input. Errors for properties named `add_more`, `remove_one` or `removable_element` land on their element.
+
+### Options
+
+- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, are deprecated, and are removed in 4.0.0.
+
+### Contract test case
+
+- `FormTransformationContractTestCase` has a new test, `testEmptyContextMeansNoOptions()`: an empty `Context` must build the same form as no context. An implementation that treats the two differently now fails it.
+- Override the new `assertForm()` to check the forms your implementation builds. Its default asserts what the case asserted before, a result other than `NULL`.
 
 ### Labels and markup
 
@@ -323,6 +369,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 ### Schemas and dependencies
 
 - The schema you pass in is no longer changed. Its `$ref` strings used to be rewritten to internal storage URIs.
+- The PHP requirement is `^8.3` instead of `>=8.3`, so Composer refuses PHP 9 until the package is tested on it.
 - Composer refuses `marc-mabe/php-enum` releases before 4.4.0, which PHP 8 reports with a warning on every load.
 - `justinrainbow/json-schema` must be 5.3.0 or later in the 5.x line (`^5.3 || ^6.3`). Up to 5.2.10, every validation raises a `strlen()` deprecation on PHP 8.3, and PHP 8.4 deprecates the implicitly nullable parameters that every 5.2 release declares.
 
@@ -340,7 +387,8 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 - `phpmnd`: checks for magic numbers in `php` and `module` files.
 - `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
 - `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
-- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
+- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. Its one `ignoreErrors` entry covers the Drupal adapter's six calls to deprecated core methods. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
+- `phpstan_tests`: runs PHPStan over `tests/` at level 1, configured in `phpstan-tests.neon.dist`. Level 2 still fails on the Drupal adapter and kernel tests. Its one `ignoreErrors` entry covers a deprecated call in `FormGeneratorDrupalTest.php`.
 - `yamllint` and `jsonlint`: check YAML and JSON files.
 - `composer`: runs strict Composer validation, `composer validate --strict`, when `composer.json` or `composer.lock` is present.
 - `composer_normalize`: runs `composer normalize --dry-run` when `composer.json` is present.
@@ -350,7 +398,7 @@ Tasks with file filters skip when no matching files are present. The pre-commit 
 
 Coverage uses class-level `#[CoversClass]` attributes so executed private helpers count toward their class. With Xdebug enabled, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes line coverage to `build/logs/clover.xml`. Run `php scripts/check-coverage.php` afterward, or pass a Clover path as its only argument. CI runs this check after `composer test` and fails on coverage below the floor or on a missing or invalid report.
 
-The initial line coverage floor is 45%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`. Keep coverage attribution at class level when adding tests.
+The line coverage floor is 98%, a little below the measured 99.6%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`. Keep coverage attribution at class level when adding tests.
 
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
 

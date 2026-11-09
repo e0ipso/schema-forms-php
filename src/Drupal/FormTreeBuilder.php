@@ -6,6 +6,7 @@ namespace SchemaForms\Drupal;
 
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Form\FormStateInterface;
+use SchemaForms\Exception\InvalidOptionException;
 use Shaper\Util\Context;
 
 /**
@@ -105,7 +106,7 @@ final class FormTreeBuilder {
       return NULL;
     }
     if (!is_string($namespace) || $namespace === '') {
-      throw new \InvalidArgumentException('The "namespace" context key must be a non-empty string.');
+      throw new InvalidOptionException('The "namespace" context key must be a non-empty string.');
     }
     return $namespace;
   }

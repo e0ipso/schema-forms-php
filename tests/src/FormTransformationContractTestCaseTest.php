@@ -5,13 +5,11 @@ declare(strict_types=1);
 namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
-use JsonSchema\Validator;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\FormTransformationInterface;
 use SchemaForms\JsonSchemaFormValidator;
-use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\Testing\FormTransformationContractTestCase;
 use Shaper\Util\Context;
 
@@ -25,7 +23,7 @@ final class FormTransformationContractTestCaseTest extends TestCase {
    * The shipped cases agree with the input validator FormGeneratorDrupal uses.
    */
   public function testCasesMatchTheLibraryValidator(): void {
-    $validator = new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    $validator = new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
     foreach (FormTransformationContractTestCase::supportedSchemaProvider() as $name => [$schema]) {
       $this->assertTrue($validator->isValid($schema), $name);
     }
@@ -78,6 +76,44 @@ final class FormTransformationContractTestCaseTest extends TestCase {
   }
 
   /**
+   * An implementation that reads an empty context as an option fails.
+   */
+  public function testEmptyContextThatChangesTheFormFails(): void {
+    $contract = self::contractFor(static fn (mixed $data, ?Context $context): array => ['context' => $context !== NULL]);
+    $contract->testBuildsWithoutContext((object) ['type' => 'object']);
+    $contract->testBuildsWithEmptyContext((object) ['type' => 'object']);
+    $this->expectException(AssertionFailedError::class);
+    $contract->testEmptyContextMeansNoOptions((object) ['type' => 'object']);
+  }
+
+  /**
+   * A subclass checks the form type through assertForm().
+   */
+  public function testAssertFormHook(): void {
+    $contract = new class('contract') extends FormTransformationContractTestCase {
+
+      /**
+       * {@inheritdoc}
+       */
+      #[\Override]
+      protected function createTransformation(): FormTransformationInterface {
+        return new PropertyListGenerator();
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      #[\Override]
+      protected function assertForm(mixed $form, object $schema): void {
+        $this->assertIsString($form);
+      }
+
+    };
+    $this->expectException(AssertionFailedError::class);
+    $contract->testBuildsWithoutContext((object) ['type' => 'object']);
+  }
+
+  /**
    * Creates the contract test case for an implementation.
    *
    * @param \Closure $transform
@@ -103,20 +139,12 @@ final class FormTransformationContractTestCaseTest extends TestCase {
       }
 
     };
-    return new class('contract', $transformation) extends FormTransformationContractTestCase {
+    $contract = new class('contract') extends FormTransformationContractTestCase {
 
       /**
        * The implementation under test.
        */
-      private FormTransformationInterface $transformation;
-
-      /**
-       * {@inheritdoc}
-       */
-      public function __construct(string $name, FormTransformationInterface $transformation) {
-        parent::__construct($name);
-        $this->transformation = $transformation;
-      }
+      public FormTransformationInterface $transformation;
 
       /**
        * {@inheritdoc}
@@ -127,6 +155,8 @@ final class FormTransformationContractTestCaseTest extends TestCase {
       }
 
     };
+    $contract->transformation = $transformation;
+    return $contract;
   }
 
 }

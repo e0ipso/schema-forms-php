@@ -7,7 +7,8 @@
 
 declare(strict_types=1);
 
-$coverage_floor = 45;
+// The suite measures about 99.6%; the floor leaves a small margin.
+$coverage_floor = 98;
 $percentage_scale = 100;
 $max_arguments = 2;
 
@@ -50,7 +51,7 @@ if (!is_finite($statements) || $statements <= 0 || $covered > $statements) {
 
 $percentage = $percentage_scale * $covered / $statements;
 $message = sprintf('Line coverage: %.2f%% (%.0f/%.0f); required: %d%%.', $percentage, $covered, $statements, $coverage_floor);
-// Compare the unrounded value: 44.999% must fail a 45% floor.
+// Compare the unrounded value: 97.999% must fail a 98% floor.
 if ($percentage < $coverage_floor) {
   throw new RuntimeException($message);
 }

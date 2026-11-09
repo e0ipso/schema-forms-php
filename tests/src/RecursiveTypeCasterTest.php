@@ -6,6 +6,7 @@ namespace SchemaForms\Tests;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\EnumMemberMatcher;
 use SchemaForms\Exception\UnsupportedReferenceException;
@@ -13,7 +14,11 @@ use SchemaForms\OptionalBlankRule;
 use SchemaForms\PropertySchemaResolver;
 use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\ScalarCaster;
-use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\RegisteredSchema;
+use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
+use SchemaForms\SchemaType;
+use SchemaForms\SubmissionRefiner;
 
 /**
  * Unit tests for the \SchemaForms\RecursiveTypeCaster class.
@@ -25,6 +30,10 @@ use SchemaForms\SchemaReferenceResolver;
 #[CoversClass(ScalarCaster::class)]
 #[CoversClass(EnumMemberMatcher::class)]
 #[CoversClass(PropertySchemaResolver::class)]
+#[CoversClass(SchemaType::class)]
+#[CoversClass(SubmissionRefiner::class)]
+#[CoversClass(RestrictedSchemaRegistry::class)]
+#[CoversClass(RegisteredSchema::class)]
 class RecursiveTypeCasterTest extends TestCase {
 
   /**
@@ -141,6 +150,16 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","patternProperties":{"^a~b$":{"type":"integer"}}}',
         ['a~b' => 3],
       ],
+      'a pattern may escape the delimiter' => [
+        ['a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a\\\\~b$":{"type":"integer"}}}',
+        ['a~b' => 3],
+      ],
+      'a pattern may escape a backslash before the delimiter' => [
+        ['a\\~b' => '3', 'a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a\\\\\\\\~b$":{"type":"integer"}}}',
+        ['a\\~b' => 3, 'a~b' => '3'],
+      ],
       'a non-object property schema is skipped' => [
         ['x' => '3'],
         '{"type":"object","properties":{"x":true},"additionalProperties":{"type":"integer"}}',
@@ -217,7 +236,7 @@ class RecursiveTypeCasterTest extends TestCase {
   public function testOmittedStdClassPropertyIsSkipped(): void {
     $data = (object) ['a' => '', 'n' => '2'];
     $schema = json_decode('{"type":"object","properties":{"a":{"type":"string","minLength":1},"n":{"type":"integer"}}}');
-    $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    $actual = (new SubmissionRefiner())->refine($data, $schema);
     $this->assertObjectNotHasProperty('a', $actual);
     $this->assertSame(2, $actual->n);
   }
@@ -227,7 +246,35 @@ class RecursiveTypeCasterTest extends TestCase {
    */
   public function testPatternPropertiesArray(): void {
     $schema = (object) ['type' => 'object', 'patternProperties' => ['^n' => (object) ['type' => 'integer']]];
-    $this->assertSame(['n1' => 5], RecursiveTypeCaster::recursiveTypeRefinements(['n1' => '5'], $schema));
+    $this->assertSame(['n1' => 5], (new SubmissionRefiner())->refine(['n1' => '5'], $schema));
+  }
+
+  /**
+   * An invalid pattern raises no warning and leaves the error handler alone.
+   */
+  public function testInvalidPatternIsQuiet(): void {
+    $schema = json_decode('{"type":"object","patternProperties":{"(":{"type":"integer"}}}');
+    $warnings = [];
+    $handler = static function (int $severity, string $message) use (&$warnings): bool {
+      $warnings[] = $message;
+      return TRUE;
+    };
+    set_error_handler($handler);
+    error_clear_last();
+    try {
+      $actual = (new SubmissionRefiner())->refine(['x' => '3'], $schema);
+    }
+    finally {
+      // Read the installed handler, then remove it and the test's own.
+      $current = set_error_handler(NULL);
+      restore_error_handler();
+      restore_error_handler();
+    }
+    $this->assertSame([], $warnings);
+    // PHP's own handler, which records the last error, did not run either.
+    $this->assertNull(error_get_last());
+    $this->assertSame($handler, $current);
+    $this->assertSame(['x' => '3'], $actual);
   }
 
   /**
@@ -241,7 +288,7 @@ class RecursiveTypeCasterTest extends TestCase {
       return TRUE;
     });
     try {
-      $actual = RecursiveTypeCaster::recursiveTypeRefinements(['x' => '3'], $schema);
+      $actual = (new SubmissionRefiner())->refine(['x' => '3'], $schema);
     }
     finally {
       restore_error_handler();
@@ -255,7 +302,7 @@ class RecursiveTypeCasterTest extends TestCase {
    */
   #[DataProvider('dataProviderRecursiveTypeRefinements')]
   public function testRecursiveTypeRefinements($data, string $schema, $expected): void {
-    $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, json_decode($schema));
+    $actual = (new SubmissionRefiner())->refine($data, json_decode($schema));
     if (is_object($expected)) {
       $this->assertEquals($expected, $actual);
       return;
@@ -264,16 +311,56 @@ class RecursiveTypeCasterTest extends TestCase {
   }
 
   /**
-   * A supplied factory resolves references the schema makes.
+   * A registered schema's factory resolves references the schema makes.
    */
-  public function testSuppliedFactory(): void {
-    $factory = SchemaReferenceResolver::createFactory(json_decode('{"type":"object"}'));
+  public function testRegisteredSchemaFactory(): void {
+    $factory = (new RestrictedSchemaRegistry())->register(json_decode('{"type":"object"}'))->factory;
     $factory->getSchemaStorage()->addSchema('internal://labels/', json_decode('{"definitions":{"label":{"type":"string","minLength":2}}}'));
     $schema = json_decode('{"type":"object","properties":{"field":{"type":"string","allOf":[{"$ref":"internal://labels/#/definitions/label"}]},"count":{"type":"integer"}}}');
     $data = ['field' => '', 'count' => '3'];
-    $this->assertSame(['count' => 3], RecursiveTypeCaster::recursiveTypeRefinements($data, $schema, $factory));
+    $this->assertSame(['count' => 3], RecursiveTypeCaster::refine($data, new RegisteredSchema($schema, $factory)));
     $this->expectException(UnsupportedReferenceException::class);
-    RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    (new SubmissionRefiner())->refine($data, $schema);
+  }
+
+  /**
+   * The deprecated entry point refines the same way, with or without a factory.
+   */
+  #[IgnoreDeprecations]
+  public function testDeprecatedEntryPoint(): void {
+    $schema = json_decode('{"type":"object","definitions":{"name":{"type":"string","minLength":1}},"properties":{"name":{"$ref":"#/definitions/name"},"count":{"type":"integer"}}}');
+    $data = ['name' => '', 'count' => '3'];
+    $this->assertSame(['count' => 3], RecursiveTypeCaster::recursiveTypeRefinements($data, $schema));
+    $registered = (new RestrictedSchemaRegistry())->register($schema);
+    $this->assertSame(['count' => 3], RecursiveTypeCaster::recursiveTypeRefinements($data, $registered->schema, $registered->factory));
+  }
+
+  /**
+   * A registry passed to the refiner registers each schema.
+   */
+  public function testRefinerUsesItsRegistry(): void {
+    $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer"}}}');
+    $registry = new class() implements SchemaRegistryInterface {
+
+      /**
+       * The schemas registered so far.
+       *
+       * @var list<object>
+       */
+      public array $schemas = [];
+
+      /**
+       * {@inheritdoc}
+       */
+      #[\Override]
+      public function register(object $schema): RegisteredSchema {
+        $this->schemas[] = $schema;
+        return (new RestrictedSchemaRegistry())->register(json_decode('{"type":"object","properties":{"count":{"type":"string"}}}'));
+      }
+
+    };
+    $this->assertSame(['count' => '3'], (new SubmissionRefiner($registry))->refine(['count' => '3'], $schema));
+    $this->assertSame([$schema], $registry->schemas);
   }
 
   /**
@@ -281,7 +368,7 @@ class RecursiveTypeCasterTest extends TestCase {
    */
   public function testStringKeepsAnObject(): void {
     $value = (object) ['a' => 'x'];
-    $actual = RecursiveTypeCaster::recursiveTypeRefinements(['field' => $value], json_decode('{"type":"object","properties":{"field":{"type":"string"}}}'));
+    $actual = (new SubmissionRefiner())->refine(['field' => $value], json_decode('{"type":"object","properties":{"field":{"type":"string"}}}'));
     $this->assertSame(['field' => $value], $actual);
   }
 
@@ -294,7 +381,7 @@ class RecursiveTypeCasterTest extends TestCase {
   #[DataProvider('dataProviderBooleanTypes')]
   public function testBooleanTypeMatching(array $types, mixed $input, mixed $expected): void {
     $schema = (object) ['type' => $types];
-    $this->assertSame($expected, RecursiveTypeCaster::recursiveTypeRefinements($input, $schema));
+    $this->assertSame($expected, (new SubmissionRefiner())->refine($input, $schema));
   }
 
   /**
@@ -323,7 +410,7 @@ class RecursiveTypeCasterTest extends TestCase {
   public function testStdClassProperties(): void {
     $data = json_decode('{"count":"3","nested":{"ratio":"1.5","optional":""}}');
     $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer"},"nested":{"type":"object","properties":{"ratio":{"type":"number"},"optional":{"type":"string","minLength":1}}}}}');
-    $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    $actual = (new SubmissionRefiner())->refine($data, $schema);
     $this->assertSame($data, $actual);
     $this->assertInstanceOf(\stdClass::class, $actual);
     $this->assertInstanceOf(\stdClass::class, $actual->nested);

@@ -54,7 +54,19 @@ final class PropertySchemaResolver {
    *   it.
    */
   private static function matchesPattern(string $pattern, string $name): bool {
-    return @preg_match('~' . str_replace('~', '\~', $pattern) . '~u', $name) === 1;
+    // Escape each "~" that no backslash escapes already, so the delimiter
+    // cannot end the pattern early. "\~" stays as it is.
+    $escaped = preg_replace('/(?<!\\\\)((?:\\\\\\\\)*)~/', '$1\\~', $pattern);
+    // preg_match() warns about an invalid pattern and returns FALSE. Keep the
+    // warning out of the host's error log; FALSE matches nothing.
+    set_error_handler(static fn (): bool => TRUE);
+    try {
+      $matched = $escaped === NULL ? FALSE : preg_match('~' . $escaped . '~u', $name);
+    }
+    finally {
+      restore_error_handler();
+    }
+    return $matched === 1;
   }
 
 }

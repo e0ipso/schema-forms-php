@@ -8,10 +8,8 @@ use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Form\FormStateInterface;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Exception\ExceptionInterface;
-use JsonSchema\Validator;
 use SchemaForms\FormGeneratorInterface;
 use SchemaForms\JsonSchemaFormValidator;
-use SchemaForms\SchemaReferenceResolver;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;
 use Shaper\Validator\ValidateableInterface;
@@ -129,7 +127,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * {@inheritdoc}
    */
   public function getInputValidator(): ValidateableInterface {
-    $this->inputValidator ??= new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    $this->inputValidator ??= new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
     return $this->inputValidator;
   }
 

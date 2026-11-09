@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
-use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use SchemaForms\JsonSchemaFormValidator;
-use SchemaForms\SchemaReferenceResolver;
 use Shaper\Validator\ValidateableInterface;
 
 /**
@@ -21,7 +19,7 @@ final class JsonSchemaFormValidatorContractTest extends ValidatorContractTestCas
    * {@inheritdoc}
    */
   protected function createValidator(): ValidateableInterface {
-    return new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+    return new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
   }
 
   /**
