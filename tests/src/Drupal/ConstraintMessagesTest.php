@@ -79,6 +79,49 @@ final class ConstraintMessagesTest extends TestCase {
   }
 
   /**
+   * The json-schema 5.x wording and names are translatable under 6.x too.
+   *
+   * The suite installs 6.x, so these messages are given directly.
+   */
+  #[DataProvider('jsonSchema5Provider')]
+  public function testJsonSchema5Messages(string $constraint, string $message, string $template): void {
+    $translatable = ConstraintMessages::translatable($constraint, $message);
+
+    $this->assertInstanceOf(TranslatableMarkup::class, $translatable);
+    $this->assertSame($template, $translatable->getUntranslatedString());
+    $this->assertSame(Html::escape($message), (string) $translatable);
+  }
+
+  /**
+   * Provides messages as json-schema 5.x writes them.
+   *
+   * @return array<string, array{string, string, string}>
+   *   The constraint name, the message and the template it matches.
+   */
+  public static function jsonSchema5Provider(): array {
+    return [
+      'minimum' => ['minimum', 'Must have a minimum value of 1.5', 'Must have a minimum value of @minimum'],
+      'maximum' => ['maximum', 'Must have a maximum value of 3', 'Must have a maximum value of @maximum'],
+      'minItems' => [
+        'minItems',
+        'There must be a minimum of 2 items in the array',
+        'There must be a minimum of @minItems items in the array',
+      ],
+      'maxItems' => [
+        'maxItems',
+        'There must be a maximum of 1 items in the array',
+        'There must be a maximum of @maxItems items in the array',
+      ],
+      'email format' => ['format', 'Invalid email', 'Invalid email'],
+      'date format' => [
+        'format',
+        'Invalid date "nope", expected format YYYY-MM-DD',
+        'Invalid date @date, expected format YYYY-MM-DD',
+      ],
+    ];
+  }
+
+  /**
    * Messages no template matches stay as the validator wrote them.
    */
   public function testOtherMessagesAreNotTranslated(): void {
