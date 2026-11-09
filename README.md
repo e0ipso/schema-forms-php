@@ -302,6 +302,8 @@ When Drupal validates the form, the schema validation:
 2. Casts the submitted strings to the schema types. Numeric strings become `int` or `float`, `"0"` and `"1"` become booleans on a `boolean` property, and an empty string becomes `NULL` on a nullable property that cannot hold it.
 3. Validates the result against the schema with `justinrainbow/json-schema`. Each error is set on the element it belongs to. Errors that match no element are joined into one error on the container.
 
+The messages of the `required`, `type`, `enum`, `minLength`, `maxLength`, `minimum`, `maximum`, `pattern`, `minItems` and `maxItems` constraints, and of the `email`, `uri`, `ipv4`, `ipv6`, `hostname`, `date`, `time` and `date-time` formats, are translatable strings, such as "Must be at least @minLength characters long". Their English text is the validator's message. Other messages stay in the validator's English.
+
 ### Refining submissions without Drupal
 
 `SubmissionRefiner` runs step 2 on its own, for a form built with another framework:

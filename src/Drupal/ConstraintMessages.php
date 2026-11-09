@@ -1,0 +1,113 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SchemaForms\Drupal;
+
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+
+/**
+ * Makes the messages of common JSON Schema violations translatable.
+ *
+ * The validator writes its messages in English, already filled in. Each
+ * template here spells one such message with placeholders. When a template
+ * matches the message, the text in place of each placeholder becomes its
+ * value, so the English output of the translatable string is the
+ * validator's message, byte for byte. Matching the message, rather than
+ * rebuilding it from the error's parameters, keeps that true for both
+ * supported json-schema majors, which format values differently and do not
+ * always report them.
+ *
+ * @internal
+ */
+final class ConstraintMessages {
+
+  /**
+   * Gives the translatable form of a validator message.
+   *
+   * @param string $constraint
+   *   The name of the violated constraint.
+   * @param string $message
+   *   The validator's message.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslatableMarkup|null
+   *   The message as translatable markup, or NULL when no template of the
+   *   constraint matches it.
+   */
+  public static function translatable(string $constraint, string $message): ?TranslatableMarkup {
+    $names = [$constraint, ...JsonSchema5ConstraintMessages::sharedNames($constraint)];
+    $templates = [
+      ...array_merge(...array_map([self::class, 'templates'], $names)),
+      ...JsonSchema5ConstraintMessages::templates($constraint),
+    ];
+    $matches = array_filter(array_map(
+      static fn (TranslatableMarkup $template): ?TranslatableMarkup => self::fromMessage($message, $template),
+      $templates
+    ));
+    $match = reset($matches);
+    return $match instanceof TranslatableMarkup ? $match : NULL;
+  }
+
+  /**
+   * Lists the templates of a constraint, as json-schema 6 names it.
+   *
+   * Each template is a literal, so that translation extractors find it.
+   *
+   * @param string $constraint
+   *   The constraint name.
+   *
+   * @return list<\Drupal\Core\StringTranslation\TranslatableMarkup>
+   *   The templates, with placeholders and no values.
+   */
+  private static function templates(string $constraint): array {
+    return match ($constraint) {
+      'required' => [new TranslatableMarkup('The property @property is required')],
+      'type' => [new TranslatableMarkup('@found value found, but @expected is required')],
+      'enum' => [new TranslatableMarkup('Does not have a value in the enumeration @enum')],
+      'minLength' => [new TranslatableMarkup('Must be at least @minLength characters long')],
+      'maxLength' => [new TranslatableMarkup('Must be at most @maxLength characters long')],
+      'minimum' => [new TranslatableMarkup('Must have a minimum value greater than or equal to @minimum')],
+      'maximum' => [new TranslatableMarkup('Must have a maximum value less than or equal to @maximum')],
+      'pattern' => [new TranslatableMarkup('Does not match the regex pattern @pattern')],
+      'minItems' => [new TranslatableMarkup('There must be a minimum of @minItems items in the array, @found found')],
+      'maxItems' => [new TranslatableMarkup('There must be a maximum of @maxItems items in the array, @found found')],
+      'emailFormat' => [new TranslatableMarkup('Invalid email')],
+      'urlFormat' => [new TranslatableMarkup('Invalid URL format')],
+      'ipFormat' => [new TranslatableMarkup('Invalid IP address')],
+      'styleHostName' => [new TranslatableMarkup('Invalid hostname')],
+      'dateFormat' => [new TranslatableMarkup('Invalid date @date, expected format YYYY-MM-DD')],
+      'timeFormat' => [new TranslatableMarkup('Invalid time @time, expected format hh:mm:ss')],
+      'dateTimeFormat' => [new TranslatableMarkup('Invalid date-time @dateTime, expected format YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DDThh:mm:ss+hh:mm')],
+      default => [],
+    };
+  }
+
+  /**
+   * Reads a message back into a template's placeholder values.
+   *
+   * @param string $message
+   *   The validator's message.
+   * @param \Drupal\Core\StringTranslation\TranslatableMarkup $template
+   *   The template, without values.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslatableMarkup|null
+   *   The template with the values the message holds, or NULL when the
+   *   message does not match it.
+   */
+  private static function fromMessage(string $message, TranslatableMarkup $template): ?TranslatableMarkup {
+    $english = $template->getUntranslatedString();
+    preg_match_all('/@(\w+)/', $english, $placeholders);
+    $pattern = (string) preg_replace('/@(\w+)/', '(?<$1>.+?)', preg_quote($english, '/'));
+    if (!preg_match('/^' . $pattern . '$/s', $message, $values)) {
+      return NULL;
+    }
+    $names = $placeholders[1];
+    $arguments = array_combine(
+      array_map(static fn (string $name): string => '@' . $name, $names),
+      array_map(static fn (string $name): string => $values[$name], $names)
+    );
+    // phpcs:ignore Drupal.Semantics.FunctionT.NotLiteralString -- templates() holds the literal.
+    return new TranslatableMarkup($english, $arguments);
+  }
+
+}
