@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
-use SchemaForms\Exception\InvalidOptionException;
-
 /**
  * Remembers the schemas a generator accepted, and their registered copies.
  *
@@ -20,12 +18,12 @@ use SchemaForms\Exception\InvalidOptionException;
 final class AcceptedSchemas {
 
   /**
-   * How many schemas are remembered unless the caller says otherwise.
+   * How many schemas are remembered.
    *
    * A form usually builds one schema; the limit bounds memory when a
    * long-lived generator builds many.
    */
-  public const DEFAULT_LIMIT = 16;
+  private const LIMIT = 16;
 
   /**
    * The accepted schemas, keyed by fingerprint, the most recent last.
@@ -35,23 +33,6 @@ final class AcceptedSchemas {
    * @var array<string, \stdClass|null>
    */
   private array $schemas = [];
-
-  /**
-   * Creates the memory.
-   *
-   * @param int $limit
-   *   How many schemas to remember, at least one.
-   *
-   * @throws \SchemaForms\Exception\InvalidOptionException
-   *   When the limit is below one.
-   */
-  public function __construct(
-    private readonly int $limit = self::DEFAULT_LIMIT,
-  ) {
-    if ($limit < 1) {
-      throw new InvalidOptionException('An accepted schema memory must hold at least one schema.');
-    }
-  }
 
   /**
    * Decides whether a schema was accepted before.
@@ -122,7 +103,7 @@ final class AcceptedSchemas {
    *   The names of the properties to serialize.
    */
   public function __sleep(): array {
-    return ['limit'];
+    return [];
   }
 
   /**
@@ -136,7 +117,7 @@ final class AcceptedSchemas {
   private function remember(string $fingerprint, ?\stdClass $schema): void {
     unset($this->schemas[$fingerprint]);
     $this->schemas[$fingerprint] = $schema;
-    $this->schemas = array_slice($this->schemas, -$this->limit, NULL, TRUE);
+    $this->schemas = array_slice($this->schemas, -self::LIMIT, NULL, TRUE);
   }
 
   /**

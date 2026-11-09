@@ -65,9 +65,8 @@ final class MultivalueCallbacks {
     }
     // Host code may read where the widget ended up in the form.
     $array_parents = is_array($element['#array_parents'] ?? NULL) ? $element['#array_parents'] : [];
-    $storage = new WidgetStateStorage($form_state);
-    $location = WidgetLocation::ofWidget($element);
-    $storage->save($location, $storage->load($location)->withArrayParents($array_parents));
+    $keys = WidgetState::keysOf($element);
+    WidgetState::load($form_state, $keys)->withArrayParents($array_parents)->save($form_state, $keys);
     return $element;
   }
 
@@ -85,11 +84,10 @@ final class MultivalueCallbacks {
     if ($delta === NULL) {
       return;
     }
-    $location = WidgetLocation::ofWidget(self::widget($form, $button));
-    $storage = new WidgetStateStorage($form_state);
-    $state = $storage->load($location);
+    $keys = WidgetState::keysOf(self::widget($form, $button));
+    $state = WidgetState::load($form_state, $keys);
     if (in_array($delta, $state->deltas(), TRUE)) {
-      $storage->save($location, $state->withoutItem($delta));
+      $state->withoutItem($delta)->save($form_state, $keys);
     }
     $form_state->setRebuild();
   }
@@ -132,15 +130,14 @@ final class MultivalueCallbacks {
     if (!MultivalueWidget::is($widget)) {
       return;
     }
-    $location = WidgetLocation::ofWidget($widget);
-    $storage = new WidgetStateStorage($form_state);
-    $state = $storage->load($location);
+    $keys = WidgetState::keysOf($widget);
+    $state = WidgetState::load($form_state, $keys);
     $cardinality = $widget[RenderKeys::CARDINALITY] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
     // A forced submission of a hidden button cannot exceed the limit either.
     if ($state->isFull(is_int($cardinality) ? $cardinality : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED)) {
       return;
     }
-    $storage->save($location, $state->withAppendedItem());
+    $state->withAppendedItem()->save($form_state, $keys);
   }
 
   /**

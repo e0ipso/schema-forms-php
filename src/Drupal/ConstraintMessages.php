@@ -23,6 +23,14 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 final class ConstraintMessages {
 
   /**
+   * The format constraints json-schema 6 names; 5.x calls each one "format".
+   */
+  private const FORMATS = [
+    'emailFormat', 'urlFormat', 'ipFormat', 'styleHostName', 'dateFormat',
+    'timeFormat', 'dateTimeFormat',
+  ];
+
+  /**
    * Gives the translatable form of a validator message.
    *
    * @param string $constraint
@@ -35,11 +43,8 @@ final class ConstraintMessages {
    *   constraint matches it.
    */
   public static function translatable(string $constraint, string $message): ?TranslatableMarkup {
-    $names = [$constraint, ...JsonSchema5ConstraintMessages::sharedNames($constraint)];
-    $templates = [
-      ...array_merge(...array_map([self::class, 'templates'], $names)),
-      ...JsonSchema5ConstraintMessages::templates($constraint),
-    ];
+    $names = $constraint === 'format' ? self::FORMATS : [$constraint];
+    $templates = array_merge(...array_map([self::class, 'templates'], $names));
     $matches = array_filter(array_map(
       static fn (TranslatableMarkup $template): ?TranslatableMarkup => self::fromMessage($message, $template),
       $templates
@@ -49,9 +54,11 @@ final class ConstraintMessages {
   }
 
   /**
-   * Lists the templates of a constraint, as json-schema 6 names it.
+   * Lists the templates of a constraint.
    *
-   * Each template is a literal, so that translation extractors find it.
+   * Each template is a literal, so that translation extractors find it. The
+   * second template of a constraint is the wording of json-schema 5.x; delete
+   * those, and the "format" mapping, once composer.json drops 5.x.
    *
    * @param string $constraint
    *   The constraint name.
@@ -66,11 +73,23 @@ final class ConstraintMessages {
       'enum' => [new TranslatableMarkup('Does not have a value in the enumeration @enum')],
       'minLength' => [new TranslatableMarkup('Must be at least @minLength characters long')],
       'maxLength' => [new TranslatableMarkup('Must be at most @maxLength characters long')],
-      'minimum' => [new TranslatableMarkup('Must have a minimum value greater than or equal to @minimum')],
-      'maximum' => [new TranslatableMarkup('Must have a maximum value less than or equal to @maximum')],
+      'minimum' => [
+        new TranslatableMarkup('Must have a minimum value greater than or equal to @minimum'),
+        new TranslatableMarkup('Must have a minimum value of @minimum'),
+      ],
+      'maximum' => [
+        new TranslatableMarkup('Must have a maximum value less than or equal to @maximum'),
+        new TranslatableMarkup('Must have a maximum value of @maximum'),
+      ],
       'pattern' => [new TranslatableMarkup('Does not match the regex pattern @pattern')],
-      'minItems' => [new TranslatableMarkup('There must be a minimum of @minItems items in the array, @found found')],
-      'maxItems' => [new TranslatableMarkup('There must be a maximum of @maxItems items in the array, @found found')],
+      'minItems' => [
+        new TranslatableMarkup('There must be a minimum of @minItems items in the array, @found found'),
+        new TranslatableMarkup('There must be a minimum of @minItems items in the array'),
+      ],
+      'maxItems' => [
+        new TranslatableMarkup('There must be a maximum of @maxItems items in the array, @found found'),
+        new TranslatableMarkup('There must be a maximum of @maxItems items in the array'),
+      ],
       'emailFormat' => [new TranslatableMarkup('Invalid email')],
       'urlFormat' => [new TranslatableMarkup('Invalid URL format')],
       'ipFormat' => [new TranslatableMarkup('Invalid IP address')],

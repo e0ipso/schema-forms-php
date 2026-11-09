@@ -13,8 +13,7 @@ use SchemaForms\Drupal\EnumElements;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\MultivalueCallbacks;
 use SchemaForms\Drupal\SchemaValidationBridge;
-use SchemaForms\Drupal\WidgetLocation;
-use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Drupal\WidgetState;
 use SchemaForms\FormOptions;
 use SchemaForms\SubmissionRefiner;
 use SchemaForms\Tests\Fixture\ConstantSchemas;
@@ -987,7 +986,7 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('ajaxDeltaProvider')]
   public function testAppendAjaxUsesRealDelta(array $indices): void {
     $state = new FormState();
-    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items'), [
+    WidgetState::store($state, WidgetState::keys(['items'], 'items'), [
       'items_indices' => $indices,
       'array_parents' => [],
     ]);

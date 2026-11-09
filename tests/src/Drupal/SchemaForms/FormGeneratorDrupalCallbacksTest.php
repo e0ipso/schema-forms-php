@@ -12,8 +12,7 @@ use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\MultivalueCallbacks;
 use SchemaForms\Drupal\WidgetItems;
-use SchemaForms\Drupal\WidgetLocation;
-use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Drupal\WidgetState;
 use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -114,7 +113,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","title":"Tags","items":{"type":"string"}}}}');
     $state = new FormState();
-    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items'), [
+    WidgetState::store($state, WidgetState::keys(['items'], 'items'), [
       'items_indices' => [0 => 0, 2 => 2, 3 => 5],
       'next_delta' => 6,
     ]);
@@ -233,7 +232,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame([0], WidgetItems::read($state, ['items'], 'host')->deltas);
     $this->assertSame([], WidgetItems::read($state, ['items'])->deltas);
     $this->assertArrayHasKey('host', $state->getStorage()['prop_storage']['#namespaces']);
-    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items', 'host'), ['items_indices' => [3]]);
+    WidgetState::store($state, WidgetState::keys(['items'], 'items', 'host'), ['items_indices' => [3]]);
     $options = new FormOptions(
       formState: $state,
       namespace: 'host',

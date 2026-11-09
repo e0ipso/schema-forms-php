@@ -9,8 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\WidgetItems;
-use SchemaForms\Drupal\WidgetLocation;
-use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Drupal\WidgetState;
 use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -50,7 +49,7 @@ final class WidgetItemsTest extends TestCase {
    */
   public function testReadsStoredState(): void {
     $state = new FormState();
-    (new WidgetStateStorage($state))->set(new WidgetLocation(['tags'], 'tags', 'host'), [
+    WidgetState::store($state, WidgetState::keys(['tags'], 'tags', 'host'), [
       'items_indices' => [0 => 0, 2 => 2, 3 => 5],
       'array_parents' => ['wrapper', 'tags'],
       'next_delta' => 6,

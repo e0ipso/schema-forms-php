@@ -7,11 +7,10 @@ namespace SchemaForms\Tests\Drupal;
 use Drupal\Component\Utility\Html;
 use Drupal\Core\Form\FormState;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\Drupal\ContextOptions;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormTreeBuilder;
 use SchemaForms\Exception\InvalidOptionException;
 use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
@@ -20,8 +19,7 @@ use Shaper\Util\Context;
 /**
  * The deprecated context keys build the form the matching option builds.
  */
-#[CoversClass(ContextOptions::class)]
-#[CoversClass(FormTreeBuilder::class)]
+#[CoversClass(FormGeneratorDrupal::class)]
 #[IgnoreDeprecations]
 final class LegacyContextKeysTest extends TestCase {
 
@@ -73,17 +71,32 @@ final class LegacyContextKeysTest extends TestCase {
    * A context without options or deprecated keys gives the defaults.
    */
   public function testNoOptions(): void {
-    $this->assertEquals(new FormOptions(), ContextOptions::read(new Context(['options' => 'not options'])));
+    $schema = json_decode(self::SCHEMA);
+    Html::resetSeenIds();
+    $expected = (new FormGeneratorDrupal())->transform($schema);
+    Html::resetSeenIds();
+    $this->assertEquals($expected, (new FormGeneratorDrupal())->transform($schema, new Context(['options' => 'not options'])));
   }
 
   /**
    * A deprecated namespace key that is not a non-empty string is refused.
    */
-  public function testInvalidNamespace(): void {
+  #[DataProvider('invalidNamespaceProvider')]
+  public function testInvalidNamespace(mixed $namespace): void {
     $this->expectUserDeprecationMessage(self::NOTICE);
     $this->expectException(InvalidOptionException::class);
     $this->expectExceptionMessage('The "namespace" context key must be a non-empty string.');
-    ContextOptions::read(new Context(['namespace' => 7]));
+    (new FormGeneratorDrupal())->transform(json_decode(self::SCHEMA), new Context(['namespace' => $namespace]));
+  }
+
+  /**
+   * Provides namespace context values that are not non-empty strings.
+   *
+   * @return array<string, array{mixed}>
+   *   The test cases.
+   */
+  public static function invalidNamespaceProvider(): array {
+    return ['empty' => [''], 'integer' => [7], 'array' => [['a']]];
   }
 
   /**

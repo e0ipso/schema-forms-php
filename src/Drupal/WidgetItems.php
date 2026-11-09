@@ -49,7 +49,7 @@ final readonly class WidgetItems {
    */
   public static function read(FormStateInterface $form_state, array $schema_path, ?string $namespace = NULL): ?self {
     $name = $schema_path === [] ? '' : (string) $schema_path[array_key_last($schema_path)];
-    $stored = (new WidgetStateStorage($form_state))->get(new WidgetLocation($schema_path, $name, $namespace));
+    $stored = WidgetState::stored($form_state, WidgetState::keys($schema_path, $name, $namespace));
     if (!is_array($stored)) {
       return NULL;
     }

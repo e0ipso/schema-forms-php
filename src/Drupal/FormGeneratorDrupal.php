@@ -10,6 +10,7 @@ use JsonSchema\Constraints\Constraint;
 use JsonSchema\Exception\ExceptionInterface;
 use SchemaForms\Exception\InvalidOptionException;
 use SchemaForms\FormGeneratorInterface;
+use SchemaForms\FormOptions;
 use SchemaForms\JsonSchemaFormValidator;
 use SchemaForms\RestrictedSchemaRegistry;
 use SchemaForms\SchemaRegistryInterface;
@@ -114,8 +115,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         '#markup' => ValidationMessages::unsupportedReference(),
       ]);
     }
-    $tree = new FormTreeBuilder(new FieldBuilder(new MultivalueWidgetBuilder(), $this->elementMappers));
-    return $this->withValidation($tree->build($schema, ContextOptions::read($context ?? new Context())));
+    $fields = new FieldBuilder(new MultivalueWidgetBuilder(), $this->elementMappers);
+    return $this->withValidation($fields->buildForm($schema, self::options($context ?? new Context())));
   }
 
   /**
@@ -361,7 +362,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, ?string $namespace = NULL): mixed {
     @trigger_error('FormGeneratorDrupal::getPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use WidgetItems::read() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
-    return (new WidgetStateStorage($form_state))->get(new WidgetLocation($parents, $prop_name, $namespace));
+    return WidgetState::stored($form_state, WidgetState::keys($parents, $prop_name, $namespace));
   }
 
   /**
@@ -386,10 +387,53 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    */
   public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
     @trigger_error('FormGeneratorDrupal::setPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. The Append and Remove buttons keep the widget state; read it with WidgetItems::read(). See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
-    (new WidgetStateStorage($form_state))->set(new WidgetLocation($parents, $prop_name, $namespace), $prop_state);
+    WidgetState::store($form_state, WidgetState::keys($parents, $prop_name, $namespace), $prop_state);
   }
 
   // phpcs:enable
+
+  /**
+   * Reads the options from the "options" context key.
+   *
+   * Releases before 3.2.0 took the options as four separate keys. They are
+   * still read, with a deprecation notice; drop them in 4.0.0.
+   *
+   * @param \Shaper\Util\Context $context
+   *   The context of the transform() call.
+   *
+   * @return \SchemaForms\FormOptions
+   *   The options. A deprecated key with a value of the wrong type reads as
+   *   absent, as it always did.
+   *
+   * @throws \SchemaForms\Exception\InvalidOptionException
+   *   When the deprecated "namespace" key is not a non-empty string.
+   */
+  private static function options(Context $context): FormOptions {
+    $options = $context['options'] ?? NULL;
+    if ($options instanceof FormOptions) {
+      return $options;
+    }
+    $legacy_keys = ['ui_hints', 'form_state', 'current_input', 'namespace'];
+    $legacy = array_intersect_key($context->getArrayCopy(), array_flip($legacy_keys));
+    if ($legacy === []) {
+      return new FormOptions();
+    }
+    // phpcs:ignore Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
+    @trigger_error('Passing the "ui_hints", "form_state", "current_input" or "namespace" context key to FormGeneratorDrupal::transform() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Pass a SchemaForms\FormOptions as the "options" context key instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    $namespace = $legacy['namespace'] ?? NULL;
+    if ($namespace !== NULL && (!is_string($namespace) || $namespace === '')) {
+      throw new InvalidOptionException('The "namespace" context key must be a non-empty string.');
+    }
+    $hints = $legacy['ui_hints'] ?? NULL;
+    $form_state = $legacy['form_state'] ?? NULL;
+    $input = $legacy['current_input'] ?? NULL;
+    return new FormOptions(
+      uiHints: is_array($hints) ? $hints : [],
+      formState: is_object($form_state) ? $form_state : NULL,
+      currentInput: is_array($input) || is_object($input) ? $input : [],
+      namespace: $namespace,
+    );
+  }
 
   /**
    * Gets the schema registry.

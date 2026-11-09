@@ -40,7 +40,7 @@ final class SubmissionValidator {
    */
   public function validate(array $element, FormStateInterface $form_state, RegisteredSchema $schema): void {
     try {
-      $shaped = JsonShape::fromSchema(SubmittedValue::read($element, $form_state), $schema->schema);
+      $shaped = JsonShape::fromSchema(SubmissionPreparer::storedValue($element, $form_state), $schema->schema);
       $encoded = json_encode($shaped, JSON_THROW_ON_ERROR);
       $data = json_decode($encoded, flags: JSON_THROW_ON_ERROR);
     }

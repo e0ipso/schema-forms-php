@@ -6,15 +6,9 @@ namespace SchemaForms\Tests\Drupal;
 
 use Drupal\Core\Render\Element;
 use PHPUnit\Framework\Attributes\CoversClass;
-use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormTreeBuilder;
-use SchemaForms\Drupal\WidgetButton;
-use SchemaForms\Drupal\WidgetButtons;
-use SchemaForms\Exception\InvalidOptionException;
 use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -23,9 +17,6 @@ use Shaper\Util\Context;
  * Multivalue button names are unique within a generated form.
  */
 #[CoversClass(ButtonNames::class)]
-#[CoversClass(WidgetButtons::class)]
-#[CoversClass(WidgetButton::class)]
-#[CoversClass(FormTreeBuilder::class)]
 final class ButtonNamesTest extends TestCase {
 
   use TranslationContainer;
@@ -82,28 +73,6 @@ final class ButtonNamesTest extends TestCase {
       'tag_list.add_more' => 'left::tag:5flist:add_more',
     ], $names['left']);
     $this->assertSame('a:2db:3a:3ac::tag:5flist:add_more', $names['odd']['tag_list.add_more']);
-  }
-
-  /**
-   * A deprecated namespace key that is not a non-empty string is refused.
-   */
-  #[DataProvider('invalidNamespaceProvider')]
-  #[IgnoreDeprecations]
-  public function testInvalidNamespace(mixed $namespace): void {
-    $schema = json_decode('{"type":"object","properties":{"a":{"type":"string"}}}');
-    $this->expectException(InvalidOptionException::class);
-    $this->expectExceptionMessage('The "namespace" context key must be a non-empty string.');
-    (new FormGeneratorDrupal())->transform($schema, new Context(['namespace' => $namespace]));
-  }
-
-  /**
-   * Provides namespace context values that are not non-empty strings.
-   *
-   * @return array
-   *   The test cases.
-   */
-  public static function invalidNamespaceProvider(): array {
-    return ['empty' => [''], 'integer' => [1], 'array' => [['a']]];
   }
 
   /**

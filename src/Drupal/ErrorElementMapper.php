@@ -70,8 +70,8 @@ final class ErrorElementMapper {
   private static function elementsByPointer(array $root): array {
     $pairs = ElementDataPaths::all($root);
     return array_combine(
-      array_map(static fn (ElementDataPath $pair): string => self::pointer($pair->path), $pairs),
-      array_map(static fn (ElementDataPath $pair): array => $pair->element, $pairs)
+      array_map(static fn (array $pair): string => self::pointer($pair[0]), $pairs),
+      array_column($pairs, 1)
     );
   }
 

@@ -8,8 +8,7 @@ use Drupal\Core\Form\FormState;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use SchemaForms\Drupal\WidgetItems;
-use SchemaForms\Drupal\WidgetLocation;
-use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Tests\Kernel\Form\BridgeCountingFormState;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
 
@@ -407,7 +406,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
       ];
       $input = [$name => [2 => ['removable_element' => [$name => 'x']]]];
       $saved = [$name => [2 => [$name => 'valid']]];
-      (new WidgetStateStorage($state))->set(new WidgetLocation([$name], $name), ['items_indices' => [2]]);
+      WidgetState::store($state, WidgetState::keys([$name], $name), ['items_indices' => [2]]);
       $path = [...$path, 2, 'removable_element', $name];
     }
     $schema = (object) ['type' => 'object', 'properties' => (object) [$name => $property]];

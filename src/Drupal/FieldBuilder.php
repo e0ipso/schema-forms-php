@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Core\Form\FormState;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+use SchemaForms\FormOptions;
 use SchemaForms\SchemaType;
 
 /**
- * Builds the Form API control for one schema.
+ * Builds the generated root container and the Form API control of a schema.
  *
  * @internal
  */
@@ -46,6 +50,50 @@ final class FieldBuilder {
   }
 
   /**
+   * Builds the container for a registered schema.
+   *
+   * @param \stdClass $schema
+   *   The registered root object schema.
+   * @param \SchemaForms\FormOptions $options
+   *   The caller's options.
+   *
+   * @return array<int|string, mixed>
+   *   The container, without its validation callbacks.
+   */
+  public function buildForm(\stdClass $schema, FormOptions $options): array {
+    $form_state = $options->formState;
+    $input = self::normalize($options->currentInput);
+    $root = new FieldContext(
+      schema: $schema,
+      name: '',
+      parents: [],
+      hints: $options->uiHints,
+      formState: $form_state instanceof FormStateInterface ? $form_state : new FormState(),
+      currentInput: is_array($input) ? $input : [],
+      hasCurrentInput: FALSE,
+      namespace: $options->namespace,
+    );
+    // A root object schema may omit 'properties'; that is an empty form.
+    $properties = is_object($schema->properties ?? NULL) ? (array) $schema->properties : [];
+    $schemas = array_filter($properties, static fn (mixed $property): bool => $property instanceof \stdClass);
+    $keys = array_keys($schemas);
+    $controls = array_map(
+      fn (\stdClass $property, int|string $key): array => $this->build($root->child($key, $property, is_array($options->uiHints[$key] ?? NULL) ? $options->uiHints[$key] : [])),
+      $schemas,
+      $keys
+    );
+    $element = [
+      '#type' => 'container',
+      // Nested objects and multivalue widgets need schema-shaped value paths
+      // even under a parent form whose #tree is FALSE.
+      '#tree' => TRUE,
+      // The validation callbacks read the schema from here.
+      RenderKeys::SCHEMA => $schema,
+    ] + array_combine($keys, $controls);
+    return RequiredMarker::apply(ButtonNames::deduplicate($element));
+  }
+
+  /**
    * Builds the control for a schema.
    *
    * @param \SchemaForms\Drupal\FieldContext $context
@@ -63,7 +111,7 @@ final class FieldBuilder {
       && $context->currentInput !== NULL && !is_array($context->currentInput);
     $type = $saved_scalar ? SchemaTypes::forScalar($context->schema, $context->currentInput) ?? $guessed : $guessed;
     $mapped = SchemaTypes::isCompound($type) ? [] : $this->map($context->schema, $type);
-    $element = ElementScaffold::create($context, $type, $mapped);
+    $element = self::scaffold($context, $type, $mapped);
     $element[RenderKeys::PROP_PARENTS] = $context->parents;
     if (property_exists($context->schema, 'const')) {
       return $this->constant($element, $context->schema->const);
@@ -78,7 +126,7 @@ final class FieldBuilder {
       $element['#access'] = FALSE;
     }
     if ($saved_scalar && $type === $guessed) {
-      $element = UnsupportedElement::apply($element, $type, ValidationMessages::mismatchedSavedValue($type));
+      $element = self::unsupportedItem($element, $type, ValidationMessages::mismatchedSavedValue($type));
       $element[RenderKeys::FIXED_VALUE] = $context->currentInput;
       return $element;
     }
@@ -98,6 +146,46 @@ final class FieldBuilder {
   }
 
   /**
+   * Starts a control with its type, labels and default value.
+   *
+   * @param \SchemaForms\Drupal\FieldContext $context
+   *   The field context.
+   * @param string $type
+   *   The type the control is built for. Without mapped properties it
+   *   becomes the '#type' as it is, for the compound builders, a 'ui:widget'
+   *   or the unsupported check to deal with.
+   * @param array<string, mixed> $mapped
+   *   The element properties an element mapper gave, if any.
+   *
+   * @return array<int|string, mixed>
+   *   The element.
+   */
+  private static function scaffold(FieldContext $context, string $type, array $mapped): array {
+    $schema = $context->schema;
+    $hints = $context->hints;
+    $element = [
+      '#title' => Labels::markup($hints['ui:title'] ?? $schema->title ?? Labels::humanName($context->name)),
+      '#type' => $type,
+      RenderKeys::PROP_NAME => $context->name,
+      ...$mapped,
+    ];
+    // Saved input wins over the default, and a saved NULL shows no value.
+    $default_value = $context->hasCurrentInput ? $context->currentInput : ($schema->default ?? NULL);
+    if (!is_null($default_value)) {
+      $element['#default_value'] = $default_value;
+    }
+    $description = $hints['ui:help'] ?? $schema->description ?? NULL;
+    if (!empty($description)) {
+      $element['#description'] = $description;
+    }
+    $placeholder = $hints['ui:placeholder'] ?? NULL;
+    if (!empty($placeholder)) {
+      $element['#placeholder'] = $placeholder;
+    }
+    return $element;
+  }
+
+  /**
    * Turns the element into the plain text of a constant.
    *
    * An item element shows the title as a label next to the text; without a
@@ -112,7 +200,7 @@ final class FieldBuilder {
    *   The element, which collects no input.
    */
   private function constant(array $element, mixed $value): array {
-    $element = self::withoutDefault($element);
+    unset($element['#default_value']);
     $element['#type'] = 'item';
     $element['#plain_text'] = is_string($value) ? $value : json_encode($value, JSON_THROW_ON_ERROR);
     $element['#input'] = FALSE;
@@ -135,7 +223,7 @@ final class FieldBuilder {
     if ($context->hasCurrentInput || !SchemaTypes::isCompound($type) || !property_exists($context->schema, 'default')) {
       return $context;
     }
-    $default = SavedInput::normalize($context->schema->default);
+    $default = self::normalize($context->schema->default);
     // A union may select a compound widget but supply a scalar default.
     return $context->withCurrentInput(is_array($default) ? $default : NULL);
   }
@@ -143,8 +231,8 @@ final class FieldBuilder {
   /**
    * Builds the parts of the control that depend on the schema keywords.
    *
-   * The steps apply in order: an enum makes a choice, then an array or an
-   * object builds its sub-controls over it.
+   * An enum makes a choice first, then an array or an object builds its
+   * sub-controls over it.
    *
    * @param array<int|string, mixed> $element
    *   The scaffolded element.
@@ -183,7 +271,7 @@ final class FieldBuilder {
     // Draft-04 makes 'items' optional and also allows a list of schemas.
     // Neither gives one schema for every item, so no item control exists.
     if (!$items instanceof \stdClass) {
-      return UnsupportedElement::apply($element, $type);
+      return self::unsupportedItem($element, $type);
     }
     if (empty($items->enum) || !is_array($items->enum)) {
       return $this->multivalue->build($element, $context, $items, $this->build(...));
@@ -208,7 +296,10 @@ final class FieldBuilder {
     if (empty($properties) || !is_object($properties)) {
       return $element;
     }
-    $element = self::withoutDefault($element);
+    // Core reads #default_value only on inputs. The controls inside show the
+    // saved value; a copy here would store the subtree in the cached form
+    // once more for each level.
+    unset($element['#default_value']);
     $element['#type'] = self::DETAILS;
     $element['#open'] = TRUE;
     $schemas = array_filter((array) $properties, static fn (mixed $schema): bool => $schema instanceof \stdClass);
@@ -225,24 +316,6 @@ final class FieldBuilder {
       $names
     );
     return $element + array_combine($names, $children);
-  }
-
-  /**
-   * Drops the default value of an element that collects no input.
-   *
-   * Core reads #default_value only on inputs. The controls inside an object
-   * show its saved value, and a constant keeps its own; a copy here would
-   * store the whole subtree in the cached form once more for each level.
-   *
-   * @param array<int|string, mixed> $element
-   *   The element.
-   *
-   * @return array<int|string, mixed>
-   *   The element.
-   */
-  private static function withoutDefault(array $element): array {
-    unset($element['#default_value']);
-    return $element;
   }
 
   /**
@@ -290,8 +363,7 @@ final class FieldBuilder {
    * Schema type is a Drupal element: ElementInfoManager::getInfo() returns
    * an empty array for an unknown type, so the element renders as an empty
    * string with no exception, no warning and no log entry. The property
-   * would then look exactly like one the schema never declared, so such an
-   * element is replaced by an explanation instead.
+   * would then look exactly like one the schema never declared.
    *
    * @param array<int|string, mixed> $element
    *   The element.
@@ -326,7 +398,7 @@ final class FieldBuilder {
    *   The element, which keeps a saved value or the default for submission.
    */
   private function unsupported(array $element, FieldContext $context, string $type): array {
-    $element = UnsupportedElement::apply($element, $type);
+    $element = self::unsupportedItem($element, $type);
     if ($context->hasCurrentInput) {
       $element[RenderKeys::FIXED_VALUE] = $context->currentInput;
       return $element;
@@ -335,6 +407,53 @@ final class FieldBuilder {
       $element[RenderKeys::FIXED_VALUE] = $context->schema->default;
     }
     return $element;
+  }
+
+  /**
+   * Turns an element into a disabled item that explains why.
+   *
+   * A property with no control and no message would look exactly like one
+   * the schema never declared.
+   *
+   * @param array<int|string, mixed> $element
+   *   The element.
+   * @param string $type
+   *   The type that could not be turned into a control.
+   * @param \Drupal\Core\StringTranslation\TranslatableMarkup|null $reason
+   *   The explanation, when it is not the missing element for the type.
+   *
+   * @return array<int|string, mixed>
+   *   The element.
+   */
+  private static function unsupportedItem(array $element, string $type, ?TranslatableMarkup $reason = NULL): array {
+    $element['#type'] = 'item';
+    // An 'item' would submit an empty string, which casting and validation
+    // would then reject, so the form could never be saved. Any saved value
+    // or default is supplied separately before validation.
+    $element['#input'] = FALSE;
+    $element['#markup'] = $reason ?? ValidationMessages::unsupportedType($type);
+    $element['#disabled'] = TRUE;
+    unset($element['#default_value'], $element['#placeholder']);
+    return $element;
+  }
+
+  /**
+   * Converts decoded objects to arrays, recursively.
+   *
+   * Callers may pass saved values as decoded objects or associative arrays,
+   * and child controls look their value up by key either way.
+   *
+   * @param mixed $value
+   *   The value.
+   *
+   * @return mixed
+   *   The value with every object and array as an array.
+   */
+  private static function normalize(mixed $value): mixed {
+    if (!is_array($value) && !$value instanceof \stdClass) {
+      return $value;
+    }
+    return array_map([self::class, 'normalize'], (array) $value);
   }
 
 }

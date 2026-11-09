@@ -113,14 +113,14 @@ final class MultivalueWidgetBuilder {
    *   The state.
    */
   private function state(FieldContext $context): WidgetState {
-    $location = $context->widgetLocation();
-    $stored = $context->widgetStates->get($location);
+    $keys = $context->widgetKeys();
+    $stored = WidgetState::stored($context->formState, $keys);
     if (!empty($stored)) {
       return WidgetState::fromStorage($stored);
     }
     $count = is_array($context->currentInput) ? count($context->currentInput) : 0;
     $state = WidgetState::forSavedItems($count);
-    $context->widgetStates->save($location, $state);
+    $state->save($context->formState, $keys);
     return $state;
   }
 
