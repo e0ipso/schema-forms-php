@@ -66,8 +66,6 @@ $context = new Context(['options' => new FormOptions(uiHints: $ui_schema_data)])
 $form = $generator->transform($schema_data, $context);
 ```
 
-Code that only builds forms should type-hint `FormTransformationInterface`, which `FormGeneratorDrupal` implements through `FormGeneratorInterface`. The symbols semantic versioning covers are listed under [Public API](#public-api).
-
 `$form` is this render array. The root container also carries `#json_schema` (the decoded schema), `#element_validate` and `#validate`, left out here:
 
 ```php
@@ -165,8 +163,7 @@ Semantic versioning covers these symbols, with Shaper's `Context` carrying a `Fo
 - `SchemaForms\Drupal\ElementMapperInterface`: picks the element of a scalar schema. See [Mapping more types to elements](#mapping-more-types-to-elements).
 - `SchemaForms\Drupal\WidgetItems`: the items an array widget holds after its buttons rebuilt the form. See [Options](#options).
 - `SchemaForms\FormOptions`: the options of one `transform()` call. See [Options](#options).
-- `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
-- `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
+- `SchemaForms\FormGeneratorInterface`: `transform()` plus Shaper's input and output validation methods.
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
 - `SchemaForms\Exception\InvalidOptionException`: a context value or constructor option the library does not accept.
 - `SchemaForms\Exception\InvalidSchemaException`: a valid schema the generator cannot represent, such as a property name that starts with `#`.
@@ -176,58 +173,6 @@ Semantic versioning covers these symbols, with Shaper's `Context` carrying a `Fo
 - `SchemaForms\RestrictedSchemaRegistry`: the default `SchemaRegistryInterface`. It allows references inside the schema and to the bundled draft-04 meta-schema, and fetches nothing.
 - `SchemaForms\SchemaRegistryInterface`: registers a schema so its references resolve. Implement it to change which documents a schema may reference.
 - `SchemaForms\SubmissionRefiner`: casts submitted values to the types of a schema, without Drupal. See [Refining submissions without Drupal](#refining-submissions-without-drupal).
-- `SchemaForms\Testing\FormTransformationContractTestCase`: a PHPUnit test case that checks your own `FormTransformationInterface` implementation. See [Wrapping or replacing the generator](#wrapping-or-replacing-the-generator).
-
-`tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
-
-### Wrapping or replacing the generator
-
-`FormTransformationInterface` is the extension point. Code that builds forms should type-hint it, so you can hand that code a decorator or a different generator instead of `FormGeneratorDrupal`. `FormGeneratorDrupal` is `final`; wrap it rather than extending it.
-
-This decorator adds context defaults. Values the caller passes still win, and whatever the wrapped generator returns or throws reaches the caller unchanged:
-
-```php
-use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\FormOptions;
-use SchemaForms\FormTransformationInterface;
-use Shaper\Util\Context;
-
-final class ContextDefaults implements FormTransformationInterface {
-
-  public function __construct(
-    private readonly FormTransformationInterface $inner,
-    private readonly array $defaults,
-  ) {}
-
-  public function transform($data, ?Context $context = NULL) {
-    $values = $context?->getArrayCopy() ?? [];
-    return $this->inner->transform($data, new Context($values + $this->defaults));
-  }
-
-}
-
-$generator = new ContextDefaults(new FormGeneratorDrupal(), ['options' => new FormOptions(namespace: 'settings')]);
-```
-
-The decorator implements only `FormTransformationInterface`. A Shaper pipeline that calls the validation methods of `FormGeneratorInterface` needs the generator itself.
-
-To check a decorator or a generator of your own against the interface's contract, extend `SchemaForms\Testing\FormTransformationContractTestCase` in your PHPUnit suite. It needs `phpunit/phpunit`, which this package suggests but does not require; the library's own tests run it with PHPUnit 11.5.
-
-```php
-use SchemaForms\FormOptions;
-use SchemaForms\FormTransformationInterface;
-use SchemaForms\Testing\FormTransformationContractTestCase;
-
-final class ContextDefaultsContractTest extends FormTransformationContractTestCase {
-
-  protected function createTransformation(): FormTransformationInterface {
-    return new ContextDefaults(new MyGenerator(), ['options' => new FormOptions(namespace: 'settings')]);
-  }
-
-}
-```
-
-The case checks that a decoded draft-04 object schema builds a form with and without a context, that an empty context builds the same form as no context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. By default it only requires a result other than `NULL`; override `assertForm()` to check the type and shape your implementation returns. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
 
 ### Options
 
@@ -362,7 +307,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Submission values
 
-- `SchemaForms\SubmissionRefiner` is the public way to cast submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()` and `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0.
+- `SchemaForms\SubmissionRefiner` casts submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()`, `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0.
 - A numeric string with an exponent and a fraction, such as `"1e-3"`, becomes the float `0.001`. It used to become the integer `0`.
 - An empty value of a required property with a numeric name, such as `"123"`, is kept, so validation reports it. It used to be dropped.
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
@@ -371,7 +316,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Options
 
-- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. `FormOptions` rejects an empty namespace with the message `The "namespace" option must be a non-empty string.`; the old key keeps its own message.
+- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys; see [Options](#options). `FormOptions` rejects an empty namespace with the message `The "namespace" option must be a non-empty string.`; the old key keeps its own message.
 
 ### Form API callbacks
 
@@ -379,24 +324,16 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - `FormGeneratorDrupal::validateWithSchema()`, `validateFormWithSchema()`, `multiValueProcess()`, `multiValueAfterBuild()`, `removeOneSubmit()`, `removeOneAjax()`, `addMoreSubmit()`, `addMoreAjax()` and `validateCheckboxes()` are deprecated and are removed in 4.0.0. Forms cached by earlier releases still name them, so each one triggers an `E_USER_DEPRECATED` notice and forwards to the callback generated forms name now. Rebuild cached forms before 4.0.0.
 - `FormGeneratorDrupal::getPropFormState()` and `::setPropFormState()` exposed the raw form state storage of array widgets. They are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. Read a widget's items with `SchemaForms\Drupal\WidgetItems::read()`; the Append and Remove buttons change them.
 
-### Contract test case
-
-- `FormTransformationContractTestCase` has a new test, `testEmptyContextMeansNoOptions()`: an empty `Context` must build the same form as no context. An implementation that treats the two differently now fails it.
-- Override the new `assertForm()` to check the forms your implementation builds. Its default asserts what the case asserted before, a result other than `NULL`.
-
 ### Labels and markup
 
 - Enum options for `true`, `false` and `null` are labelled "True", "False" and "None". They used to be labelled "1" and two empty strings.
 - An enum option for the empty string is labelled "Empty" unless `ui:enum` maps it. It used to have an empty label.
 - A `const` property renders as an `item` element with its title as a label, and its description when it has one. It used to render as bare text with no label.
-- Remove buttons have the accessible name "Remove Tags (value 2)" instead of the `title` "Remove item", and grew from 20 to 24 pixels.
-- Append buttons have the accessible name "Append an item to Tags". Their visible text is unchanged.
-- Item titles count rendered items, so they stay "value 1", "value 2" after a removal instead of skipping a number.
+- Multivalue items, Remove buttons and Append buttons have the accessible names listed under [Accessibility](#accessibility), and items are numbered by position. Remove buttons grew from 20 to 24 pixels; their `title` was "Remove item".
 - `ui:visible: 0` now hides the element; see the UI schema section.
 - Every generated control carries `#visible`, which Drupal core never reads. It is deprecated and is removed in 4.0.0; read `#access` instead, which is `FALSE` exactly when `#visible` is. A render key cannot trigger a notice, so this README is the only warning.
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
-- Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
-- Controls that show the required marker without `#required` carry `aria-required="true"`, and such a radio group's fieldset also gets `role="radiogroup"`. They used to carry no required state for assistive technology.
+- Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too, with the `aria-required` state described under Accessibility.
 - The `details` elements of objects and arrays, and `const` items, no longer carry `#default_value`. Drupal never read it there, but a cached form stored the saved subtree once more for each level of nesting. Read saved values from the inputs inside them.
 - The status messages of the Append and Remove AJAX responses go into the rebuilt widget. They used to target the wrapper ID from before the rebuild, which no longer exists after the response replaces it, so they were not shown.
 
@@ -430,9 +367,9 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 
 Tasks with file filters skip when no matching files are present. The pre-commit hook uses staged files for these checks. The remaining task, `git_commit_message`, runs only in the commit-msg hook, not under `composer test`.
 
-Coverage uses class-level `#[CoversClass]` attributes so executed private helpers count toward their class. With Xdebug enabled, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes line coverage to `build/logs/clover.xml`. Run `php scripts/check-coverage.php` afterward, or pass a Clover path as its only argument. CI runs this check after `composer test` and fails on coverage below the floor or on a missing or invalid report.
+Unit tests name the classes they cover with class-level `#[CoversClass]` attributes, so executed private helpers count toward their class. Kernel tests and tests that build whole forms name none, so every class they run counts. With Xdebug enabled, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes line coverage to `build/logs/clover.xml`. Run `php scripts/check-coverage.php` afterward, or pass a Clover path as its only argument. CI runs this check after `composer test` and fails on coverage below the floor or on a missing or invalid report.
 
-The line coverage floor is 98%, a little below the measured 99.6%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`. Keep coverage attribution at class level when adding tests.
+The line coverage floor is 98%, a little below the measured 99.6%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`.
 
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
 
@@ -444,7 +381,7 @@ Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` 
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
 - Drupal 11.4: requires `drupal/core-recommended:~11.4.0`, the newest Drupal 11 minor after the locked 11.3 release, then runs PHPUnit.
 - Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks the symbols listed under [Public API](#public-api).
-- Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal` or the test case in `src/Testing`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
+- Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
 
 ### JSON Schema compatibility
 

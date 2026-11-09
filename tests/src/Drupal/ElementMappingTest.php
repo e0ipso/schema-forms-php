@@ -8,7 +8,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\ElementMapperInterface;
-use SchemaForms\Drupal\ElementScaffold;
 use SchemaForms\Drupal\FieldBuilder;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\ScalarElementMapper;
@@ -21,7 +20,6 @@ use SchemaForms\Tests\Fixture\TranslationContainer;
  * Each entry of the default map renders its element, and a mapper a caller
  * passes adds an element without replacing the defaults.
  */
-#[CoversClass(ElementScaffold::class)]
 #[CoversClass(FieldBuilder::class)]
 #[CoversClass(FormGeneratorDrupal::class)]
 #[CoversClass(ScalarElementMapper::class)]

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Core\Form\FormStateInterface;
+
 /**
  * What the generator knows while it builds the control for one schema.
  *
@@ -22,7 +24,7 @@ final readonly class FieldContext {
    *   The schema path from the generated root to the control.
    * @param array<mixed> $hints
    *   The UI hints of the control.
-   * @param \SchemaForms\Drupal\WidgetStateStorage $widgetStates
+   * @param \Drupal\Core\Form\FormStateInterface $formState
    *   Keeps the item lists of multivalue widgets.
    * @param mixed $currentInput
    *   The saved value, or the normalized default of a compound control.
@@ -38,7 +40,7 @@ final readonly class FieldContext {
     public string $name,
     public array $parents,
     public array $hints,
-    public WidgetStateStorage $widgetStates,
+    public FormStateInterface $formState,
     public mixed $currentInput,
     public bool $hasCurrentInput,
     public bool $enabled = TRUE,
@@ -67,7 +69,7 @@ final readonly class FieldContext {
       (string) $key,
       [...$this->parents, $key],
       $hints,
-      $this->widgetStates,
+      $this->formState,
       $input[$key] ?? NULL,
       $inside_saved_null || array_key_exists($key, $input),
       $this->enabled,
@@ -93,7 +95,7 @@ final readonly class FieldContext {
       (string) $delta,
       [...$this->parents, $delta],
       $this->hints,
-      $this->widgetStates,
+      $this->formState,
       $input[$delta] ?? NULL,
       array_key_exists($delta, $input),
       $this->enabled,
@@ -102,13 +104,13 @@ final readonly class FieldContext {
   }
 
   /**
-   * Gives the location of the state of a multivalue widget built here.
+   * Gives the storage keys of the state of a multivalue widget built here.
    *
-   * @return \SchemaForms\Drupal\WidgetLocation
-   *   The location.
+   * @return list<mixed>
+   *   The keys.
    */
-  public function widgetLocation(): WidgetLocation {
-    return new WidgetLocation($this->parents, $this->name, $this->namespace);
+  public function widgetKeys(): array {
+    return WidgetState::keys($this->parents, $this->name, $this->namespace);
   }
 
   /**
@@ -121,7 +123,7 @@ final readonly class FieldContext {
    *   The context.
    */
   public function withCurrentInput(mixed $input): self {
-    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->widgetStates, $input, $this->hasCurrentInput, $this->enabled, $this->namespace);
+    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->formState, $input, $this->hasCurrentInput, $this->enabled, $this->namespace);
   }
 
   /**
@@ -132,7 +134,7 @@ final readonly class FieldContext {
    */
   public function withOwnEnabledHint(): self {
     $enabled = $this->enabled && (bool) ($this->hints['ui:enabled'] ?? TRUE);
-    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->widgetStates, $this->currentInput, $this->hasCurrentInput, $enabled, $this->namespace);
+    return new self($this->schema, $this->name, $this->parents, $this->hints, $this->formState, $this->currentInput, $this->hasCurrentInput, $enabled, $this->namespace);
   }
 
 }

@@ -11,8 +11,7 @@ use JsonSchema\Validator;
  *
  * Form API submits an empty string for a control nobody touched. When the
  * property is optional and its schema rejects that blank, the property is
- * omitted, so validation reads it as absent instead of as an invalid value.
- * Each object consults its own required list.
+ * omitted, so validation reads it as absent instead of invalid.
  *
  * @internal
  */
@@ -22,8 +21,7 @@ final class OptionalBlankRule {
    * Creates the rule.
    *
    * @param \JsonSchema\Validator $validator
-   *   Checks blanks against their property schema. Its factory resolves the
-   *   references those schemas make, in its configured check mode.
+   *   Checks blanks against their property schema.
    */
   public function __construct(
     private readonly Validator $validator,

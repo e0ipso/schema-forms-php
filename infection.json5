@@ -1,11 +1,9 @@
 {
   // Mutation testing for the framework-independent core. The Drupal adapter
   // under src/Drupal is left out; its kernel tests need a booted Drupal.
-  // src/Testing holds test code for users, so its mutants say nothing about
-  // the library.
   source: {
     directories: ["src"],
-    excludes: ["Drupal", "Testing"],
+    excludes: ["Drupal"],
   },
   // Run only the core unit tests, tests/src/*Test.php, without the
   // repository configuration test, which covers no source.

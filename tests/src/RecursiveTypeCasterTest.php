@@ -8,10 +8,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\EnumMemberMatcher;
 use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\OptionalBlankRule;
-use SchemaForms\PropertySchemaResolver;
 use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\ScalarCaster;
 use SchemaForms\RegisteredSchema;
@@ -28,8 +26,6 @@ use SchemaForms\SubmissionRefiner;
 #[CoversClass(RecursiveTypeCaster::class)]
 #[CoversClass(OptionalBlankRule::class)]
 #[CoversClass(ScalarCaster::class)]
-#[CoversClass(EnumMemberMatcher::class)]
-#[CoversClass(PropertySchemaResolver::class)]
 #[CoversClass(SchemaType::class)]
 #[CoversClass(SubmissionRefiner::class)]
 #[CoversClass(RestrictedSchemaRegistry::class)]

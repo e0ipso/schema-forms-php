@@ -7,9 +7,7 @@ namespace SchemaForms\Tests\Drupal;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\Drupal\AcceptedSchemas;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormTreeBuilder;
 use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Exception\ExceptionInterface;
 use SchemaForms\Exception\InvalidOptionException;
@@ -24,8 +22,6 @@ use Shaper\Util\Context;
  * failures threw before, so existing catch blocks keep matching.
  */
 #[CoversClass(SchemaPreparer::class)]
-#[CoversClass(AcceptedSchemas::class)]
-#[CoversClass(FormTreeBuilder::class)]
 final class LibraryExceptionTest extends TestCase {
 
   /**
@@ -69,11 +65,6 @@ final class LibraryExceptionTest extends TestCase {
         static fn () => (new FormGeneratorDrupal())->transform($schema, new Context(['options' => new FormOptions(namespace: '')])),
         InvalidOptionException::class,
         'The "namespace" option must be a non-empty string.',
-      ],
-      'accepted schema memory without room' => [
-        static fn () => new AcceptedSchemas(0),
-        InvalidOptionException::class,
-        'An accepted schema memory must hold at least one schema.',
       ],
     ];
   }

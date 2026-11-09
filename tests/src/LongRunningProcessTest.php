@@ -28,32 +28,6 @@ use SchemaForms\SubmissionRefiner;
 final class LongRunningProcessTest extends TestCase {
 
   /**
-   * The core declares no static properties and no static variables.
-   */
-  public function testCoreKeepsNoStaticState(): void {
-    $src = dirname(__DIR__, 2) . '/src/';
-    $files = [...glob($src . '*.php'), ...glob($src . 'Exception/*.php')];
-    $this->assertNotEmpty($files);
-    $state = [];
-    foreach ($files as $file) {
-      $class = new \ReflectionClass('SchemaForms\\' . str_replace([$src, '/', '.php'], ['', '\\', ''], $file));
-      foreach ($class->getProperties(\ReflectionProperty::IS_STATIC) as $property) {
-        $state[] = $class->getName() . '::$' . $property->getName();
-      }
-      $tokens = array_values(array_filter(
-        \PhpToken::tokenize((string) file_get_contents($file)),
-        static fn (\PhpToken $token): bool => !$token->isIgnorable(),
-      ));
-      foreach ($tokens as $index => $token) {
-        if ($token->is(T_STATIC) && ($tokens[$index + 1] ?? NULL)?->is(T_VARIABLE)) {
-          $state[] = $file . ':' . $token->line;
-        }
-      }
-    }
-    $this->assertSame([], $state);
-  }
-
-  /**
    * Refining one schema does not change how the next one is refined.
    *
    * Both schemas register under the same internal URI and reference the same

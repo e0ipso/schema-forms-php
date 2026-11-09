@@ -12,11 +12,6 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 /**
  * Builds the widget of an array with one item schema.
  *
- * The widget is an open details element with one container per item, each
- * holding the item control and a Remove button, followed by an Append
- * button. The item list lives in form state storage, so it survives the
- * rebuilds the buttons trigger.
- *
  * @internal
  *
  * @see \SchemaForms\Drupal\MultivalueWidget
@@ -31,9 +26,8 @@ final class MultivalueWidgetBuilder {
   /**
    * The inline style that puts the Remove button on the item's corner.
    *
-   * The package is a library, not a module, so it has no asset library to
-   * hold this rule, and core has no class for a small round button. The
-   * 24 by 24 pixel size is the WCAG 2.2 minimum target size.
+   * A library has no asset library to hold this rule. 24 by 24 pixels is the
+   * WCAG 2.2 minimum target size.
    */
   private const REMOVE_BUTTON_STYLE = 'opacity: 0.9;display: block;position: absolute;top: -12px;left: -12px;margin: 0;overflow: hidden;width: 24px;height: 24px;padding: 0;border-radius: 15px;';
 
@@ -47,9 +41,7 @@ final class MultivalueWidgetBuilder {
    * @param \stdClass $items
    *   The item schema.
    * @param \Closure(\SchemaForms\Drupal\FieldContext): array<int|string, mixed> $build_item
-   *   Builds the control of one item. Items can be any schema, so the caller
-   *   that builds every other control builds them too; taking it as a
-   *   callable keeps the two builders from depending on each other.
+   *   Builds the control of one item; a callable keeps the builders apart.
    *
    * @return array<int|string, mixed>
    *   The widget.
@@ -67,8 +59,6 @@ final class MultivalueWidgetBuilder {
     $element = [
       '#type' => 'details',
       '#open' => TRUE,
-      // Keep the details element's default processing before setting the
-      // validation path.
       '#process' => [
         [Details::class, 'processGroup'],
         [Details::class, 'processAjaxForm'],
@@ -82,22 +72,18 @@ final class MultivalueWidgetBuilder {
       '#suffix' => '</div>',
     ] + $element;
     if ($showed_value && $state->lastDelta() === NULL) {
-      // A widget with items stores them anyway; only an empty one needs to
-      // tell a saved empty list from an appended item never filled.
+      // Tells a saved empty list from an appended item never filled.
       $element[RenderKeys::SHOWED_VALUE] = TRUE;
     }
     if ($context->namespace !== NULL) {
-      // The callbacks find the widget state through it.
       $element[RenderKeys::NAMESPACE] = $context->namespace;
     }
-    // Items are numbered by position, so the numbers have no gaps after a
-    // removal.
+    // Number items by position, so a removal leaves no gap.
     foreach (array_values($state->deltas()) as $position => $delta) {
       $element[$delta] = $this->item($element, $context->item($delta, $items), $build_item, $wrapper_id, $position + 1);
     }
     $element[RenderKeys::APPEND_BUTTON] = $this->appendButton($context, $wrapper_id, Labels::appendButtonName($element['#title'] ?? ''));
     if ($state->isFull($cardinality)) {
-      // An inaccessible button cannot trigger a submission either.
       $element[RenderKeys::APPEND_BUTTON]['#access'] = FALSE;
     }
     return $element;
@@ -113,14 +99,14 @@ final class MultivalueWidgetBuilder {
    *   The state.
    */
   private function state(FieldContext $context): WidgetState {
-    $location = $context->widgetLocation();
-    $stored = $context->widgetStates->get($location);
+    $keys = $context->widgetKeys();
+    $stored = WidgetState::stored($context->formState, $keys);
     if (!empty($stored)) {
       return WidgetState::fromStorage($stored);
     }
     $count = is_array($context->currentInput) ? count($context->currentInput) : 0;
     $state = WidgetState::forSavedItems($count);
-    $context->widgetStates->save($location, $state);
+    $state->save($context->formState, $keys);
     return $state;
   }
 
@@ -142,8 +128,8 @@ final class MultivalueWidgetBuilder {
    *   The item container.
    */
   private function item(array $widget, FieldContext $context, \Closure $build_item, string $wrapper_id, int $number): array {
-    // The wrapping details element shows the title and description, even
-    // when maxItems is 1; each item gets an invisible numbered title.
+    // The details element shows the title and description; each item gets
+    // an invisible numbered title.
     $title = $widget['#title'] ?? '';
     $control = [
       '#title' => Labels::itemTitle($title, $number),
@@ -172,7 +158,7 @@ final class MultivalueWidgetBuilder {
    * @param string $wrapper_id
    *   The HTML ID of the widget wrapper, which the response replaces.
    * @param \Drupal\Core\StringTranslation\TranslatableMarkup $name
-   *   The accessible name, which tells the Remove buttons apart.
+   *   The accessible name.
    *
    * @return array<string, mixed>
    *   The button.

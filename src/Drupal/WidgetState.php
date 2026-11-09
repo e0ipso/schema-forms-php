@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use Drupal\Component\Utility\NestedArray;
 use Drupal\Core\Field\FieldStorageDefinitionInterface;
+use Drupal\Core\Form\FormStateInterface;
 
 /**
  * The item list of a multivalue widget, as kept in form state storage.
  *
- * Host code may read the stored array, so it keeps its keys: 'items_indices'
- * lists the item deltas, 'array_parents' records where the widget was last
- * built, and 'next_delta' appears once an item has been removed.
+ * Form state storage survives the rebuilds the widget buttons trigger. The
+ * state is placed at
+ * ['prop_storage', '#parents', ...$parents, '#props', $propName], so that a
+ * property name never clashes with a segment of another widget's parents,
+ * after ['prop_storage', '#namespaces', $namespace] in a namespaced
+ * container. Host code may read the stored array, so its keys never change.
  *
  * @internal
  */
@@ -21,10 +26,9 @@ final readonly class WidgetState {
    * Creates the state.
    *
    * @param array<int>|null $itemsIndices
-   *   The item deltas in form order. Removals leave gaps in the keys, as the
-   *   stored list always had them. NULL when nothing was stored.
+   *   The item deltas in form order, or NULL when nothing was stored.
    * @param array<mixed> $arrayParents
-   *   The #array_parents of the widget, recorded after it is built.
+   *   The #array_parents of the widget.
    * @param int|null $nextDelta
    *   The lowest delta no item has used yet, once an item was removed.
    */
@@ -33,6 +37,100 @@ final readonly class WidgetState {
     public array $arrayParents = [],
     public ?int $nextDelta = NULL,
   ) {}
+
+  /**
+   * Lists the form state storage keys of a widget's state.
+   *
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
+   * @param string|null $namespace
+   *   The namespace of the generated container, if it has one.
+   *
+   * @return list<mixed>
+   *   The keys.
+   */
+  public static function keys(array $parents, string $prop_name, ?string $namespace = NULL): array {
+    $container = $namespace === NULL ? [] : ['#namespaces', $namespace];
+    return ['prop_storage', ...$container, '#parents', ...array_values($parents), '#props', $prop_name];
+  }
+
+  /**
+   * Lists the storage keys a built widget records.
+   *
+   * @param array<int|string, mixed> $widget
+   *   The widget element.
+   *
+   * @return list<mixed>
+   *   The keys. Values of the wrong type read as absent.
+   */
+  public static function keysOf(array $widget): array {
+    $parents = $widget[RenderKeys::PROP_PARENTS] ?? [];
+    $prop_name = $widget[RenderKeys::PROP_NAME] ?? '';
+    $namespace = $widget[RenderKeys::NAMESPACE] ?? NULL;
+    return self::keys(
+      is_array($parents) ? $parents : [],
+      is_scalar($prop_name) ? (string) $prop_name : '',
+      is_string($namespace) ? $namespace : NULL,
+    );
+  }
+
+  /**
+   * Reads the stored array of a widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param list<mixed> $keys
+   *   The storage keys of the widget.
+   *
+   * @return mixed
+   *   The stored array, or NULL when nothing is stored.
+   */
+  public static function stored(FormStateInterface $form_state, array $keys): mixed {
+    return NestedArray::getValue($form_state->getStorage(), $keys);
+  }
+
+  /**
+   * Stores the array of a widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param list<mixed> $keys
+   *   The storage keys of the widget.
+   * @param array<mixed> $state
+   *   The array to store.
+   */
+  public static function store(FormStateInterface $form_state, array $keys, array $state): void {
+    NestedArray::setValue($form_state->getStorage(), $keys, $state);
+  }
+
+  /**
+   * Reads the state of a widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param list<mixed> $keys
+   *   The storage keys of the widget.
+   *
+   * @return self
+   *   The state.
+   */
+  public static function load(FormStateInterface $form_state, array $keys): self {
+    return self::fromStorage(self::stored($form_state, $keys));
+  }
+
+  /**
+   * Stores the state of a widget.
+   *
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   * @param list<mixed> $keys
+   *   The storage keys of the widget.
+   */
+  public function save(FormStateInterface $form_state, array $keys): void {
+    self::store($form_state, $keys, $this->toStorage());
+  }
 
   /**
    * Starts the state of a widget showing saved items.

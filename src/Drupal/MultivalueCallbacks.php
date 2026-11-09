@@ -12,9 +12,7 @@ use Drupal\Core\Form\FormStateInterface;
 /**
  * Runs the Form API callbacks of multivalue widgets.
  *
- * The generated render arrays name these static methods, so a cached form
- * stores only their names. Forms cached by releases before 3.2.0 name the
- * deprecated forwarders on FormGeneratorDrupal instead.
+ * Static, so a cached form stores only their names.
  *
  * @internal
  *
@@ -29,8 +27,7 @@ final class MultivalueCallbacks {
    *   The widget, with its Form API parents assigned.
    *
    * @return array<int|string, mixed>
-   *   The widget. An element without an Append button is returned as it
-   *   is, instead of gaining a button with no type.
+   *   The widget. An element without an Append button is returned as it is.
    */
   public static function process(array $element): array {
     if (!is_array($element[RenderKeys::APPEND_BUTTON] ?? NULL)) {
@@ -49,8 +46,7 @@ final class MultivalueCallbacks {
    *   The form state.
    *
    * @return array<int|string, mixed>
-   *   The widget. Any other element is returned untouched, so that no state
-   *   is stored for a widget that does not exist.
+   *   The widget. Any other element is returned untouched, storing no state.
    */
   public static function afterBuild(array $element, FormStateInterface $form_state): array {
     if (!MultivalueWidget::is($element)) {
@@ -65,9 +61,8 @@ final class MultivalueCallbacks {
     }
     // Host code may read where the widget ended up in the form.
     $array_parents = is_array($element['#array_parents'] ?? NULL) ? $element['#array_parents'] : [];
-    $storage = new WidgetStateStorage($form_state);
-    $location = WidgetLocation::ofWidget($element);
-    $storage->save($location, $storage->load($location)->withArrayParents($array_parents));
+    $keys = WidgetState::keysOf($element);
+    WidgetState::load($form_state, $keys)->withArrayParents($array_parents)->save($form_state, $keys);
     return $element;
   }
 
@@ -85,11 +80,10 @@ final class MultivalueCallbacks {
     if ($delta === NULL) {
       return;
     }
-    $location = WidgetLocation::ofWidget(self::widget($form, $button));
-    $storage = new WidgetStateStorage($form_state);
-    $state = $storage->load($location);
+    $keys = WidgetState::keysOf(self::widget($form, $button));
+    $state = WidgetState::load($form_state, $keys);
     if (in_array($delta, $state->deltas(), TRUE)) {
-      $storage->save($location, $state->withoutItem($delta));
+      $state->withoutItem($delta)->save($form_state, $keys);
     }
     $form_state->setRebuild();
   }
@@ -97,8 +91,7 @@ final class MultivalueCallbacks {
   /**
    * Responds to a removal with the rebuilt widget.
    *
-   * The whole widget is replaced, so an Append button hidden at the item
-   * limit comes back once an item is removed.
+   * The whole widget is replaced, so a hidden Append button comes back.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
@@ -132,21 +125,18 @@ final class MultivalueCallbacks {
     if (!MultivalueWidget::is($widget)) {
       return;
     }
-    $location = WidgetLocation::ofWidget($widget);
-    $storage = new WidgetStateStorage($form_state);
-    $state = $storage->load($location);
+    $keys = WidgetState::keysOf($widget);
+    $state = WidgetState::load($form_state, $keys);
     $cardinality = $widget[RenderKeys::CARDINALITY] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
     // A forced submission of a hidden button cannot exceed the limit either.
     if ($state->isFull(is_int($cardinality) ? $cardinality : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED)) {
       return;
     }
-    $storage->save($location, $state->withAppendedItem());
+    $state->withAppendedItem()->save($form_state, $keys);
   }
 
   /**
    * Responds to an appended item with the rebuilt widget.
-   *
-   * Finite widgets are replaced too, so a hidden Append button disappears.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
@@ -212,11 +202,7 @@ final class MultivalueCallbacks {
   }
 
   /**
-   * Finds the widget a button belongs to.
-   *
-   * The button's nearest ancestor that is a multivalue widget owns it. Asking
-   * the widget structure, instead of counting levels, keeps this right
-   * wherever the builder places the buttons inside the widget.
+   * Finds the widget a button belongs to: its nearest widget ancestor.
    *
    * @param array<int|string, mixed> $form
    *   The form.

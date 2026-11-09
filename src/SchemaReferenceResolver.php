@@ -12,9 +12,6 @@ use SchemaForms\Exception\UnsupportedReferenceException;
 /**
  * Retrieves the bundled draft-04 meta-schema and refuses every other URI.
  *
- * SchemaStorage serves registered documents without a retrieval, so this
- * retriever only sees the targets that are not registered.
- *
  * @internal
  */
 final class SchemaReferenceResolver implements UriRetrieverInterface {
@@ -25,9 +22,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
   public const SCHEMA_URI = 'internal:/schema-with-refs';
 
   /**
-   * The draft-04 identifiers that name the bundled meta-schema.
-   *
-   * They do not authorize a network retrieval: the bundled file answers them.
+   * The draft-04 identifiers the bundled file answers, never the network.
    */
   private const DRAFT_04_URIS = [
     'http://json-schema.org/draft-04/schema',
@@ -130,8 +125,8 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
   /**
    * Returns the file URI of the bundled draft-04 meta-schema.
    *
-   * The retriever allows this exact URI, so every reference to the bundled
-   * file must be built here.
+   * The retriever allows this exact URI, so every reference to the file is
+   * built here.
    *
    * @return string
    *   The URI.

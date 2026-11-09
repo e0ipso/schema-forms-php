@@ -62,27 +62,17 @@ final class ScalarCaster {
   /**
    * Decides whether a value on a nullable property means "nothing here".
    *
-   * Only values that already mean "there is nothing here" become NULL. `null`
-   * in a type union means the property *also* accepts absence; it does not
-   * turn every falsy value the property's other types can hold into absence.
-   * FALSE on a `["boolean", "null"]` property and "0" on a
-   * `["string", "null"]` one are values the caller chose.
-   *
-   * The empty string is the one ambiguous case, because Form API submits it
-   * for a control the user never touched. It is resolved per type rather than
-   * globally: a `string` type can hold it, so it is kept; every other type
-   * cannot, so it can only have come from an untouched control and it becomes
-   * NULL. A `string` whose shape or length is constrained cannot hold it
-   * either -- `minLength`, `format`, `pattern` and an `enum` that does not
-   * list "" all rule it out -- so those become NULL too.
+   * FALSE and "0" are values the caller chose, so only NULL and the empty
+   * string qualify. Form API submits the empty string for an untouched
+   * control, so it becomes NULL unless the property can hold it: a `string`
+   * without `minLength`, `format`, `pattern` or an `enum` that lacks "".
    *
    * @param mixed $input
    *   The input data.
    * @param list<string> $types
    *   The possible types.
    * @param object $schema
-   *   The schema of the property the value belongs to. Read for the keywords
-   *   that decide whether a `string` type can hold the empty string.
+   *   The schema of the property the value belongs to.
    *
    * @return bool
    *   TRUE when the value becomes NULL.
@@ -119,9 +109,8 @@ final class ScalarCaster {
   /**
    * Casts a numeric string to the number it spells.
    *
-   * A numeric string becomes an integer when it has no dot and spells a whole
-   * number PHP can hold, and a float otherwise. Non-finite values and
-   * integers out of range stay strings for validation to report.
+   * Non-finite values and integers out of range stay strings for validation
+   * to report.
    *
    * @param numeric-string $input
    *   The numeric string.

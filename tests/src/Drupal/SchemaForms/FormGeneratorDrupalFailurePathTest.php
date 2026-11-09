@@ -14,8 +14,7 @@ use SchemaForms\Drupal\MultivalueCallbacks;
 use SchemaForms\Drupal\MultivalueWidget;
 use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\WidgetItems;
-use SchemaForms\Drupal\WidgetLocation;
-use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 
 /**
@@ -31,8 +30,6 @@ use SchemaForms\Tests\Fixture\TranslationContainer;
 #[CoversClass(MultivalueCallbacks::class)]
 #[CoversClass(MultivalueWidget::class)]
 #[CoversClass(SchemaValidationBridge::class)]
-#[CoversClass(WidgetLocation::class)]
-#[CoversClass(WidgetStateStorage::class)]
 final class FormGeneratorDrupalFailurePathTest extends TestCase {
 
   use TranslationContainer;
@@ -117,13 +114,13 @@ final class FormGeneratorDrupalFailurePathTest extends TestCase {
    */
   public function testRemoveUnknownDelta(): void {
     $form_state = new FormState();
-    (new WidgetStateStorage($form_state))->set(new WidgetLocation(['items'], 'items'), ['items_indices' => [0, 1]]);
+    WidgetState::store($form_state, WidgetState::keys(['items'], 'items'), ['items_indices' => [0, 1]]);
     $widget = ['#max_delta' => 1, '#prop_parents' => ['items'], '#prop_name' => 'items'];
     $form_state->setTriggeringElement(['#delta' => 7, '#array_parents' => ['items', 7, 'remove_one']]);
 
     MultivalueCallbacks::removeSubmit(['items' => $widget], $form_state);
 
-    $this->assertSame(['items_indices' => [0, 1]], (new WidgetStateStorage($form_state))->get(new WidgetLocation(['items'], 'items')));
+    $this->assertSame(['items_indices' => [0, 1]], WidgetState::stored($form_state, WidgetState::keys(['items'], 'items')));
     $this->assertTrue($form_state->isRebuilding());
   }
 

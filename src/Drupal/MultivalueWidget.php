@@ -9,12 +9,9 @@ namespace SchemaForms\Drupal;
  *
  * The widget is a details element with a '#max_delta' property. Each child
  * that is not a button is an item container holding the item control under
- * 'removable_element' and its remove button. Schema property names never
- * appear at either level, so these markers cannot collide with them.
+ * 'removable_element' and its remove button.
  *
  * @internal
- *
- * @see \SchemaForms\Drupal\MultivalueWidgetBuilder
  */
 final class MultivalueWidget {
 
@@ -70,8 +67,7 @@ final class MultivalueWidget {
    *   The multivalue widget.
    *
    * @return array<int|string, array<int|string, mixed>>
-   *   The item controls in form order, keyed by form delta. The position of
-   *   each one is its index in the stored list.
+   *   The item controls in form order, keyed by form delta.
    */
   public static function storedItems(array $widget): array {
     $deltas = RenderChildren::keys($widget);
@@ -88,10 +84,8 @@ final class MultivalueWidget {
   /**
    * Decides whether an item was appended and left without a value.
    *
-   * Only a list item can submit nothing at all: every other control submits
-   * at least an empty string or an unchecked state. A list item with no
-   * sub-items that showed no saved value or default was appended and never
-   * filled, so it is not stored. A saved empty or NULL list is kept.
+   * Only a list item can submit nothing at all. One with no sub-items that
+   * showed no saved value or default was never filled, so it is not stored.
    *
    * @param array<int|string, mixed> $item
    *   The item control.

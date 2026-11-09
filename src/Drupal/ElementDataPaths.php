@@ -22,9 +22,9 @@ final class ElementDataPaths {
    * @param array<int|string, mixed> $root
    *   The generated root container.
    *
-   * @return list<\SchemaForms\Drupal\ElementDataPath>
-   *   The root and its descendants in form order. Buttons and item containers
-   *   hold no value and are left out.
+   * @return list<array{list<int|string>, array<int|string, mixed>}>
+   *   The path and element of the root and its descendants, in form order,
+   *   without buttons and item containers.
    */
   public static function all(array $root): array {
     return self::collect($root, [], static fn (array $element): bool => FALSE);
@@ -38,13 +38,13 @@ final class ElementDataPaths {
    * @param callable(array<int|string, mixed>): bool $matches
    *   Decides whether an element matches.
    *
-   * @return list<\SchemaForms\Drupal\ElementDataPath>
-   *   The matching elements in form order, without their descendants.
+   * @return list<array{list<int|string>, array<int|string, mixed>}>
+   *   The path and element of each match, in form order.
    */
   public static function outermost(array $root, callable $matches): array {
     return array_values(array_filter(
       self::collect($root, [], $matches),
-      static fn (ElementDataPath $pair): bool => $matches($pair->element)
+      static fn (array $pair): bool => $matches($pair[1])
     ));
   }
 
@@ -58,19 +58,18 @@ final class ElementDataPaths {
    * @param callable(array<int|string, mixed>): bool $stop
    *   Decides whether to leave out an element's descendants.
    *
-   * @return list<\SchemaForms\Drupal\ElementDataPath>
+   * @return list<array{list<int|string>, array<int|string, mixed>}>
    *   The element followed by its descendants.
    */
   private static function collect(array $element, array $path, callable $stop): array {
-    $pair = new ElementDataPath($path, $element);
     if ($stop($element)) {
-      return [$pair];
+      return [[$path, $element]];
     }
     $descendants = array_map(
-      static fn (ElementDataPath $child): array => self::collect($child->element, $child->path, $stop),
+      static fn (array $child): array => self::collect($child[1], $child[0], $stop),
       self::children($element, $path)
     );
-    return [$pair, ...array_merge(...$descendants)];
+    return [[$path, $element], ...array_merge(...$descendants)];
   }
 
   /**
@@ -81,14 +80,15 @@ final class ElementDataPaths {
    * @param list<int|string> $path
    *   The path of the element's value.
    *
-   * @return list<\SchemaForms\Drupal\ElementDataPath>
-   *   The children with the paths of their values.
+   * @return list<array{list<int|string>, array<int|string, mixed>}>
+   *   The children with the paths of their values. Multivalue items count by
+   *   their position in the stored list, not by their form delta.
    */
   private static function children(array $element, array $path): array {
     if (MultivalueWidget::is($element)) {
       $items = array_values(MultivalueWidget::storedItems($element));
       return array_map(
-        static fn (int $position, array $item): ElementDataPath => new ElementDataPath([...$path, $position], $item),
+        static fn (int $position, array $item): array => [[...$path, $position], $item],
         array_keys($items),
         $items
       );
@@ -98,7 +98,7 @@ final class ElementDataPaths {
       static fn (array $child): bool => !MultivalueWidget::isButton($child)
     );
     return array_map(
-      static fn (int|string $key, array $child): ElementDataPath => new ElementDataPath([...$path, $key], $child),
+      static fn (int|string $key, array $child): array => [[...$path, $key], $child],
       array_keys($children),
       array_values($children)
     );

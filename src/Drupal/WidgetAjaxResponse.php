@@ -14,14 +14,10 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 /**
  * Builds the AJAX responses of the multivalue widget buttons.
  *
- * A plain render array would only replace the widget. Screen reader users
- * would not hear that an item came or went, and after a removal the focused
- * button leaves the page, so focus would fall back to the document. Each
- * response therefore also announces the change and moves focus.
+ * Besides replacing the widget, each response announces the change to
+ * screen readers and moves focus, which a removal would otherwise drop.
  *
  * @internal
- *
- * @see \SchemaForms\Drupal\MultivalueCallbacks
  */
 final class WidgetAjaxResponse {
 
@@ -73,11 +69,8 @@ final class WidgetAjaxResponse {
   /**
    * Starts a response that replaces the widget and shows the messages.
    *
-   * The insert command replaces the clicked button's wrapper, as Drupal does
-   * for a callback that returns a render array. The messages cannot target
-   * that wrapper too: an AJAX rebuild gives the widget a new wrapper ID, so
-   * once the insert has run, the old ID is gone and the messages would land
-   * nowhere. They go into the rebuilt wrapper instead.
+   * The messages go into the rebuilt wrapper: the rebuild gives the widget a
+   * new wrapper ID, so the clicked button's wrapper is gone after the insert.
    *
    * @param array<int|string, mixed> $widget
    *   The rebuilt widget.
@@ -99,8 +92,7 @@ final class WidgetAjaxResponse {
    * @param \Drupal\Core\Ajax\AjaxResponse $response
    *   The response.
    * @param string|null $selector
-   *   The selector of the element to focus, or NULL when the rebuilt form
-   *   holds no widget to focus.
+   *   The selector of the element to focus, or NULL for none.
    *
    * @return \Drupal\Core\Ajax\AjaxResponse
    *   The response.
@@ -166,9 +158,8 @@ final class WidgetAjaxResponse {
    *   The widget.
    *
    * @return string|null
-   *   The selector of the element the buttons' AJAX responses replace, or
-   *   NULL when the element is not a widget. A bare "#" would make jQuery
-   *   throw in the browser.
+   *   The selector, or NULL when the element is not a widget. A bare "#"
+   *   would make jQuery throw in the browser.
    */
   private static function wrapperSelector(array $widget): ?string {
     $button = is_array($widget[RenderKeys::APPEND_BUTTON] ?? NULL) ? $widget[RenderKeys::APPEND_BUTTON] : [];

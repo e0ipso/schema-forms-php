@@ -6,32 +6,13 @@ namespace SchemaForms\Tests\Drupal\SchemaForms;
 
 use Drupal\Core\Form\FormState;
 use Drupal\Core\Render\Markup;
-use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\Drupal\ButtonNames;
-use SchemaForms\Drupal\ElementScaffold;
-use SchemaForms\Drupal\EnumElements;
-use SchemaForms\Drupal\FieldBuilder;
-use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormTreeBuilder;
-use SchemaForms\Drupal\Labels;
 use SchemaForms\Drupal\MultivalueCallbacks;
-use SchemaForms\Drupal\MultivalueWidgetBuilder;
-use SchemaForms\Drupal\RenderChildren;
-use SchemaForms\Drupal\RequiredMarker;
-use SchemaForms\Drupal\SavedInput;
-use SchemaForms\Drupal\SchemaPreparer;
-use SchemaForms\Drupal\SchemaTypes;
-use SchemaForms\Drupal\UnsupportedElement;
-use SchemaForms\Drupal\WidgetButton;
-use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Drupal\WidgetItems;
-use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
-use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -39,27 +20,6 @@ use Shaper\Util\Context;
 /**
  * Exercises multivalue callbacks with generated widgets and real form state.
  */
-#[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(ButtonNames::class)]
-#[CoversClass(WidgetButtons::class)]
-#[CoversClass(ElementScaffold::class)]
-#[CoversClass(EnumElements::class)]
-#[CoversClass(FieldBuilder::class)]
-#[CoversClass(FieldContext::class)]
-#[CoversClass(FormTreeBuilder::class)]
-#[CoversClass(Labels::class)]
-#[CoversClass(MultivalueCallbacks::class)]
-#[CoversClass(MultivalueWidgetBuilder::class)]
-#[CoversClass(RenderChildren::class)]
-#[CoversClass(RequiredMarker::class)]
-#[CoversClass(SavedInput::class)]
-#[CoversClass(SchemaPreparer::class)]
-#[CoversClass(SchemaTypes::class)]
-#[CoversClass(UnsupportedElement::class)]
-#[CoversClass(WidgetButton::class)]
-#[CoversClass(WidgetState::class)]
-#[CoversClass(WidgetStateStorage::class)]
-#[CoversClass(WidgetLocation::class)]
 final class FormGeneratorDrupalCallbacksTest extends TestCase {
 
   use TranslationContainer;
@@ -153,7 +113,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","title":"Tags","items":{"type":"string"}}}}');
     $state = new FormState();
-    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items'), [
+    WidgetState::store($state, WidgetState::keys(['items'], 'items'), [
       'items_indices' => [0 => 0, 2 => 2, 3 => 5],
       'next_delta' => 6,
     ]);
@@ -272,7 +232,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame([0], WidgetItems::read($state, ['items'], 'host')->deltas);
     $this->assertSame([], WidgetItems::read($state, ['items'])->deltas);
     $this->assertArrayHasKey('host', $state->getStorage()['prop_storage']['#namespaces']);
-    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items', 'host'), ['items_indices' => [3]]);
+    WidgetState::store($state, WidgetState::keys(['items'], 'items', 'host'), ['items_indices' => [3]]);
     $options = new FormOptions(
       formState: $state,
       namespace: 'host',

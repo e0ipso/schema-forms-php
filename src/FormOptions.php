@@ -9,10 +9,7 @@ use SchemaForms\Exception\InvalidOptionException;
 /**
  * The options of one transform() call.
  *
- * Pass it as the "options" key of the Shaper Context:
- * `new Context(['options' => new FormOptions(uiHints: $ui_schema)])`.
- * It replaces the separate "ui_hints", "form_state", "current_input" and
- * "namespace" keys, which are deprecated.
+ * Pass it as the "options" key of the Shaper Context.
  *
  * @api
  */
@@ -24,13 +21,13 @@ final class FormOptions {
    * @param array<mixed> $uiHints
    *   The UI schema, keyed by property name.
    * @param object|null $formState
-   *   The form state of the form that holds the generated elements, such as
-   *   Drupal's FormStateInterface. Array widgets keep their items in it.
+   *   The form state, such as Drupal's FormStateInterface. Array widgets keep
+   *   their items in it.
    * @param array<mixed>|object $currentInput
    *   Saved values, keyed like the schema, as decoded objects or arrays.
    * @param string|null $namespace
-   *   A non-empty name that keeps this container's widget state and button
-   *   names apart from other generated containers in the same form.
+   *   A non-empty name that keeps this container apart from others in the
+   *   same form.
    *
    * @throws \SchemaForms\Exception\InvalidOptionException
    *   When the namespace is an empty string.

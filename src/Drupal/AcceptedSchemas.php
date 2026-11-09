@@ -4,54 +4,28 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
-use SchemaForms\Exception\InvalidOptionException;
-
 /**
  * Remembers the schemas a generator accepted, and their registered copies.
  *
- * Every AJAX rebuild transforms the same schema again. Validating it against
- * the meta-schema, registering it and walking its references would repeat
- * the same work each time. The memory belongs to one generator, so a
- * long-running worker never shares it between requests, and a cached form
- * never stores it.
+ * Every AJAX rebuild transforms the same schema again, and validating and
+ * registering it each time repeats the same work. The memory belongs to one
+ * generator, and a cached form never stores it.
  *
  * @internal
  */
 final class AcceptedSchemas {
 
   /**
-   * How many schemas are remembered unless the caller says otherwise.
-   *
-   * A form usually builds one schema; the limit bounds memory when a
-   * long-lived generator builds many.
+   * How many schemas are remembered, to bound a long-lived generator.
    */
-  public const DEFAULT_LIMIT = 16;
+  private const LIMIT = 16;
 
   /**
-   * The accepted schemas, keyed by fingerprint, the most recent last.
-   *
-   * Each value is the registered copy once one was made, otherwise NULL.
+   * The registered copies or NULL, keyed by fingerprint, the most recent last.
    *
    * @var array<string, \stdClass|null>
    */
   private array $schemas = [];
-
-  /**
-   * Creates the memory.
-   *
-   * @param int $limit
-   *   How many schemas to remember, at least one.
-   *
-   * @throws \SchemaForms\Exception\InvalidOptionException
-   *   When the limit is below one.
-   */
-  public function __construct(
-    private readonly int $limit = self::DEFAULT_LIMIT,
-  ) {
-    if ($limit < 1) {
-      throw new InvalidOptionException('An accepted schema memory must hold at least one schema.');
-    }
-  }
 
   /**
    * Decides whether a schema was accepted before.
@@ -60,8 +34,7 @@ final class AcceptedSchemas {
    *   The decoded schema.
    *
    * @return bool
-   *   TRUE for a remembered schema. A schema that cannot be fingerprinted is
-   *   never remembered.
+   *   TRUE for a remembered schema.
    */
   public function contains(mixed $data): bool {
     $fingerprint = self::fingerprint($data);
@@ -115,14 +88,11 @@ final class AcceptedSchemas {
   /**
    * Keeps the remembered schemas out of serialized forms.
    *
-   * A cached form serializes its generator, and the schemas are only worth
-   * their size within one request.
-   *
    * @return string[]
    *   The names of the properties to serialize.
    */
   public function __sleep(): array {
-    return ['limit'];
+    return [];
   }
 
   /**
@@ -136,7 +106,7 @@ final class AcceptedSchemas {
   private function remember(string $fingerprint, ?\stdClass $schema): void {
     unset($this->schemas[$fingerprint]);
     $this->schemas[$fingerprint] = $schema;
-    $this->schemas = array_slice($this->schemas, -$this->limit, NULL, TRUE);
+    $this->schemas = array_slice($this->schemas, -self::LIMIT, NULL, TRUE);
   }
 
   /**

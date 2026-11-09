@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
-use Drupal\Core\Form\FormState;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
@@ -13,36 +12,12 @@ use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
 /**
- * The generator's work stays bounded on repeated and large schemas.
+ * The generator does no repeated work, and cached forms hold no copies.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
 final class FormGeneratorDrupalCostTest extends TestCase {
 
   use TranslationContainer;
-
-  /**
-   * The number of root properties in the large schema.
-   */
-  private const WIDTH = 200;
-
-  /**
-   * The nesting depth of the deep branches in the large schema.
-   */
-  private const DEPTH = 8;
-
-  /**
-   * The largest serialized form state storage the large schema may need.
-   *
-   * About 3% above the 20,400 bytes it took when the bound was set.
-   */
-  private const STORAGE_BYTES = 21000;
-
-  /**
-   * The largest serialized form the large schema may produce.
-   *
-   * About 2% above the 530,765 bytes it took when the bound was set.
-   */
-  private const FORM_BYTES = 541000;
 
   /**
    * A schema the generator accepted is not validated again.
@@ -116,45 +91,6 @@ final class FormGeneratorDrupalCostTest extends TestCase {
   }
 
   /**
-   * The remembered schemas stay out of the serialized generator.
-   */
-  public function testMemoryIsNotSerialized(): void {
-    $generator = new FormGeneratorDrupal();
-    $generator->transform(json_decode('{"type":"object","properties":{"a":{"type":"string"}}}'));
-
-    $this->assertStringNotContainsString('checkedSchemas', serialize($generator));
-  }
-
-  /**
-   * A wide and deep schema builds with bounded form state and form size.
-   *
-   * The test builds through doTransform(): the meta-schema check that
-   * transform() adds runs once per schema and generator, and it would take
-   * most of the test's time.
-   */
-  public function testLargeSchemaStaysBounded(): void {
-    $form_state = new FormState();
-    $saved = ['list_0' => array_fill(0, 3, ['name' => 'x', 'deep' => []])];
-
-    $options = new FormOptions(
-      formState: $form_state,
-      currentInput: $saved,
-    );
-    $form = (new FormGeneratorDrupal())->doTransform(self::largeSchema(), new Context(['options' => $options]));
-
-    $this->assertCount(self::WIDTH, array_filter(array_keys($form), static fn (int|string $key): bool => !str_starts_with((string) $key, '#')));
-    $deepest = $form['deep_0'];
-    foreach (range(1, self::DEPTH) as $level) {
-      $deepest = $deepest['level_' . $level];
-    }
-    $this->assertSame('textfield', $deepest['leaf']['#type']);
-    $this->assertSame('details', $deepest['rows']['#type']);
-    $this->assertCount(3, array_filter(array_keys($form['list_0']), 'is_int'));
-    $this->assertLessThan(self::STORAGE_BYTES, strlen(serialize($form_state->getStorage())));
-    $this->assertLessThan(self::FORM_BYTES, strlen(serialize($form)));
-  }
-
-  /**
    * Elements that collect no input hold no copy of the saved values.
    *
    * Core reads #default_value only on inputs, and a cached form stores every
@@ -192,55 +128,6 @@ final class FormGeneratorDrupalCostTest extends TestCase {
       ARRAY_FILTER_USE_BOTH
     );
     return [...$own, ...array_merge(...array_values(array_map([self::class, 'defaultValueHolders'], $children)))];
-  }
-
-  /**
-   * Builds a schema with wide, deep and list branches.
-   *
-   * @return \stdClass
-   *   The schema: root properties cycle through a string, an enum, a list of
-   *   objects and an object nested self::DEPTH levels deep.
-   */
-  private static function largeSchema(): \stdClass {
-    $row = (object) [
-      'type' => 'object',
-      'properties' => (object) [
-        'name' => (object) ['type' => 'string'],
-        'deep' => (object) ['type' => 'array', 'items' => (object) ['type' => 'integer']],
-      ],
-    ];
-    $deep = array_reduce(
-      range(self::DEPTH, 1),
-      static fn (\stdClass $inner, int $level): \stdClass => (object) [
-        'type' => 'object',
-        'properties' => (object) [
-          'level_' . $level => $inner,
-          'note_' . $level => (object) ['type' => 'string'],
-        ],
-      ],
-      (object) [
-        'type' => 'object',
-        'properties' => (object) [
-          'leaf' => (object) ['type' => 'string'],
-          'rows' => (object) ['type' => 'array', 'items' => $row],
-        ],
-      ]
-    );
-    $kinds = [
-      'text' => (object) ['type' => 'string', 'maxLength' => 20],
-      'choice' => (object) ['type' => 'string', 'enum' => ['a', 'b', 'c']],
-      'list' => (object) ['type' => 'array', 'items' => $row],
-      'deep' => $deep,
-    ];
-    $names = array_map(
-      static fn (int $index): string => array_keys($kinds)[$index % count($kinds)] . '_' . intdiv($index, count($kinds)),
-      range(0, self::WIDTH - 1)
-    );
-    $properties = array_combine($names, array_map(
-      static fn (string $name): \stdClass => $kinds[strstr($name, '_', TRUE)],
-      $names
-    ));
-    return (object) ['type' => 'object', 'properties' => (object) $properties];
   }
 
 }

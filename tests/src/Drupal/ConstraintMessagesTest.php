@@ -14,7 +14,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\ConstraintMessages;
-use SchemaForms\Drupal\JsonSchema5ConstraintMessages;
 use SchemaForms\Drupal\ValidationMessages;
 use SchemaForms\RestrictedSchemaRegistry;
 use SchemaForms\Tests\Fixture\TranslationContainer;
@@ -26,7 +25,6 @@ use SchemaForms\Tests\Fixture\TranslationContainer;
  * checks the 5.x wording and constraint names too.
  */
 #[CoversClass(ConstraintMessages::class)]
-#[CoversClass(JsonSchema5ConstraintMessages::class)]
 #[CoversClass(ValidationMessages::class)]
 final class ConstraintMessagesTest extends TestCase {
 

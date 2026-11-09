@@ -20,11 +20,10 @@ final readonly class WidgetItems {
    * Creates the view of a widget's items.
    *
    * @param list<int> $deltas
-   *   The form deltas of the items, in form order. A removed item leaves a
-   *   gap: the item keys in the render array, not their positions.
+   *   The item keys in the render array, in form order; a removed item
+   *   leaves a gap.
    * @param list<int|string> $arrayParents
-   *   The widget's #array_parents in the form the last time it was built, or
-   *   an empty list before that.
+   *   The widget's #array_parents when it was last built, or an empty list.
    */
   public function __construct(
     public array $deltas,
@@ -49,7 +48,7 @@ final readonly class WidgetItems {
    */
   public static function read(FormStateInterface $form_state, array $schema_path, ?string $namespace = NULL): ?self {
     $name = $schema_path === [] ? '' : (string) $schema_path[array_key_last($schema_path)];
-    $stored = (new WidgetStateStorage($form_state))->get(new WidgetLocation($schema_path, $name, $namespace));
+    $stored = WidgetState::stored($form_state, WidgetState::keys($schema_path, $name, $namespace));
     if (!is_array($stored)) {
       return NULL;
     }

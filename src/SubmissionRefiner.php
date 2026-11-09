@@ -7,11 +7,7 @@ namespace SchemaForms;
 /**
  * Casts submitted form values to the types their JSON Schema declares.
  *
- * Forms submit strings. refine() turns numeric strings into numbers, "0"
- * and "1" into booleans on boolean properties, and blanks into NULL where
- * the property is nullable and cannot hold a blank. It leaves out optional
- * properties whose untouched blank the schema rejects. Values it cannot
- * cast stay as submitted, for validation to report.
+ * Values it cannot cast stay as submitted, for validation to report.
  *
  * @api
  */

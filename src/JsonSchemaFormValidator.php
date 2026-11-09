@@ -18,8 +18,6 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
 
   /**
    * The schema every form root must match, built on first use.
-   *
-   * It is not serialized; an unserialized validator builds it again.
    */
   private ?object $formRoot = NULL;
 
@@ -39,7 +37,6 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
    * Refuses to replace the restricted validator.
    *
    * Another validator's factory may carry a retriever that fetches any URI.
-   * Pass the check mode to the constructor instead.
    *
    * @param \JsonSchema\Validator $validator
    *   The validator that is not installed.
@@ -105,9 +102,8 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
    * Checks that the schema is a decoded object whose root type is object.
    *
    * Type casting lets an associative array pass the meta-schema, so the root
-   * check runs in normal mode: an array is rejected instead of being read as
-   * an object. Running it through the validator leaves errors in the shape of
-   * the installed json-schema major.
+   * check runs in normal mode, through the validator so that its errors keep
+   * the installed json-schema major's shape.
    *
    * @param mixed $data
    *   The schema that passed the meta-schema validation.

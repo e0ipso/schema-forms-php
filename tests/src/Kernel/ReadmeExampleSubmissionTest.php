@@ -4,66 +4,11 @@ declare(strict_types=1);
 
 namespace SchemaForms\Tests\Kernel;
 
-use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
-use SchemaForms\Drupal\ButtonNames;
-use SchemaForms\Drupal\ElementScaffold;
-use SchemaForms\Drupal\EnumElements;
-use SchemaForms\Drupal\ErrorElementMapper;
-use SchemaForms\Drupal\FieldBuilder;
-use SchemaForms\Drupal\FieldContext;
-use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormTreeBuilder;
-use SchemaForms\Drupal\JsonShape;
-use SchemaForms\Drupal\Labels;
-use SchemaForms\Drupal\MultivalueCallbacks;
-use SchemaForms\Drupal\MultivalueWidgetBuilder;
-use SchemaForms\Drupal\PreservedValues;
-use SchemaForms\Drupal\RenderChildren;
-use SchemaForms\Drupal\RequiredMarker;
-use SchemaForms\Drupal\SavedInput;
-use SchemaForms\Drupal\SchemaPreparer;
-use SchemaForms\Drupal\SchemaTypes;
-use SchemaForms\Drupal\SchemaValidationBridge;
-use SchemaForms\Drupal\SubmissionPreparer;
-use SchemaForms\Drupal\SubmissionValidator;
-use SchemaForms\Drupal\UnsupportedElement;
-use SchemaForms\Drupal\WidgetButton;
-use SchemaForms\Drupal\WidgetButtons;
-use SchemaForms\Drupal\WidgetLocation;
-use SchemaForms\Drupal\WidgetState;
-use SchemaForms\Drupal\WidgetStateStorage;
 
 /**
  * Submits the README example schema through Drupal form processing.
  */
-#[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(SubmissionPreparer::class)]
-#[CoversClass(SchemaValidationBridge::class)]
-#[CoversClass(SubmissionValidator::class)]
-#[CoversClass(ErrorElementMapper::class)]
-#[CoversClass(PreservedValues::class)]
-#[CoversClass(RenderChildren::class)]
-#[CoversClass(JsonShape::class)]
-#[CoversClass(MultivalueCallbacks::class)]
-#[CoversClass(WidgetState::class)]
-#[CoversClass(WidgetStateStorage::class)]
-#[CoversClass(WidgetLocation::class)]
-#[CoversClass(ButtonNames::class)]
-#[CoversClass(WidgetButtons::class)]
-#[CoversClass(ElementScaffold::class)]
-#[CoversClass(EnumElements::class)]
-#[CoversClass(FieldBuilder::class)]
-#[CoversClass(FieldContext::class)]
-#[CoversClass(FormTreeBuilder::class)]
-#[CoversClass(Labels::class)]
-#[CoversClass(MultivalueWidgetBuilder::class)]
-#[CoversClass(RequiredMarker::class)]
-#[CoversClass(SavedInput::class)]
-#[CoversClass(SchemaPreparer::class)]
-#[CoversClass(SchemaTypes::class)]
-#[CoversClass(UnsupportedElement::class)]
-#[CoversClass(WidgetButton::class)]
 #[RunTestsInSeparateProcesses]
 final class ReadmeExampleSubmissionTest extends SchemaFormsKernelTestBase {
 

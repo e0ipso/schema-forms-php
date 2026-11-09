@@ -9,9 +9,8 @@ use Drupal\Component\Render\MarkupInterface;
 /**
  * Removes the form scaffolding from submitted values.
  *
- * Multivalue widgets nest each item under its remove button and add their
- * Append button's value. Cleaning turns those into the plain item list and
- * drops the NULL that a control left without a choice submits.
+ * Turns multivalue items into a plain list and drops the NULL that a control
+ * left without a choice submits.
  *
  * @internal
  */
@@ -23,8 +22,7 @@ final class UserInputCleaner {
    * @param mixed $data
    *   The submitted values.
    * @param array<int|string, mixed>|null $element
-   *   The generated element the values belong to. It tells multivalue lists
-   *   from objects and saved items from appended ones. Without it, lists are
+   *   The generated element the values belong to. Without it, lists are
    *   recognised by the button values the widget adds.
    *
    * @return mixed

@@ -40,27 +40,16 @@ final class AcceptedSchemasTest extends TestCase {
   }
 
   /**
-   * The oldest schema goes once the limit is reached.
+   * The least recently used schema goes once 16 are remembered.
    */
   public function testLimit(): void {
-    $memory = new AcceptedSchemas(2);
-    $schemas = array_map(static fn (string $name): \stdClass => (object) ['title' => $name], ['a', 'b', 'c']);
-    array_map([$memory, 'add'], $schemas);
-
-    $this->assertSame([FALSE, TRUE, TRUE], array_map([$memory, 'contains'], $schemas));
-
-    $memory->add($schemas[1]);
+    $memory = new AcceptedSchemas();
+    $schemas = array_map(static fn (int $name): \stdClass => (object) ['title' => $name], range(0, 16));
+    array_map([$memory, 'add'], array_slice($schemas, 0, 16));
     $memory->add($schemas[0]);
+    $memory->add($schemas[16]);
 
-    $this->assertSame([TRUE, TRUE, FALSE], array_map([$memory, 'contains'], $schemas));
-  }
-
-  /**
-   * A memory that can hold nothing is refused.
-   */
-  public function testLimitBelowOne(): void {
-    $this->expectException(\InvalidArgumentException::class);
-    new AcceptedSchemas(0);
+    $this->assertSame([TRUE, FALSE, TRUE], array_map([$memory, 'contains'], [$schemas[0], $schemas[1], $schemas[16]]));
   }
 
   /**
@@ -76,10 +65,10 @@ final class AcceptedSchemasTest extends TestCase {
   }
 
   /**
-   * A serialized memory keeps its limit and forgets its schemas.
+   * A serialized memory forgets its schemas.
    */
   public function testSerializationForgetsSchemas(): void {
-    $memory = new AcceptedSchemas(1);
+    $memory = new AcceptedSchemas();
     $schema = json_decode('{"type":"object","properties":{"remembered_marker":{"type":"string"}}}');
     $memory->add($schema);
     $memory->register($schema, new SchemaPreparer());
@@ -89,9 +78,6 @@ final class AcceptedSchemasTest extends TestCase {
     $restored = unserialize($serialized);
 
     $this->assertStringNotContainsString('remembered_marker', $serialized);
-    $this->assertFalse($restored->contains($schema));
-    $restored->add($schema);
-    $restored->add((object) ['title' => 'other']);
     $this->assertFalse($restored->contains($schema));
   }
 
