@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\OptionalBlankRule;
-use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\RestrictedSchemaRegistry;
 
 /**
  * Only an optional blank that its schema rejects is omitted.
@@ -22,7 +22,7 @@ final class OptionalBlankRuleTest extends TestCase {
    */
   #[DataProvider('omissionProvider')]
   public function testOmission(int|string $key, mixed $submitted, mixed $refined, string $property, mixed $required, bool $expected): void {
-    $rule = new OptionalBlankRule(new Validator(SchemaReferenceResolver::createFactory()));
+    $rule = new OptionalBlankRule(new Validator((new RestrictedSchemaRegistry())->factory()));
     $property_schema = json_decode($property);
     $schema = (object) [
       'type' => 'object',
@@ -55,7 +55,7 @@ final class OptionalBlankRuleTest extends TestCase {
    * would run the validator once per property of every submission.
    */
   public function testValidatesOnlyOptionalBlanks(): void {
-    $validator = new class(SchemaReferenceResolver::createFactory()) extends Validator {
+    $validator = new class((new RestrictedSchemaRegistry())->factory()) extends Validator {
 
       /**
        * The values validated, in order.
@@ -90,7 +90,7 @@ final class OptionalBlankRuleTest extends TestCase {
    * Blanks are checked with the references the injected factory resolves.
    */
   public function testUsesTheInjectedFactory(): void {
-    $factory = SchemaReferenceResolver::createFactory();
+    $factory = (new RestrictedSchemaRegistry())->factory();
     $factory->getSchemaStorage()->addSchema('internal://labels/', json_decode('{"definitions":{"label":{"type":"string","minLength":1}}}'));
     $rule = new OptionalBlankRule(new Validator($factory));
     $schema = json_decode('{"type":"object","properties":{"label":{"$ref":"internal://labels/#/definitions/label"}}}');

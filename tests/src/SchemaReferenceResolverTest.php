@@ -14,10 +14,12 @@ use SchemaForms\Exception\ExceptionInterface;
 use SchemaForms\Exception\UnreadableMetaSchemaException;
 use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\RestrictedSchemaRegistry;
 use SchemaForms\ReferenceChecker;
 use SchemaForms\SchemaCopier;
 use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\SchemaUriResolver;
+use SchemaForms\SubmissionRefiner;
 use SchemaForms\Tests\Fixture\ReferenceSentinel;
 
 /**
@@ -28,6 +30,8 @@ use SchemaForms\Tests\Fixture\ReferenceSentinel;
 #[CoversClass(SchemaCopier::class)]
 #[CoversClass(SchemaUriResolver::class)]
 #[CoversClass(RecursiveTypeCaster::class)]
+#[CoversClass(RestrictedSchemaRegistry::class)]
+#[CoversClass(SubmissionRefiner::class)]
 final class SchemaReferenceResolverTest extends TestCase {
 
   /**
@@ -58,7 +62,7 @@ final class SchemaReferenceResolverTest extends TestCase {
       $this->assertCount(1, ReferenceSentinel::$reads);
       ReferenceSentinel::observe($file, function () use ($schema): void {
         try {
-          RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema);
+          (new SubmissionRefiner())->refine(['field' => ''], $schema);
           $this->fail('Optional blank refinement must reject the reference.');
         }
         catch (UnresolvableJsonPointerException $e) {
@@ -93,8 +97,8 @@ final class SchemaReferenceResolverTest extends TestCase {
       ],
       'properties' => (object) ['field' => (object) ['type' => 'string', 'allOf' => [(object) ['$ref' => $reference]]]],
     ];
-    $this->assertSame([], RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema));
-    $validator = new Validator(SchemaReferenceResolver::createFactory($schema));
+    $this->assertSame([], (new SubmissionRefiner())->refine(['field' => ''], $schema));
+    $validator = new Validator((new RestrictedSchemaRegistry())->register($schema)->factory);
     $data = (object) ['field' => 'valid'];
     $validator->validate($data, $schema);
     $this->assertTrue($validator->isValid());
@@ -121,13 +125,25 @@ final class SchemaReferenceResolverTest extends TestCase {
   public function testCallerSchemaIsNotRewritten(): void {
     $json = '{"type":"object","definitions":{"label":{"type":"string","minLength":2}},"properties":{"field":{"type":"string","allOf":[{"$ref":"#/definitions/label"}]},"list":{"type":"array","items":{"$ref":"#/definitions/label"}}}}';
     $schema = json_decode($json);
-    $factory = SchemaReferenceResolver::createFactory($schema);
+    $registered = (new RestrictedSchemaRegistry())->register($schema)->schema;
     $this->assertEquals(json_decode($json), $schema);
-    $registered = SchemaReferenceResolver::registeredSchema($factory);
     $this->assertNotSame($schema, $registered);
     $this->assertSame('internal://schema-with-refs/#/definitions/label', $registered->properties->field->allOf[0]->{'$ref'});
-    $this->assertSame([], RecursiveTypeCaster::recursiveTypeRefinements(['field' => ''], $schema));
+    $this->assertSame([], (new SubmissionRefiner())->refine(['field' => ''], $schema));
     $this->assertEquals(json_decode($json), $schema);
+  }
+
+  /**
+   * The deprecated factory helpers still register and read schemas.
+   */
+  public function testDeprecatedFactoryHelpers(): void {
+    $schema = json_decode('{"type":"object","definitions":{"a":{"type":"string"}},"properties":{"x":{"$ref":"#/definitions/a"}}}');
+    $factory = SchemaReferenceResolver::createFactory($schema);
+    $registered = SchemaReferenceResolver::registeredSchema($factory);
+    $this->assertEquals((new RestrictedSchemaRegistry())->register($schema)->schema, $registered);
+    $this->assertNotSame($schema, $registered);
+    $empty = SchemaReferenceResolver::createFactory();
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $empty->getUriRetriever());
   }
 
   /**
@@ -142,7 +158,7 @@ final class SchemaReferenceResolverTest extends TestCase {
   public function testLocalBaseIsNotProbed(string $entry): void {
     $sentinel = sys_get_temp_dir() . '/schema-forms-sentinel-' . bin2hex(random_bytes(8));
     $operation = match ($entry) {
-      'extends' => static fn () => SchemaReferenceResolver::createFactory(
+      'extends' => static fn () => (new RestrictedSchemaRegistry())->register(
         (object) ['type' => 'object', 'extends' => $sentinel],
       ),
       'retrieve' => static fn () => (new SchemaReferenceResolver())->retrieve('schema.json', $sentinel),
@@ -178,7 +194,7 @@ final class SchemaReferenceResolverTest extends TestCase {
    * An absolute "extends" URI still reaches the bundled metadata.
    */
   public function testAbsoluteExtendsIsResolved(): void {
-    $factory = SchemaReferenceResolver::createFactory((object) ['extends' => 'http://json-schema.org/draft-04/schema#']);
+    $factory = (new RestrictedSchemaRegistry())->register((object) ['extends' => 'http://json-schema.org/draft-04/schema#'])->factory;
     $metadata = $factory->getSchemaStorage()->getSchema('http://json-schema.org/draft-04/schema#');
     $this->assertSame('http://json-schema.org/draft-04/schema#', $metadata->id);
   }
@@ -189,7 +205,7 @@ final class SchemaReferenceResolverTest extends TestCase {
   public function testNonStringReference(): void {
     $this->expectException(UnsupportedReferenceException::class);
     $this->expectExceptionMessage('A "$ref" value must be a string.');
-    SchemaReferenceResolver::createFactory((object) ['properties' => (object) ['a' => (object) ['$ref' => 5]]]);
+    (new RestrictedSchemaRegistry())->register((object) ['properties' => (object) ['a' => (object) ['$ref' => 5]]]);
   }
 
   /**
@@ -198,7 +214,7 @@ final class SchemaReferenceResolverTest extends TestCase {
   #[DataProvider('uncheckedBranchProvider')]
   public function testReferencesInEveryBranchAreChecked(string $schema): void {
     $this->expectException(UnsupportedReferenceException::class);
-    SchemaReferenceResolver::createFactory(json_decode($schema));
+    (new RestrictedSchemaRegistry())->register(json_decode($schema));
   }
 
   /**
@@ -280,7 +296,7 @@ final class SchemaReferenceResolverTest extends TestCase {
   #[DataProvider('metadataProvider')]
   public function testBundledMetadata(string $uri): void {
     $schema = (object) ['$ref' => $uri];
-    $validator = new Validator(SchemaReferenceResolver::createFactory($schema));
+    $validator = new Validator((new RestrictedSchemaRegistry())->register($schema)->factory);
     $data = (object) ['type' => 'string'];
     $validator->validate($data, $schema);
     $this->assertTrue($validator->isValid());

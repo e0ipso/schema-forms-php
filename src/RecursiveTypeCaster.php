@@ -29,18 +29,38 @@ final class RecursiveTypeCaster {
   ) {}
 
   /**
+   * Refines data against a registered schema.
+   *
+   * @param mixed $data
+   *   The data.
+   * @param \SchemaForms\RegisteredSchema $schema
+   *   The schema and the factory that resolves its references. Optional
+   *   blanks are validated with that factory, in its configured check mode.
+   *
+   * @return mixed
+   *   The same data with refined types.
+   *
+   * @throws \JsonSchema\Exception\InvalidArgumentException
+   *   When a reference inside the schema cannot be resolved.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
+   */
+  public static function refine(mixed $data, RegisteredSchema $schema): mixed {
+    return (new self(new OptionalBlankRule(new Validator($schema->factory))))->refineValue($data, $schema->schema);
+  }
+
+  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat -- The project is not on drupal.org.
+
+  /**
    * Takes a data structure and tries its best to fit the types in the schema.
    *
    * @param mixed $data
    *   The data.
    * @param object $schema
-   *   The schema. Without a factory, a copy of it is registered with
-   *   SchemaReferenceResolver::createFactory() and that copy is walked.
+   *   The schema. Without a factory, a copy of it is registered and that copy
+   *   is walked.
    * @param \JsonSchema\Constraints\Factory|null $factory
-   *   A factory whose storage resolves every reference in $schema from any of
-   *   its subschemas, such as one from SchemaReferenceResolver::createFactory()
-   *   passed with SchemaReferenceResolver::registeredSchema() as $schema.
-   *   Optional blanks are validated with it, in its configured check mode.
+   *   A factory whose storage holds $schema, references expanded.
    *
    * @return mixed
    *   The same data with refined types.
@@ -51,15 +71,20 @@ final class RecursiveTypeCaster {
    *   When a reference inside the schema cannot be resolved.
    * @throws \JsonSchema\Exception\RuntimeException
    *   When a reference is not a valid URI.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Use refine() with a RegisteredSchema, or SubmissionRefiner::refine().
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function recursiveTypeRefinements(mixed $data, object $schema, ?Factory $factory = NULL): mixed {
-    if ($factory === NULL) {
-      $factory = SchemaReferenceResolver::createFactory($schema);
-      // Walk the registered copy: its references resolve from any subschema.
-      $schema = SchemaReferenceResolver::registeredSchema($factory);
-    }
-    return (new self(new OptionalBlankRule(new Validator($factory))))->refineValue($data, $schema);
+    $registered = $factory === NULL
+      ? (new RestrictedSchemaRegistry())->register($schema)
+      : new RegisteredSchema($schema, $factory);
+    return self::refine($data, $registered);
   }
+
+  // phpcs:enable
 
   /**
    * Refines a value against the schema that describes it.

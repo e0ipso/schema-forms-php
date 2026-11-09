@@ -9,7 +9,9 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\JsonSchemaFormValidator;
 use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\RestrictedSchemaRegistry;
 use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\SubmissionRefiner;
 
 /**
  * One process can serve many schemas without one call leaking into the next.
@@ -21,6 +23,8 @@ use SchemaForms\SchemaReferenceResolver;
 #[CoversClass(JsonSchemaFormValidator::class)]
 #[CoversClass(RecursiveTypeCaster::class)]
 #[CoversClass(SchemaReferenceResolver::class)]
+#[CoversClass(SubmissionRefiner::class)]
+#[CoversClass(RestrictedSchemaRegistry::class)]
 final class LongRunningProcessTest extends TestCase {
 
   /**
@@ -59,7 +63,7 @@ final class LongRunningProcessTest extends TestCase {
   public function testTypeCastingIsolatesSchemas(): void {
     $rejects_blank = '{"type":"object","definitions":{"name":{"type":"string","minLength":1}},"properties":{"name":{"$ref":"#/definitions/name"},"count":{"type":"integer"}}}';
     $accepts_blank = '{"type":"object","definitions":{"name":{"type":"string"}},"properties":{"name":{"$ref":"#/definitions/name"},"count":{"type":"string"}}}';
-    $refine = static fn (string $schema): mixed => RecursiveTypeCaster::recursiveTypeRefinements(
+    $refine = static fn (string $schema): mixed => (new SubmissionRefiner())->refine(
       json_decode('{"name":"","count":"1"}'),
       json_decode($schema),
     );

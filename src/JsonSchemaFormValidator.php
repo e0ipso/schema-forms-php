@@ -96,7 +96,7 @@ final class JsonSchemaFormValidator extends JsonSchemaValidator {
    * @phpstan-param int-mask-of<Constraint::CHECK_MODE_*> $mode
    */
   private static function restrictedValidator(int $mode): Validator {
-    $factory = SchemaReferenceResolver::createFactory();
+    $factory = (new RestrictedSchemaRegistry())->factory();
     $factory->setConfig($mode);
     return new Validator($factory);
   }

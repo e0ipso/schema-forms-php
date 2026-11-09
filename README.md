@@ -168,6 +168,10 @@ Semantic versioning covers these symbols, with Shaper's `Context` as the options
 - `SchemaForms\Exception\InvalidSchemaException`: a valid schema the generator cannot represent, such as a property name that starts with `#`.
 - `SchemaForms\Exception\UnsupportedReferenceException`: a schema reference outside the registered documents.
 - `SchemaForms\Exception\UnreadableMetaSchemaException`: the bundled draft-04 meta-schema file is missing or broken. Reinstall the package.
+- `SchemaForms\RegisteredSchema`: a registered schema and the `JsonSchema\Constraints\Factory` whose storage resolves its references.
+- `SchemaForms\RestrictedSchemaRegistry`: the default `SchemaRegistryInterface`. It allows references inside the schema and to the bundled draft-04 meta-schema, and fetches nothing.
+- `SchemaForms\SchemaRegistryInterface`: registers a schema so its references resolve. Implement it to change which documents a schema may reference.
+- `SchemaForms\SubmissionRefiner`: casts submitted values to the types of a schema, without Drupal. See [Refining submissions without Drupal](#refining-submissions-without-drupal).
 - `SchemaForms\Testing\FormTransformationContractTestCase`: a PHPUnit test case that checks your own `FormTransformationInterface` implementation. See [Wrapping or replacing the generator](#wrapping-or-replacing-the-generator).
 
 `tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
@@ -285,6 +289,20 @@ When Drupal validates the form, the schema validation:
 2. Casts the submitted strings to the schema types. Numeric strings become `int` or `float`, `"0"` and `"1"` become booleans on a `boolean` property, and an empty string becomes `NULL` on a nullable property that cannot hold it.
 3. Validates the result against the schema with `justinrainbow/json-schema`. Each error is set on the element it belongs to. Errors that match no element are joined into one error on the container.
 
+### Refining submissions without Drupal
+
+`SubmissionRefiner` runs step 2 on its own, for a form built with another framework:
+
+```php
+use SchemaForms\SubmissionRefiner;
+
+$schema = json_decode('{"type":"object","properties":{"age":{"type":"integer"},"nickname":{"type":["string","null"],"minLength":1}}}');
+$values = (new SubmissionRefiner())->refine(['age' => '42', 'nickname' => ''], $schema);
+// ['age' => 42, 'nickname' => NULL]
+```
+
+`refine()` leaves the schema unchanged and leaves values it cannot cast as they are, for validation to report. It throws `UnsupportedReferenceException` when the schema references a document outside itself. The constructor takes a `SchemaRegistryInterface`; the default, `RestrictedSchemaRegistry`, never fetches a file or URL.
+
 ### Limitations
 
 - Neither generation nor validation fetches external `$ref` targets. Only references to schemas already registered in memory and the bundled draft-04 meta-schema are allowed; unsupported references produce a container error. Rendering still requires an explicit property `type`; a property that is only an internal `$ref` is not supported.
@@ -304,6 +322,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Submission values
 
+- `SchemaForms\SubmissionRefiner` is the public way to cast submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()` and `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated and are removed in 4.0.0.
 - A numeric string with an exponent and a fraction, such as `"1e-3"`, becomes the float `0.001`. It used to become the integer `0`.
 - An empty value of a required property with a numeric name, such as `"123"`, is kept, so validation reports it. It used to be dropped.
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
@@ -346,7 +365,7 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 - `phpmnd`: checks for magic numbers in `php` and `module` files.
 - `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
 - `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
-- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
+- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. Its one `ignoreErrors` entry covers the Drupal adapter's six calls to deprecated core methods. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
 - `yamllint` and `jsonlint`: check YAML and JSON files.
 - `composer`: runs strict Composer validation, `composer validate --strict`, when `composer.json` or `composer.lock` is present.
 - `composer_normalize`: runs `composer normalize --dry-run` when `composer.json` is present.
