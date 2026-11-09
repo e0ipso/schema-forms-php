@@ -516,6 +516,27 @@ final class SubmissionPipelineTest extends TestCase {
   }
 
   /**
+   * A reference to a missing definition sets an error instead of throwing.
+   *
+   * Registration accepts the pointer, because it names the schema itself.
+   * Casting a blank and validating both resolve it, and both fail.
+   */
+  public function testDanglingInternalReference(): void {
+    $schema = self::registered(json_decode('{"type":"object","properties":{"a":{"type":"string","allOf":[{"$ref":"#/definitions/missing"}]}}}'));
+    $element = self::element(['schema'], 'Data');
+    $prepared = self::formState(['schema' => ['a' => '']]);
+    $validated = self::formState(['schema' => ['a' => 'x']]);
+
+    $this->assertFalse((new SubmissionPreparer())->prepare($element, $prepared, $schema));
+    (new SubmissionValidator())->validate($element, $validated, $schema);
+
+    foreach ([$prepared, $validated] as $state) {
+      $this->assertSame(['schema'], array_keys($state->getErrors()));
+      $this->assertSame('The schema contains an unsupported reference. External schema retrieval is disabled.', $state->getErrors()['schema']->getUntranslatedString());
+    }
+  }
+
+  /**
    * Values that cannot be JSON encoded must never validate as {}.
    */
   #[DataProvider('unencodableProvider')]
