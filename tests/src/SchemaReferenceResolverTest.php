@@ -17,7 +17,6 @@ use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\RestrictedSchemaRegistry;
 use SchemaForms\ReferenceChecker;
-use SchemaForms\SchemaCopier;
 use SchemaForms\SchemaReferenceResolver;
 use SchemaForms\SchemaUriResolver;
 use SchemaForms\SubmissionRefiner;
@@ -28,7 +27,6 @@ use SchemaForms\Tests\Fixture\ReferenceSentinel;
  */
 #[CoversClass(SchemaReferenceResolver::class)]
 #[CoversClass(ReferenceChecker::class)]
-#[CoversClass(SchemaCopier::class)]
 #[CoversClass(SchemaUriResolver::class)]
 #[CoversClass(RecursiveTypeCaster::class)]
 #[CoversClass(RestrictedSchemaRegistry::class)]

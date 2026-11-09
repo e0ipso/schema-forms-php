@@ -11,8 +11,8 @@ use JsonSchema\Validator;
  * Casts a data structure to its JSON-Schema the best it can.
  *
  * Walks lists and objects with their item and property schemas. Scalars go
- * to ScalarCaster and EnumMemberMatcher, and OptionalBlankRule decides which
- * untouched properties to leave out.
+ * to ScalarCaster, and OptionalBlankRule decides which untouched properties
+ * to leave out.
  *
  * @internal
  */
@@ -101,7 +101,7 @@ final class RecursiveTypeCaster {
   private function refineValue(mixed $data, object $schema): mixed {
     $enum = $schema->enum ?? NULL;
     if (!isset($schema->type) && !empty($enum) && (is_string($data) || is_int($data))) {
-      return EnumMemberMatcher::match($data, $enum);
+      return self::enumMember($data, $enum);
     }
     $types = SchemaType::listOf($schema);
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
@@ -148,7 +148,7 @@ final class RecursiveTypeCaster {
    */
   private function refineProperties(array|object $data, object $schema): array|object {
     foreach ((array) $data as $key => $value) {
-      $property_schema = PropertySchemaResolver::resolve($schema, (string) $key);
+      $property_schema = self::propertySchema($schema, (string) $key);
       // A property the schema does not describe is left for validation.
       if ($property_schema === NULL) {
         continue;
@@ -170,6 +170,92 @@ final class RecursiveTypeCaster {
       $data[$key] = $refined;
     }
     return $data;
+  }
+
+  /**
+   * Returns the enum member a submitted option key stands for.
+   *
+   * Forms submit option keys as strings or integers, so an untyped enum of
+   * other scalars needs its members back.
+   *
+   * @param string|int $data
+   *   The submitted option key.
+   * @param mixed $enum
+   *   The enum keyword of an untyped schema.
+   *
+   * @return mixed
+   *   The matching member, or the data when no member matches.
+   */
+  private static function enumMember(string|int $data, mixed $enum): mixed {
+    $members = [];
+    // A decoded map lists its members as properties.
+    foreach (is_array($enum) || is_object($enum) ? (array) $enum : [] as $member) {
+      if (!is_scalar($member) && $member !== NULL) {
+        continue;
+      }
+      // Match rendering keys; the last member wins when keys collide.
+      $key = is_float($member) ? (string) $member : ($member ?? '');
+      $members[$key] = $member;
+    }
+    return array_key_exists($data, $members) ? $members[$data] : $data;
+  }
+
+  /**
+   * Finds the schema that describes one property of an object.
+   *
+   * A declared property wins, then the first matching pattern property, then
+   * an additionalProperties schema.
+   *
+   * @param object $schema
+   *   The object schema.
+   * @param string $name
+   *   The property name.
+   *
+   * @return object|null
+   *   The property schema, or NULL when the schema does not describe it.
+   */
+  private static function propertySchema(object $schema, string $name): ?object {
+    $declared = $schema->properties->{$name} ?? NULL;
+    if (is_object($declared)) {
+      return $declared;
+    }
+    // A scalar keyword value casts to a list of one non-object, which is
+    // skipped like any member that is not a schema.
+    foreach ((array) ($schema->patternProperties ?? []) as $pattern => $pattern_schema) {
+      if (is_object($pattern_schema) && self::matchesPattern((string) $pattern, $name)) {
+        return $pattern_schema;
+      }
+    }
+    $additional = $schema->additionalProperties ?? NULL;
+    return is_object($additional) ? $additional : NULL;
+  }
+
+  /**
+   * Matches a property name against a JSON Schema pattern.
+   *
+   * @param string $pattern
+   *   The pattern, without delimiters.
+   * @param string $name
+   *   The property name.
+   *
+   * @return bool
+   *   TRUE on a match. An invalid pattern matches nothing; validation reports
+   *   it.
+   */
+  private static function matchesPattern(string $pattern, string $name): bool {
+    // Escape each "~" that no backslash escapes already, so the delimiter
+    // cannot end the pattern early. "\~" stays as it is.
+    $escaped = preg_replace('/(?<!\\\\)((?:\\\\\\\\)*)~/', '$1\\~', $pattern);
+    // preg_match() warns about an invalid pattern and returns FALSE. Keep the
+    // warning out of the host's error log; FALSE matches nothing.
+    set_error_handler(static fn (): bool => TRUE);
+    try {
+      $matched = $escaped === NULL ? FALSE : preg_match('~' . $escaped . '~u', $name);
+    }
+    finally {
+      restore_error_handler();
+    }
+    return $matched === 1;
   }
 
 }
