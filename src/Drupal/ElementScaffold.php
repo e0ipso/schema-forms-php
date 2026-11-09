@@ -22,8 +22,8 @@ final class ElementScaffold {
    * Drupal has no 'integer' element. A number input whose step is one is the
    * native spelling of the constraint: the browser rejects a fractional value
    * before the form is submitted, and the value still arrives as an integer
-   * because ScalarCaster::tryCastingNumber() casts a whole numeric string
-   * with no decimal separator to int.
+   * because ScalarCaster::cast() turns a numeric string that spells a whole
+   * number without a dot into an int.
    */
   public const SCALAR_ELEMENTS = [
     'boolean' => ['#type' => 'checkbox'],

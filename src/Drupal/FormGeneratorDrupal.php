@@ -142,8 +142,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * Keeps the input validator out of serialized forms.
    *
    * Validation callbacks reference this generator, so a cached form serializes
-   * it. An unserialized JsonSchemaFormValidator would lose the restricted
-   * reference resolver; a fresh one is built on the next request instead.
+   * it. The input validator only matters while a schema is being accepted,
+   * and getInputValidator() builds a new one on demand.
    *
    * @return string[]
    *   The names of the properties to serialize.

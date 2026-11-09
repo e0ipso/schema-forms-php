@@ -38,7 +38,7 @@ final class FormTreeBuilder {
    * @return array<int|string, mixed>
    *   The container, without its validation callbacks.
    *
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidOptionException
    *   When the namespace is not a non-empty string.
    */
   public function build(\stdClass $schema, Context $context): array {
@@ -97,7 +97,7 @@ final class FormTreeBuilder {
    * @return string|null
    *   The namespace, or NULL when the caller gave none.
    *
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidOptionException
    *   When the namespace is not a non-empty string.
    */
   private static function namespace(Context $context): ?string {

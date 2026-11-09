@@ -42,7 +42,7 @@ final class AcceptedSchemas {
    * @param int $limit
    *   How many schemas to remember, at least one.
    *
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidOptionException
    *   When the limit is below one.
    */
   public function __construct(
@@ -97,7 +97,7 @@ final class AcceptedSchemas {
    *   When the schema references a document outside itself.
    * @throws \JsonSchema\Exception\RuntimeException
    *   When a reference is not a valid URI.
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidSchemaException
    *   When the schema is not an object or a property name starts with '#'.
    */
   public function register(mixed $data, SchemaPreparer $preparer): \stdClass {

@@ -28,7 +28,7 @@ final class SchemaPreparer {
    *   When the schema references a document outside itself.
    * @throws \JsonSchema\Exception\RuntimeException
    *   When a reference is not a valid URI.
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidSchemaException
    *   When the schema is not a decoded object, or a property name starts
    *   with '#'.
    */
@@ -62,7 +62,7 @@ final class SchemaPreparer {
    *   The object IDs of the sub-schemas already checked, so that a schema
    *   object graph with cycles cannot recurse forever.
    *
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidSchemaException
    *   When a property name starts with '#'.
    */
   private function rejectRenderPropertyNames(mixed $schema, array $path, array &$visited): void {
