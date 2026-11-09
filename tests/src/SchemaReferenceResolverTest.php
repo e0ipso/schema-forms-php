@@ -11,6 +11,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Exception\ExceptionInterface;
+use SchemaForms\Exception\UnreadableMetaSchemaException;
 use SchemaForms\Exception\UnsupportedReferenceException;
 use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\ReferenceChecker;
@@ -234,6 +235,29 @@ final class SchemaReferenceResolverTest extends TestCase {
       'non-string URI' => [5, 'http://127.0.0.1:9/'],
       'non-string base' => ['sentinel.json', 5],
     ];
+  }
+
+  /**
+   * A meta-schema that cannot be read throws a library exception.
+   *
+   * The recorder makes every file look missing. It runs in its own process
+   * for the same reason as testExternalRetrievalIsBlocked().
+   */
+  #[RunInSeparateProcess]
+  public function testUnreadableMetaSchema(): void {
+    // Load the classes before the file wrapper hides their files.
+    $retriever = new SchemaReferenceResolver();
+    $this->assertSame('http://json-schema.org/draft-04/schema#', $retriever->retrieve('http://json-schema.org/draft-04/schema#')->id);
+    $this->assertTrue(class_exists(UnreadableMetaSchemaException::class));
+    try {
+      StatRecorder::observe(static fn () => $retriever->retrieve('http://json-schema.org/draft-04/schema#'));
+      $this->fail('An unreadable meta-schema must throw.');
+    }
+    catch (UnreadableMetaSchemaException $e) {
+      $this->assertInstanceOf(ExceptionInterface::class, $e);
+      $this->assertStringContainsString('Reinstall the e0ipso/schema-forms package.', $e->getMessage());
+    }
+    $this->assertSame([dirname(__DIR__, 2) . '/meta-schema-draft4.json'], StatRecorder::$paths);
   }
 
   /**

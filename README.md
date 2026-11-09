@@ -165,6 +165,7 @@ Semantic versioning covers these symbols, with Shaper's `Context` as the options
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
 - `SchemaForms\Exception\UnsupportedReferenceException`: a schema reference outside the registered documents.
+- `SchemaForms\Exception\UnreadableMetaSchemaException`: the bundled draft-04 meta-schema file is missing or broken. Reinstall the package.
 - `SchemaForms\Testing\FormTransformationContractTestCase`: a PHPUnit test case that checks your own `FormTransformationInterface` implementation. See [Wrapping or replacing the generator](#wrapping-or-replacing-the-generator).
 
 `tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
@@ -296,6 +297,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - Every exception the library throws implements `SchemaForms\Exception\ExceptionInterface`. Catch it to handle any failure from the library at once.
 - A schema reference outside the registered documents throws `SchemaForms\Exception\UnsupportedReferenceException`. It extends `JsonSchema\Exception\UnresolvableJsonPointerException`, the exception thrown before, so existing `catch` blocks still match. `transform()` still catches it and renders the container with the unsupported-reference message.
 - An `extends` value without a URI scheme is refused with the same exception before any filesystem check. Before, the resolver probed it as a local path first.
+- When the bundled `meta-schema-draft4.json` is missing, unreadable or not a JSON object, the library throws `SchemaForms\Exception\UnreadableMetaSchemaException`. It used to throw a `\JsonException`, which the marker interface did not cover.
 
 ### Submission values
 

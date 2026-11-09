@@ -7,6 +7,7 @@ namespace SchemaForms;
 use JsonSchema\Constraints\Factory;
 use JsonSchema\SchemaStorage;
 use JsonSchema\UriRetrieverInterface;
+use SchemaForms\Exception\UnreadableMetaSchemaException;
 use SchemaForms\Exception\UnsupportedReferenceException;
 
 /**
@@ -77,6 +78,8 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
    *   For every URI except the bundled draft-04 meta-schema.
+   * @throws \SchemaForms\Exception\UnreadableMetaSchemaException
+   *   When the bundled meta-schema cannot be read.
    */
   #[\Override]
   public function retrieve(mixed $uri, mixed $baseUri = NULL): object {
@@ -93,9 +96,25 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     ], TRUE)) {
       throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
-    $metadata = json_decode((string) file_get_contents(self::metaSchemaPath()), FALSE, 512, JSON_THROW_ON_ERROR);
-    // The bundled file holds one JSON object.
-    assert(is_object($metadata));
+    return self::readMetaSchema();
+  }
+
+  /**
+   * Reads the bundled draft-04 meta-schema.
+   *
+   * @return object
+   *   The decoded meta-schema.
+   *
+   * @throws \SchemaForms\Exception\UnreadableMetaSchemaException
+   *   When the file is missing, unreadable or not a JSON object.
+   */
+  private static function readMetaSchema(): object {
+    $path = self::metaSchemaPath();
+    $json = is_readable($path) ? file_get_contents($path) : FALSE;
+    $metadata = is_string($json) ? json_decode($json) : NULL;
+    if (!is_object($metadata)) {
+      throw new UnreadableMetaSchemaException('The bundled meta-schema-draft4.json is missing or is not a JSON object. Reinstall the e0ipso/schema-forms package.');
+    }
     return $metadata;
   }
 
