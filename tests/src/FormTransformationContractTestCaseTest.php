@@ -76,6 +76,44 @@ final class FormTransformationContractTestCaseTest extends TestCase {
   }
 
   /**
+   * An implementation that reads an empty context as an option fails.
+   */
+  public function testEmptyContextThatChangesTheFormFails(): void {
+    $contract = self::contractFor(static fn (mixed $data, ?Context $context): array => ['context' => $context !== NULL]);
+    $contract->testBuildsWithoutContext((object) ['type' => 'object']);
+    $contract->testBuildsWithEmptyContext((object) ['type' => 'object']);
+    $this->expectException(AssertionFailedError::class);
+    $contract->testEmptyContextMeansNoOptions((object) ['type' => 'object']);
+  }
+
+  /**
+   * A subclass checks the form type through assertForm().
+   */
+  public function testAssertFormHook(): void {
+    $contract = new class('contract') extends FormTransformationContractTestCase {
+
+      /**
+       * {@inheritdoc}
+       */
+      #[\Override]
+      protected function createTransformation(): FormTransformationInterface {
+        return new PropertyListGenerator();
+      }
+
+      /**
+       * {@inheritdoc}
+       */
+      #[\Override]
+      protected function assertForm(mixed $form, object $schema): void {
+        $this->assertIsString($form);
+      }
+
+    };
+    $this->expectException(AssertionFailedError::class);
+    $contract->testBuildsWithoutContext((object) ['type' => 'object']);
+  }
+
+  /**
    * Creates the contract test case for an implementation.
    *
    * @param \Closure $transform

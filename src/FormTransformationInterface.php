@@ -29,9 +29,12 @@ interface FormTransformationInterface extends TransformationInterface {
    *   root type is "object".
    * @param \Shaper\Util\Context|null $context
    *   Options for the implementation, such as UI hints and saved values.
+   *   NULL and an empty Context both mean that no option is set, and build
+   *   the same form.
    *
    * @return mixed
-   *   The form definition; FormGeneratorDrupal returns a Drupal render array.
+   *   The form definition, never NULL. Each implementation documents its
+   *   type; FormGeneratorDrupal returns a Drupal render array.
    *
    * @throws \TypeError
    *   When the schema is not a decoded draft-04 object schema, or the built

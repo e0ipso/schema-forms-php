@@ -25,6 +25,16 @@ final class ContextDefaultsTest extends FormTransformationContractTestCase {
   }
 
   /**
+   * {@inheritdoc}
+   */
+  #[\Override]
+  protected function assertForm(mixed $form, object $schema): void {
+    $this->assertIsArray($form);
+    $this->assertSame(array_keys((array) ($schema->properties ?? [])), $form['properties']);
+    $this->assertSame(['namespace' => 'settings', 'label' => 'Settings'], $form['context']);
+  }
+
+  /**
    * The defaults reach the wrapped generator when the caller passes none.
    */
   public function testDefaultsFillTheContext(): void {

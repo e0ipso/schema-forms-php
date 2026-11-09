@@ -221,7 +221,7 @@ final class ContextDefaultsContractTest extends FormTransformationContractTestCa
 }
 ```
 
-The case checks that a decoded draft-04 object schema builds a form with and without a context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
+The case checks that a decoded draft-04 object schema builds a form with and without a context, that an empty context builds the same form as no context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. By default it only requires a result other than `NULL`; override `assertForm()` to check the type and shape your implementation returns. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
 
 ### Context keys
 
@@ -328,6 +328,11 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
 - A property missing from `properties` is cast by the first matching `patternProperties` schema, then by an `additionalProperties` schema. Any other property is left as submitted. It used to be cast against the object's `items` keyword, or against a schema that turned an empty string into `NULL`.
 - In multivalue (array) widgets, constants and saved values of unsupported types follow their item when another item is removed, and validation checks the value Drupal stores instead of the raw input. Errors for properties named `add_more`, `remove_one` or `removable_element` land on their element.
+
+### Contract test case
+
+- `FormTransformationContractTestCase` has a new test, `testEmptyContextMeansNoOptions()`: an empty `Context` must build the same form as no context. An implementation that treats the two differently now fails it.
+- Override the new `assertForm()` to check the forms your implementation builds. Its default asserts what the case asserted before, a result other than `NULL`.
 
 ### Labels and markup
 

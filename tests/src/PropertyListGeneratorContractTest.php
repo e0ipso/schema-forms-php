@@ -22,4 +22,13 @@ final class PropertyListGeneratorContractTest extends FormTransformationContract
     return new PropertyListGenerator();
   }
 
+  /**
+   * {@inheritdoc}
+   */
+  #[\Override]
+  protected function assertForm(mixed $form, object $schema): void {
+    $this->assertIsArray($form);
+    $this->assertSame(array_keys((array) ($schema->properties ?? [])), $form['properties']);
+  }
+
 }

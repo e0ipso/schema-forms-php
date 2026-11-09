@@ -14,9 +14,11 @@ use Shaper\Util\Context;
  *
  * Extend it in a PHPUnit suite and return the implementation, or a decorator
  * around one, from createTransformation(). The tests check what the interface
- * documents: a decoded draft-04 object schema builds a form, with or without
- * a context, and any other input throws a \TypeError with a message. Override
- * the providers to add schemas the implementation builds or rejects.
+ * documents: a decoded draft-04 object schema builds a form, an empty context
+ * builds the same form as no context, and any other input throws a
+ * \TypeError with a message. Override assertForm() to check the type and shape
+ * of the form your implementation returns, and override the providers to add
+ * schemas the implementation builds or rejects.
  *
  * It needs phpunit/phpunit, which this package suggests but does not require.
  *
@@ -68,6 +70,21 @@ abstract class FormTransformationContractTestCase extends TestCase {
   }
 
   /**
+   * Checks a form the implementation built.
+   *
+   * The default only requires a result. Override it to assert the type and
+   * shape your implementation documents, such as a render array.
+   *
+   * @param mixed $form
+   *   What transform() returned.
+   * @param object $schema
+   *   The schema the form was built from.
+   */
+  protected function assertForm(mixed $form, object $schema): void {
+    $this->assertNotNull($form, 'transform() returned no form.');
+  }
+
+  /**
    * A supported schema builds a form when the caller passes no context.
    *
    * @param object $schema
@@ -75,7 +92,7 @@ abstract class FormTransformationContractTestCase extends TestCase {
    */
   #[DataProvider('supportedSchemaProvider')]
   public function testBuildsWithoutContext(object $schema): void {
-    $this->assertNotNull($this->createTransformation()->transform($schema));
+    $this->assertForm($this->createTransformation()->transform($schema), $schema);
   }
 
   /**
@@ -86,7 +103,21 @@ abstract class FormTransformationContractTestCase extends TestCase {
    */
   #[DataProvider('supportedSchemaProvider')]
   public function testBuildsWithEmptyContext(object $schema): void {
-    $this->assertNotNull($this->createTransformation()->transform($schema, new Context()));
+    $this->assertForm($this->createTransformation()->transform($schema, new Context()), $schema);
+  }
+
+  /**
+   * An empty context builds the same form as no context.
+   *
+   * Both mean that the caller sets no option.
+   *
+   * @param object $schema
+   *   The decoded schema.
+   */
+  #[DataProvider('supportedSchemaProvider')]
+  public function testEmptyContextMeansNoOptions(object $schema): void {
+    $transformation = $this->createTransformation();
+    $this->assertEquals($transformation->transform($schema), $transformation->transform($schema, new Context()));
   }
 
   /**
