@@ -312,7 +312,7 @@ Supported controls:
 - `ui:placeholder`: placeholder text for the input.
 - `ui:widget`: a Drupal Form API element type, such as `select`, `textarea`, `password` or `hidden`. The generator uses the value as `#type` unchanged and does not check it. A name Drupal does not know, such as the react-jsonschema-form widget `updown`, renders nothing. A widget on an `array` or `object` property replaces the multivalue widget or the nested sub-elements, because the widget wins over the schema type. For example, `"tags": {"ui:widget": "textarea"}` on an array property renders one textarea and no per-item controls.
 - `ui:enabled`: `0` sets `#disabled` on the element and on every element nested in it, including array items and their sub-properties. A disabled parent wins over a child's own `ui:enabled: 1`.
-- `ui:visible`: `0` or `false` hides the element and everything nested in it. It sets `#visible` to `FALSE` and `#access` to `FALSE`. Drupal ignores submitted input for an inaccessible element and keeps its `#default_value`, so a saved value is saved again unchanged. A property with `const` ignores this key.
+- `ui:visible`: `0` or `false` hides the element and everything nested in it. It sets `#access` to `FALSE`, and the deprecated `#visible` to `FALSE`. Drupal ignores submitted input for an inaccessible element and keeps its `#default_value`, so a saved value is saved again unchanged. A property with `const` ignores this key.
 - `ui:enum`: controls the labels for select, radio and checkbox options. `ui:enum.labels.mappings` maps each enum value to a label, e.g. `{"uuid1": "Super duper product"}`.
 
 Other keys are ignored.
@@ -393,6 +393,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - Append buttons have the accessible name "Append an item to Tags". Their visible text is unchanged.
 - Item titles count rendered items, so they stay "value 1", "value 2" after a removal instead of skipping a number.
 - `ui:visible: 0` now hides the element; see the UI schema section.
+- Every generated control carries `#visible`, which Drupal core never reads. It is deprecated and is removed in 4.0.0; read `#access` instead, which is `FALSE` exactly when `#visible` is. A render key cannot trigger a notice, so this README is the only warning.
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
 - Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
 - Controls that show the required marker without `#required` carry `aria-required="true"`, and such a radio group's fieldset also gets `role="radiogroup"`. They used to carry no required state for assistive technology.

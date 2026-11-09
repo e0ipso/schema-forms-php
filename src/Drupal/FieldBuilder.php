@@ -69,10 +69,12 @@ final class FieldBuilder {
       return $this->constant($element, $context->schema->const);
     }
     $element['#disabled'] = !$context->enabled;
+    // Core never reads #visible, so it is deprecated for removal in 4.0.0.
+    // Host code may still read it, and a render key cannot warn them.
     $element['#visible'] = (bool) ($context->hints['ui:visible'] ?? TRUE);
     if (!$element['#visible']) {
-      // Core never reads #visible. Form API submits an inaccessible element's
-      // default value and ignores its input, so the saved value survives.
+      // Form API submits an inaccessible element's default value and ignores
+      // its input, so the saved value survives.
       $element['#access'] = FALSE;
     }
     if ($saved_scalar && $type === $guessed) {
