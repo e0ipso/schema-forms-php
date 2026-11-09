@@ -250,6 +250,7 @@ The element title comes from `ui:title`, then the schema `title`, then the prope
 
 - Each item of a multivalue widget has a visually hidden title, such as "Tags (value 2)". Items are numbered by their position, so the numbers have no gaps after a removal.
 - Each remove button shows "⨯" and has the accessible name "Remove Tags (value 2)" in its `aria-label` and `title`. It is 24 by 24 pixels, the WCAG 2.2 minimum target size.
+- Each Append button shows "Append an item" and has the accessible name "Append an item to Tags" in its `aria-label`, so a page with several lists has distinct buttons.
 - The library is not a Drupal module, so it ships no asset library and no CSS file. The remove button's size and position, and the `position: relative` of each item container that anchors it, are inline styles for that reason. A site whose Content Security Policy forbids inline styles must style `.field-remove-one-submit` itself.
 - After Append or Remove, the AJAX response announces the change through `Drupal.announce()`, for example "Item added: Tags (value 3).", and moves focus: to the new item after Append, and after Remove to the item that took the removed item's place, else the Append button, else the widget. Status messages appear at the top of the rebuilt widget.
 - A required property that shows Drupal's marker without Form API `#required` (see [Limitations](#limitations)) also tells assistive technology it is required: inputs, selects and single checkboxes get `aria-required="true"`, and a radio group's fieldset gets `role="radiogroup"` with `aria-required="true"`. ARIA has no required state for a group of checkboxes, so those show the marker only.
@@ -310,6 +311,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - An enum option for the empty string is labelled "Empty" unless `ui:enum` maps it. It used to have an empty label.
 - A `const` property renders as an `item` element with its title as a label, and its description when it has one. It used to render as bare text with no label.
 - Remove buttons have the accessible name "Remove Tags (value 2)" instead of the `title` "Remove item", and grew from 20 to 24 pixels.
+- Append buttons have the accessible name "Append an item to Tags". Their visible text is unchanged.
 - Item titles count rendered items, so they stay "value 1", "value 2" after a removal instead of skipping a number.
 - `ui:visible: 0` now hides the element; see the UI schema section.
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
