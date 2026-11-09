@@ -6,10 +6,10 @@ namespace SchemaForms\Drupal;
 
 use Drupal\Core\Form\FormStateInterface;
 use JsonSchema\Constraints\Constraint;
-use JsonSchema\Constraints\Factory;
 use JsonSchema\Exception\ExceptionInterface;
 use JsonSchema\Validator;
-use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\RegisteredSchema;
+use SchemaForms\SchemaType;
 
 /**
  * Validates the stored value of a generated form against its schema.
@@ -35,14 +35,12 @@ final class SubmissionValidator {
    *   The generated root container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   * @param object $schema
-   *   The schema. With a factory, the schema that factory registered.
-   * @param \JsonSchema\Constraints\Factory|null $factory
-   *   The restricted factory of this submission, or NULL to create one.
+   * @param \SchemaForms\RegisteredSchema $schema
+   *   The registered schema of the container.
    */
-  public function validate(array $element, FormStateInterface $form_state, object $schema, ?Factory $factory = NULL): void {
+  public function validate(array $element, FormStateInterface $form_state, RegisteredSchema $schema): void {
     try {
-      $shaped = JsonShape::fromSchema(SubmittedValue::read($element, $form_state), $schema);
+      $shaped = JsonShape::fromSchema(SubmittedValue::read($element, $form_state), $schema->schema);
       $encoded = json_encode($shaped, JSON_THROW_ON_ERROR);
       $data = json_decode($encoded, flags: JSON_THROW_ON_ERROR);
     }
@@ -53,10 +51,10 @@ final class SubmissionValidator {
       return;
     }
     // Form API cannot tell an empty object from an empty list.
-    $data = $data === [] || $data === NULL ? self::emptyValue($schema) : $data;
+    $data = $data === [] || $data === NULL ? self::emptyValue($schema->schema) : $data;
     try {
-      $validator = new Validator($factory ?? SchemaReferenceResolver::createFactory($schema));
-      $validator->validate($data, $schema, Constraint::CHECK_MODE_TYPE_CAST);
+      $validator = new Validator($schema->factory);
+      $validator->validate($data, $schema->schema, Constraint::CHECK_MODE_TYPE_CAST);
     }
     catch (ExceptionInterface $e) {
       $form_state->setError($element, ValidationMessages::unsupportedReference());
@@ -75,8 +73,7 @@ final class SubmissionValidator {
    *   An empty list when the schema allows arrays, otherwise an empty object.
    */
   private static function emptyValue(object $schema): array|\stdClass {
-    $types = $schema instanceof \stdClass ? (array) ($schema->type ?? []) : [];
-    return in_array('array', $types, TRUE) ? [] : new \stdClass();
+    return in_array('array', SchemaType::listOf($schema), TRUE) ? [] : new \stdClass();
   }
 
   /**

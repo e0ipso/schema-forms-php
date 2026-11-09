@@ -139,6 +139,8 @@ final class SchemaReferenceResolverTest extends TestCase {
    */
   #[IgnoreDeprecations]
   public function testDeprecatedFactoryHelpers(): void {
+    $this->expectUserDeprecationMessage('SchemaReferenceResolver::createFactory() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use RestrictedSchemaRegistry::register() or RestrictedSchemaRegistry::factory() instead. See https://github.com/e0ipso/schema-forms-php#upgrading');
+    $this->expectUserDeprecationMessage('SchemaReferenceResolver::registeredSchema() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use the schema property of RestrictedSchemaRegistry::register() instead. See https://github.com/e0ipso/schema-forms-php#upgrading');
     $schema = json_decode('{"type":"object","definitions":{"a":{"type":"string"}},"properties":{"x":{"$ref":"#/definitions/a"}}}');
     $factory = SchemaReferenceResolver::createFactory($schema);
     $registered = SchemaReferenceResolver::registeredSchema($factory);

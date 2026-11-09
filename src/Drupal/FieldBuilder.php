@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use SchemaForms\SchemaType;
+
 /**
  * Builds the Form API control for one schema.
  *
@@ -92,7 +94,7 @@ final class FieldBuilder {
     }
     // An editable control cannot show NULL, so an untouched one would submit
     // a blank value instead. Record the saved NULL to restore it on submit.
-    if ($context->hasCurrentInput && $context->currentInput === NULL && in_array('null', (array) ($context->schema->type ?? []), TRUE)) {
+    if ($context->hasCurrentInput && $context->currentInput === NULL && in_array('null', SchemaType::listOf($context->schema), TRUE)) {
       $element[RenderKeys::SAVED_NULL] = TRUE;
     }
     return $element;

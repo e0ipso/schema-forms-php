@@ -6,7 +6,8 @@ namespace SchemaForms\Drupal;
 
 use Drupal\Core\Form\FormStateInterface;
 use JsonSchema\Exception\ExceptionInterface;
-use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
 
 /**
  * Validates a submitted generated container against its schema.
@@ -26,10 +27,13 @@ final class SchemaValidationBridge {
    *   Cleans and casts submitted values.
    * @param \SchemaForms\Drupal\SubmissionValidator $validator
    *   Validates the prepared values against the schema.
+   * @param \SchemaForms\SchemaRegistryInterface $registry
+   *   Registers the schema, so its references resolve.
    */
   public function __construct(
     private readonly SubmissionPreparer $preparer = new SubmissionPreparer(),
     private readonly SubmissionValidator $validator = new SubmissionValidator(),
+    private readonly SchemaRegistryInterface $registry = new RestrictedSchemaRegistry(),
   ) {}
 
   /**
@@ -46,18 +50,17 @@ final class SchemaValidationBridge {
       return;
     }
     try {
-      // One restricted factory serves casting and validation alike.
-      $factory = SchemaReferenceResolver::createFactory($schema);
+      // One registration serves casting and validation alike.
+      $registered = $this->registry->register($schema);
     }
     catch (ExceptionInterface $e) {
       $form_state->setError($element, ValidationMessages::unsupportedReference());
       return;
     }
-    $registered = SchemaReferenceResolver::registeredSchema($factory);
     // Validation reads the value preparation stored, so it checks exactly
     // what the submit handlers receive.
-    if ($this->preparer->prepare($element, $form_state, $registered, $factory)) {
-      $this->validator->validate($element, $form_state, $registered, $factory);
+    if ($this->preparer->prepare($element, $form_state, $registered)) {
+      $this->validator->validate($element, $form_state, $registered);
     }
   }
 

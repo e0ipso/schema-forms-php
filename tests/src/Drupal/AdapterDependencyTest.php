@@ -20,8 +20,8 @@ final class AdapterDependencyTest extends TestCase {
    * adapter is part of this package and is meant to call it.
    */
   private const ENTRY_POINTS = [
-    // Registers schemas under the restricted reference resolver.
-    'SchemaForms\SchemaReferenceResolver',
+    // Reads the "type" keyword of a schema.
+    'SchemaForms\SchemaType',
     // Validates the input schema of transform().
     'SchemaForms\JsonSchemaFormValidator',
     // Casts submitted strings to the schema types.

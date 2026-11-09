@@ -49,7 +49,7 @@ final class RecursiveTypeCaster {
     return (new self(new OptionalBlankRule(new Validator($schema->factory))))->refineValue($data, $schema->schema);
   }
 
-  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat -- The project is not on drupal.org.
+  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat, Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
 
   /**
    * Takes a data structure and tries its best to fit the types in the schema.
@@ -78,6 +78,7 @@ final class RecursiveTypeCaster {
    * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function recursiveTypeRefinements(mixed $data, object $schema, ?Factory $factory = NULL): mixed {
+    @trigger_error('RecursiveTypeCaster::recursiveTypeRefinements() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use SubmissionRefiner::refine() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     $registered = $factory === NULL
       ? (new RestrictedSchemaRegistry())->register($schema)
       : new RegisteredSchema($schema, $factory);

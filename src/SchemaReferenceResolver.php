@@ -36,7 +36,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
     'https://json-schema.org/draft-04/schema#',
   ];
 
-  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat -- The project is not on drupal.org.
+  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat, Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
 
   /**
    * Creates a factory with the restricted retriever.
@@ -59,6 +59,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function createFactory(?object $schema = NULL): Factory {
+    @trigger_error('SchemaReferenceResolver::createFactory() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use RestrictedSchemaRegistry::register() or RestrictedSchemaRegistry::factory() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     $registry = new RestrictedSchemaRegistry();
     return $schema === NULL ? $registry->factory() : $registry->register($schema)->factory;
   }
@@ -78,6 +79,7 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
    * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function registeredSchema(Factory $factory): object {
+    @trigger_error('SchemaReferenceResolver::registeredSchema() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use the schema property of RestrictedSchemaRegistry::register() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     $schema = $factory->getSchemaStorage()->getSchema(self::SCHEMA_URI);
     // createFactory() registers an object, never a boolean schema.
     assert(is_object($schema));

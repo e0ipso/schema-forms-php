@@ -55,13 +55,13 @@ final class SchemaReferenceRetrievalTest extends TestCase {
           $this->assertStringContainsString('unsupported reference', $form['#markup']->getUntranslatedString());
           return;
         }
-        $form = ['#parents' => ['schema'], '#array_parents' => ['schema']];
+        $form = ['#parents' => ['schema'], '#array_parents' => ['schema'], '#json_schema' => $schema];
         $state = (new FormState())->setUserInput([])->setValues(['schema' => ['field' => 'valid']]);
-        if ($entry === 'casting') {
-          (new SubmissionPreparer())->prepare($form, $state, $schema);
+        if ($entry === 'element validation') {
+          (new SchemaValidationBridge())->validateElement($form, $state);
         }
-        if ($entry === 'submission') {
-          (new SubmissionValidator())->validate($form, $state, $schema);
+        if ($entry === 'form validation') {
+          (new SchemaValidationBridge())->validateForm($form, $state);
         }
         $this->assertSame(['schema'], array_keys($state->getErrors()));
         $error = $state->getErrors()['schema'];
@@ -84,7 +84,7 @@ final class SchemaReferenceRetrievalTest extends TestCase {
   public static function externalReferenceProvider(): array {
     $cases = [];
     foreach (['file', 'http', 'https'] as $scheme) {
-      foreach (['generation', 'casting', 'submission'] as $entry) {
+      foreach (['generation', 'element validation', 'form validation'] as $entry) {
         $cases[$scheme . ' ' . $entry] = [$scheme, $entry];
       }
     }

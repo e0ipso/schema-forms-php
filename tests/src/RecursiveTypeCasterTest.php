@@ -328,6 +328,7 @@ class RecursiveTypeCasterTest extends TestCase {
    */
   #[IgnoreDeprecations]
   public function testDeprecatedEntryPoint(): void {
+    $this->expectUserDeprecationMessage('RecursiveTypeCaster::recursiveTypeRefinements() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use SubmissionRefiner::refine() instead. See https://github.com/e0ipso/schema-forms-php#upgrading');
     $schema = json_decode('{"type":"object","definitions":{"name":{"type":"string","minLength":1}},"properties":{"name":{"$ref":"#/definitions/name"},"count":{"type":"integer"}}}');
     $data = ['name' => '', 'count' => '3'];
     $this->assertSame(['count' => 3], RecursiveTypeCaster::recursiveTypeRefinements($data, $schema));

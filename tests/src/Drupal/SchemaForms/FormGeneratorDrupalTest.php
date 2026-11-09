@@ -29,7 +29,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
-use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\SubmissionRefiner;
 use SchemaForms\Tests\Fixture\ConstantSchemas;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -1223,7 +1223,7 @@ class FormGeneratorDrupalTest extends TestCase {
     $this->assertTrue($form['value']['#disabled']);
     $this->assertSame($saved ? ['saved'] : ['default'], $form['value']['#schema_fixed_value']);
     $this->assertArrayNotHasKey('add_more', $form['value']);
-    $this->assertSame(['value' => ['1']], RecursiveTypeCaster::recursiveTypeRefinements(['value' => ['1']], $schema));
+    $this->assertSame(['value' => ['1']], (new SubmissionRefiner())->refine(['value' => ['1']], $schema));
   }
 
   /**
