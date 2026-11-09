@@ -25,11 +25,14 @@ use SchemaForms\Drupal\RequiredMarker;
 use SchemaForms\Drupal\SavedInput;
 use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
-use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\FormOptions;
+use SchemaForms\SubmissionRefiner;
 use SchemaForms\Tests\Fixture\ConstantSchemas;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -88,9 +91,9 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   #[DataProvider('dataProviderFormGeneration')]
   public function testFormGeneration(string $schema, array $expected_form) {
-    $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#element_validate'] = [[SchemaValidationBridge::class, 'elementValidate']];
     $expected_form['#tree'] = TRUE;
-    $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
+    $expected_form['#validate'] = [[SchemaValidationBridge::class, 'formValidate']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
     $actual_form = $this->sut->transform($data);
@@ -242,7 +245,7 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
-            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
+            '#element_validate' => [[EnumElements::class, 'validateCheckboxes']],
             '#options' => ['lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -325,7 +328,7 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
-            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
+            '#element_validate' => [[EnumElements::class, 'validateCheckboxes']],
             '#options' => ['' => new TranslatableMarkup('None'), 'lor-em' => Markup::create('Lor Em')],
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -354,15 +357,16 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('dataProviderFormGenerationWithUi')]
   public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form, array $current_input = []) {
     Html::resetSeenIds();
-    $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#element_validate'] = [[SchemaValidationBridge::class, 'elementValidate']];
     $expected_form['#tree'] = TRUE;
-    $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
+    $expected_form['#validate'] = [[SchemaValidationBridge::class, 'formValidate']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
-    $context = new Context([
-      'ui_hints' => $ui_schema,
-      'current_input' => $current_input,
-    ]);
+    $options = new FormOptions(
+      uiHints: $ui_schema,
+      currentInput: $current_input,
+    );
+    $context = new Context(['options' => $options]);
     $actual_form = $this->sut->transform($data, $context);
     $this->assertEquals(
       $expected_form,
@@ -389,9 +393,9 @@ class FormGeneratorDrupalTest extends TestCase {
       '#process' => [
         [Details::class, 'processGroup'],
         [Details::class, 'processAjaxForm'],
-        [FormGeneratorDrupal::class, 'multiValueProcess'],
+        [MultivalueCallbacks::class, 'process'],
       ],
-      '#after_build' => [[FormGeneratorDrupal::class, 'multiValueAfterBuild']],
+      '#after_build' => [[MultivalueCallbacks::class, 'afterBuild']],
       '#cardinality' => -1,
       '#max_delta' => 1,
       '#prefix' => '<div id="tag-labels-add-more-wrapper">',
@@ -442,9 +446,9 @@ class FormGeneratorDrupalTest extends TestCase {
             ]),
           ],
           '#limit_validation_errors' => [],
-          '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],
+          '#submit' => [[MultivalueCallbacks::class, 'removeSubmit']],
           '#ajax' => [
-            'callback' => [FormGeneratorDrupal::class, 'removeOneAjax'],
+            'callback' => [MultivalueCallbacks::class, 'removeAjax'],
             'wrapper' => 'tag-labels-add-more-wrapper',
             'effect' => 'fade',
           ],
@@ -462,9 +466,9 @@ class FormGeneratorDrupalTest extends TestCase {
           '@title' => Markup::create('Labels'),
         ]),
       ],
-      '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
+      '#submit' => [[MultivalueCallbacks::class, 'appendSubmit']],
       '#ajax' => [
-        'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],
+        'callback' => [MultivalueCallbacks::class, 'appendAjax'],
         'wrapper' => 'tag-labels-add-more-wrapper',
         'effect' => 'fade',
       ],
@@ -667,8 +671,8 @@ class FormGeneratorDrupalTest extends TestCase {
         '#type' => 'container',
         '#tree' => TRUE,
         '#json_schema' => $data,
-        '#element_validate' => [[$this->sut, 'validateWithSchema']],
-        '#validate' => [[$this->sut, 'validateFormWithSchema']],
+        '#element_validate' => [[SchemaValidationBridge::class, 'elementValidate']],
+        '#validate' => [[SchemaValidationBridge::class, 'formValidate']],
       ],
       $actual_form
     );
@@ -805,10 +809,11 @@ class FormGeneratorDrupalTest extends TestCase {
       . '"o":{"type":"object","properties":{"role":{"type":"string"},"inner":{"type":"object","properties":{"deep":{"type":"string"}}}}},'
       . '"list":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"}}}},'
       . '"plain":{"type":"string"}}}';
-    $context = new Context([
-      'ui_hints' => $ui_schema,
-      'current_input' => ['list' => [['name' => 'a'], ['name' => 'b']]],
-    ]);
+    $options = new FormOptions(
+      uiHints: $ui_schema,
+      currentInput: ['list' => [['name' => 'a'], ['name' => 'b']]],
+    );
+    $context = new Context(['options' => $options]);
     $actual_form = $this->sut->transform(json_decode($schema), $context);
     ksort($expected);
     $this->assertSame($expected, static::collectDisabled($actual_form));
@@ -940,9 +945,10 @@ class FormGeneratorDrupalTest extends TestCase {
         'field' => (object) ['type' => 'string', 'description' => self::UNTRUSTED_LABEL],
       ],
     ];
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context([
-      'ui_hints' => ['field' => ['ui:placeholder' => self::UNTRUSTED_LABEL]],
-    ]));
+    $options = new FormOptions(
+      uiHints: ['field' => ['ui:placeholder' => self::UNTRUSTED_LABEL]],
+    );
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => $options]));
     $this->assertSame(self::UNTRUSTED_LABEL, $form['fixed']['#plain_text']);
     $this->assertSame(self::UNTRUSTED_LABEL, (string) $form['field']['#description']);
     $this->assertSame(self::UNTRUSTED_LABEL, $form['field']['#placeholder']);
@@ -958,11 +964,12 @@ class FormGeneratorDrupalTest extends TestCase {
       $property = (object) ['type' => 'array', 'items' => $property];
     }
     $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => $property]];
-    $context = new Context([
-      'ui_hints' => [
+    $options = new FormOptions(
+      uiHints: [
         'field' => ['ui:enum' => ['labels' => ['mappings' => ['0.5' => '<script>bad</script><em>Half</em>']]]],
       ],
-    ]);
+    );
+    $context = new Context(['options' => $options]);
     $field = $this->sut->transform($schema, $context)['field'];
     $this->assertSame(['0.5', '1.5', '1.75'], array_keys($field['#options']));
     $this->assertSame('bad<em>Half</em>', (string) $field['#options']['0.5']);
@@ -991,9 +998,10 @@ class FormGeneratorDrupalTest extends TestCase {
       $property = (object) ['type' => 'array', 'items' => $property];
     }
     $schema = (object) ['type' => 'object', 'properties' => (object) ['field' => $property, 'mapped' => $property]];
-    $context = new Context([
-      'ui_hints' => ['mapped' => ['ui:enum' => ['labels' => ['mappings' => ['1' => 'Yes', '' => 'Unset']]]]],
-    ]);
+    $options = new FormOptions(
+      uiHints: ['mapped' => ['ui:enum' => ['labels' => ['mappings' => ['1' => 'Yes', '' => 'Unset']]]]],
+    );
+    $context = new Context(['options' => $options]);
     $form = $this->sut->transform($schema, $context);
     $this->assertSame([1, 0, ''], array_keys($form['field']['#options']));
     $this->assertEquals([
@@ -1014,12 +1022,12 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('ajaxDeltaProvider')]
   public function testAppendAjaxUsesRealDelta(array $indices): void {
     $state = new FormState();
-    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, [
+    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items'), [
       'items_indices' => $indices,
       'array_parents' => [],
     ]);
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
-    $form = $this->sut->transform($schema, new Context(['form_state' => $state]));
+    $form = $this->sut->transform($schema, new Context(['options' => new FormOptions(formState: $state)]));
     $state->setTriggeringElement(['#array_parents' => ['items', 'add_more']]);
     $result = MultivalueCallbacks::appendedWidget($form, $state);
     $this->assertSame(array_keys($form['items']), array_keys($result));
@@ -1059,7 +1067,8 @@ class FormGeneratorDrupalTest extends TestCase {
     ];
     $ids = [];
     foreach (range(1, 2) as $form_number) {
-      $form = $this->sut->transform($schema, new Context(['current_input' => [$name => ['one', 'two']]]));
+      $options = new FormOptions(currentInput: [$name => ['one', 'two']]);
+      $form = $this->sut->transform($schema, new Context(['options' => $options]));
       foreach ([0, 1] as $delta) {
         $item = $form[$name][$delta];
         $id = $item['#wrapper_id'];
@@ -1079,9 +1088,9 @@ class FormGeneratorDrupalTest extends TestCase {
     $schema = json_decode('{"type":"object","properties":{"profile":{"type":"object","properties":{"name":{"type":"string","default":"fallback"},"tags":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"}}}}}},"other":{"type":"string","default":"default"}}}');
     $input = '{"profile":{"name":"saved","tags":[{"label":"first"},{"label":"second"}]}}';
     Html::resetSeenIds();
-    $array_form = $this->sut->transform($schema, new Context(['current_input' => json_decode($input, TRUE)]));
+    $array_form = $this->sut->transform($schema, new Context(['options' => new FormOptions(currentInput: json_decode($input, TRUE))]));
     Html::resetSeenIds();
-    $object_form = $this->sut->transform($schema, new Context(['current_input' => json_decode($input)]));
+    $object_form = $this->sut->transform($schema, new Context(['options' => new FormOptions(currentInput: json_decode($input))]));
     $this->assertEquals($array_form, $object_form);
     $this->assertSame('saved', $object_form['profile']['name']['#default_value']);
     $this->assertSame('second', $object_form['profile']['tags'][1]['removable_element']['label']['#default_value']);
@@ -1139,7 +1148,7 @@ class FormGeneratorDrupalTest extends TestCase {
   public function testCompoundDefaults(array $input, array $expected): void {
     $schema = json_decode('{"type":"object","properties":{"tags":{"type":"array","default":["first","second"],"items":{"type":"string"}},"profile":{"type":"object","default":{"name":"default","rows":[{"label":"nested"}]},"properties":{"name":{"type":"string"},"rows":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string"}}}}}}}}');
     $before = serialize($schema);
-    $form = $this->sut->transform($schema, new Context(['current_input' => $input]));
+    $form = $this->sut->transform($schema, new Context(['options' => new FormOptions(currentInput: $input)]));
     $tags = [];
     foreach ($form['tags'] as $key => $element) {
       if (is_int($key)) {
@@ -1217,13 +1226,13 @@ class FormGeneratorDrupalTest extends TestCase {
       $property->items = $items;
     }
     $schema = (object) ['type' => 'object', 'properties' => (object) ['value' => $property]];
-    $context = new Context($saved ? ['current_input' => ['value' => ['saved']]] : []);
+    $context = new Context(['options' => new FormOptions(currentInput: $saved ? ['value' => ['saved']] : [])]);
     $form = $this->sut->transform($schema, $context);
     $this->assertSame('item', $form['value']['#type']);
     $this->assertTrue($form['value']['#disabled']);
     $this->assertSame($saved ? ['saved'] : ['default'], $form['value']['#schema_fixed_value']);
     $this->assertArrayNotHasKey('add_more', $form['value']);
-    $this->assertSame(['value' => ['1']], RecursiveTypeCaster::recursiveTypeRefinements(['value' => ['1']], $schema));
+    $this->assertSame(['value' => ['1']], (new SubmissionRefiner())->refine(['value' => ['1']], $schema));
   }
 
   /**
@@ -1246,7 +1255,8 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   public function testNullCompoundDefaultPrecedence(): void {
     $schema = json_decode('{"type":"object","properties":{"tags":{"type":["array","null"],"default":["default"],"items":{"type":"string"}},"profile":{"type":["object","null"],"default":{"name":"default"},"properties":{"name":{"type":"string","default":"child"}}}}}');
-    $form = $this->sut->transform($schema, new Context(['current_input' => ['tags' => NULL, 'profile' => NULL]]));
+    $options = new FormOptions(currentInput: ['tags' => NULL, 'profile' => NULL]);
+    $form = $this->sut->transform($schema, new Context(['options' => $options]));
     $this->assertArrayNotHasKey(0, $form['tags']);
     $this->assertArrayNotHasKey('#default_value', $form['profile']['name']);
     $this->assertTrue($form['tags']['#schema_saved_null']);

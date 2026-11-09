@@ -6,10 +6,3 @@ parameters:
     - tests
   parallel:
     maximumNumberOfProcesses: 2
-  ignoreErrors:
-    # This test still calls the deprecated two-argument refinement; delete
-    # the entry once it calls SubmissionRefiner.
-    -
-      identifier: staticMethod.deprecated
-      path: tests/src/Drupal/SchemaForms/FormGeneratorDrupalTest.php
-      count: 1

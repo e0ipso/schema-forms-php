@@ -37,6 +37,7 @@ use SchemaForms\Drupal\UserInputCleaner;
 use SchemaForms\Drupal\ValidationMessages;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetItems;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
@@ -304,7 +305,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
     $state->setTriggeringElement($initial->form['schema']['items'][$removed]['remove_one']);
     $removed_result = $this->submitSchemaForm($schema, $values, [], 'schema', form_state: $state, current_input: $saved);
     $this->assertSame([], $removed_result->errors);
-    $indices = FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices'];
+    $indices = WidgetItems::read($state, ['items'])->deltas;
     $this->assertSame(array_values(array_diff([0, 1, 2], [$removed])), array_values($indices));
     unset($values['schema']['items'][$removed]);
     $values['schema']['items'][$invalid]['removable_element'] = 'x';
@@ -469,7 +470,7 @@ final class ValidationPlacementTest extends SchemaFormsKernelTestBase {
       ];
       $input = [$name => [2 => ['removable_element' => [$name => 'x']]]];
       $saved = [$name => [2 => [$name => 'valid']]];
-      FormGeneratorDrupal::setPropFormState([$name], $name, $state, ['items_indices' => [2]]);
+      (new WidgetStateStorage($state))->set(new WidgetLocation([$name], $name), ['items_indices' => [2]]);
       $path = [...$path, 2, 'removable_element', $name];
     }
     $schema = (object) ['type' => 'object', 'properties' => (object) [$name => $property]];

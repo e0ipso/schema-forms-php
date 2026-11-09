@@ -33,6 +33,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\UserInputCleaner;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetItems;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
@@ -301,7 +302,7 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $schema = json_decode(self::SCHEMA);
     $result = $this->save($schema, ['tags' => NULL, 'people' => [NULL]], button: 'tags_add_more');
     $this->assertTrue($result->formState->isRebuilding());
-    $this->assertSame([0], FormGeneratorDrupal::getPropFormState(['tags'], 'tags', $result->formState)['items_indices']);
+    $this->assertSame([0], WidgetItems::read($result->formState, ['tags'])->deltas);
     $this->assertStringNotContainsString('SavedNull', serialize($result->values));
     $result->formState->setRequestMethod('POST');
     $rebuilt = $this->container->get('form_builder')->rebuildForm('schema_forms_generated_schema_form', $result->formState);
@@ -317,7 +318,7 @@ final class SavedValuesSubmissionTest extends SchemaFormsKernelTestBase {
     $result = $this->save($schema, ['a' => ['first'], 'b' => ['other']], button: 'a_add_more');
     $this->assertSame([], $result->errors);
     $this->assertTrue($result->formState->isRebuilding());
-    $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['a'], 'a', $result->formState)['items_indices']);
+    $this->assertSame([0, 1], WidgetItems::read($result->formState, ['a'])->deltas);
     $result->formState->setRequestMethod('POST');
     $form = $this->container->get('form_builder')->rebuildForm('schema_forms_generated_schema_form', $result->formState);
     $this->assertFalse($form['a']['add_more']['#access']);

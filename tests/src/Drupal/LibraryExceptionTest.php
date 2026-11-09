@@ -14,6 +14,7 @@ use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Exception\ExceptionInterface;
 use SchemaForms\Exception\InvalidOptionException;
 use SchemaForms\Exception\InvalidSchemaException;
+use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
 /**
@@ -65,9 +66,9 @@ final class LibraryExceptionTest extends TestCase {
         'The schema must be a decoded JSON object.',
       ],
       'empty namespace' => [
-        static fn () => (new FormGeneratorDrupal())->transform($schema, new Context(['namespace' => ''])),
+        static fn () => (new FormGeneratorDrupal())->transform($schema, new Context(['options' => new FormOptions(namespace: '')])),
         InvalidOptionException::class,
-        'The "namespace" context key must be a non-empty string.',
+        'The "namespace" option must be a non-empty string.',
       ],
       'accepted schema memory without room' => [
         static fn () => new AcceptedSchemas(0),

@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 8.3 or a later 8.x release (`^8.3`); Composer refuses PHP 9 until CI tests it. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or a later 8.x release (`^8.3`); Composer refuses PHP 9 until CI tests it. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, with Drupal 11.2 and with Drupal 11.4, and on PHP 8.3 with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
@@ -161,7 +161,9 @@ The input schema must be a valid draft-04 JSON Schema whose root `type` is `obje
 
 Semantic versioning covers these symbols, with Shaper's `Context` carrying a `FormOptions` as the options input. Every other class in `src/` is marked `@internal` and can change in any release.
 
-- `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator.
+- `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator. Its constructor takes an optional `SchemaRegistryInterface` and a list of element mappers.
+- `SchemaForms\Drupal\ElementMapperInterface`: picks the element of a scalar schema. See [Mapping more types to elements](#mapping-more-types-to-elements).
+- `SchemaForms\Drupal\WidgetItems`: the items an array widget holds after its buttons rebuilt the form. See [Options](#options).
 - `SchemaForms\FormOptions`: the options of one `transform()` call. See [Options](#options).
 - `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
@@ -186,6 +188,7 @@ This decorator adds context defaults. Values the caller passes still win, and wh
 
 ```php
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use SchemaForms\FormTransformationInterface;
 use Shaper\Util\Context;
 
@@ -203,7 +206,7 @@ final class ContextDefaults implements FormTransformationInterface {
 
 }
 
-$generator = new ContextDefaults(new FormGeneratorDrupal(), ['namespace' => 'settings']);
+$generator = new ContextDefaults(new FormGeneratorDrupal(), ['options' => new FormOptions(namespace: 'settings')]);
 ```
 
 The decorator implements only `FormTransformationInterface`. A Shaper pipeline that calls the validation methods of `FormGeneratorInterface` needs the generator itself.
@@ -211,13 +214,14 @@ The decorator implements only `FormTransformationInterface`. A Shaper pipeline t
 To check a decorator or a generator of your own against the interface's contract, extend `SchemaForms\Testing\FormTransformationContractTestCase` in your PHPUnit suite. It needs `phpunit/phpunit`, which this package suggests but does not require; the library's own tests run it with PHPUnit 11.5.
 
 ```php
+use SchemaForms\FormOptions;
 use SchemaForms\FormTransformationInterface;
 use SchemaForms\Testing\FormTransformationContractTestCase;
 
 final class ContextDefaultsContractTest extends FormTransformationContractTestCase {
 
   protected function createTransformation(): FormTransformationInterface {
-    return new ContextDefaults(new MyGenerator(), ['namespace' => 'settings']);
+    return new ContextDefaults(new MyGenerator(), ['options' => new FormOptions(namespace: 'settings')]);
   }
 
 }
@@ -239,11 +243,11 @@ $context = new Context(['options' => new FormOptions(
 ```
 
 - `uiHints`: the UI schema, as an array keyed by property name.
-- `formState`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
+- `formState`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild. To read the items a widget holds, call `WidgetItems::read($form_state, ['address', 'lines'])` with the schema path of the array property, and the namespace as a third argument if you set one. Its `deltas` list the item keys in the widget's render array, with gaps where items were removed, and `arrayParents` is where the widget was last built in the form.
 - `currentInput`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
 - `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes. `FormOptions` throws `InvalidOptionException` for an empty string.
 
-The separate context keys `ui_hints`, `form_state`, `current_input` and `namespace` still work and mean the same as the arguments above. They are deprecated in 3.2.0 and are removed in 4.0.0.
+The separate context keys `ui_hints`, `form_state`, `current_input` and `namespace` still work and mean the same as the arguments above, unless the context also holds `options`, which wins. They are deprecated in 3.2.0, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0.
 
 ### How schema types become elements
 
@@ -260,11 +264,32 @@ The separate context keys `ui_hints`, `form_state`, `current_input` and `namespa
 | `object` with `properties` | an open `details` element with one control per sub-property |
 | a property with `const` | an `item` element: the title as its label and the value as escaped text via `#plain_text`, with no input; booleans and null use `true`, `false` and `null`, and arrays and objects use JSON |
 
-A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited. It does not disappear from the form. An `array` with no `items`, or with a list of item schemas, renders the same item and its saved value is kept unchanged.
+A type with no element in this list, such as `null`, renders as a disabled item that says the property cannot be edited, unless an element mapper you pass maps it. It does not disappear from the form. An `array` with no `items`, or with a list of item schemas, renders the same item and its saved value is kept unchanged.
 
 When `type` is a list, the generator uses the first type other than `"null"`. The position of `"null"` does not matter: `["null", "string"]` and `["string", "null"]` both render a textfield. A list containing only `"null"` renders the "cannot be edited" item.
 
 The element title comes from `ui:title`, then the schema `title`, then the property name with `_` and `-` turned into spaces and each word capitalized. Enum option labels come from `ui:enum` mappings, or the enum value formatted the same way. The members `true`, `false` and `null` are labelled "True", "False" and "None", and the empty string "Empty".
+
+### Mapping more types to elements
+
+To edit a type or a format with an element the table above does not list, pass an `ElementMapperInterface` to the generator. Its `map()` method returns the render properties of the element, including `#type`, or `NULL` for a schema it does not handle. The generator asks your mappers in order, then its own, and uses the first answer. It never asks for `array` and `object`; an `enum` still renders radios and a `ui:widget` still wins. This mapper renders `"format": "date"` strings as Drupal `date` elements:
+
+```php
+use SchemaForms\Drupal\ElementMapperInterface;
+use SchemaForms\Drupal\FormGeneratorDrupal;
+
+final class DateElementMapper implements ElementMapperInterface {
+
+  public function map(\stdClass $schema, string $type): ?array {
+    return $type === 'string' && ($schema->format ?? NULL) === 'date' ? ['#type' => 'date'] : NULL;
+  }
+
+}
+
+$generator = new FormGeneratorDrupal(element_mappers: [new DateElementMapper()]);
+```
+
+The first constructor argument is the `SchemaRegistryInterface` that registers each schema, by default a `RestrictedSchemaRegistry`. Both arguments are optional.
 
 ### Accessibility
 
@@ -287,7 +312,7 @@ Supported controls:
 - `ui:placeholder`: placeholder text for the input.
 - `ui:widget`: a Drupal Form API element type, such as `select`, `textarea`, `password` or `hidden`. The generator uses the value as `#type` unchanged and does not check it. A name Drupal does not know, such as the react-jsonschema-form widget `updown`, renders nothing. A widget on an `array` or `object` property replaces the multivalue widget or the nested sub-elements, because the widget wins over the schema type. For example, `"tags": {"ui:widget": "textarea"}` on an array property renders one textarea and no per-item controls.
 - `ui:enabled`: `0` sets `#disabled` on the element and on every element nested in it, including array items and their sub-properties. A disabled parent wins over a child's own `ui:enabled: 1`.
-- `ui:visible`: `0` or `false` hides the element and everything nested in it. It sets `#visible` to `FALSE` and `#access` to `FALSE`. Drupal ignores submitted input for an inaccessible element and keeps its `#default_value`, so a saved value is saved again unchanged. A property with `const` ignores this key.
+- `ui:visible`: `0` or `false` hides the element and everything nested in it. It sets `#access` to `FALSE`, and the deprecated `#visible` to `FALSE`. Drupal ignores submitted input for an inaccessible element and keeps its `#default_value`, so a saved value is saved again unchanged. A property with `const` ignores this key.
 - `ui:enum`: controls the labels for select, radio and checkbox options. `ui:enum.labels.mappings` maps each enum value to a label, e.g. `{"uuid1": "Super duper product"}`.
 
 Other keys are ignored.
@@ -301,6 +326,8 @@ When Drupal validates the form, the schema validation:
 1. Removes the add and remove button values that array properties leave in the submission.
 2. Casts the submitted strings to the schema types. Numeric strings become `int` or `float`, `"0"` and `"1"` become booleans on a `boolean` property, and an empty string becomes `NULL` on a nullable property that cannot hold it.
 3. Validates the result against the schema with `justinrainbow/json-schema`. Each error is set on the element it belongs to. Errors that match no element are joined into one error on the container.
+
+The messages of the `required`, `type`, `enum`, `minLength`, `maxLength`, `minimum`, `maximum`, `pattern`, `minItems` and `maxItems` constraints, and of the `email`, `uri`, `ipv4`, `ipv6`, `hostname`, `date`, `time` and `date-time` formats, are translatable strings, such as "Must be at least @minLength characters long". Their English text is the validator's message. Other messages stay in the validator's English.
 
 ### Refining submissions without Drupal
 
@@ -335,7 +362,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Submission values
 
-- `SchemaForms\SubmissionRefiner` is the public way to cast submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()` and `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated and are removed in 4.0.0.
+- `SchemaForms\SubmissionRefiner` is the public way to cast submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()` and `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0.
 - A numeric string with an exponent and a fraction, such as `"1e-3"`, becomes the float `0.001`. It used to become the integer `0`.
 - An empty value of a required property with a numeric name, such as `"123"`, is kept, so validation reports it. It used to be dropped.
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
@@ -344,7 +371,13 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Options
 
-- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, are deprecated, and are removed in 4.0.0.
+- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. `FormOptions` rejects an empty namespace with the message `The "namespace" option must be a non-empty string.`; the old key keeps its own message.
+
+### Form API callbacks
+
+- Generated render arrays name static callbacks on the classes that do the work: `SchemaValidationBridge::elementValidate()` and `::formValidate()` validate the container, `MultivalueCallbacks` runs the array widgets and `EnumElements::validateCheckboxes()` turns checked keys into a list. They used to name the generator itself and its static methods, so a cached form stored a serialized generator. Update any code that compares or rewrites these callbacks.
+- `FormGeneratorDrupal::validateWithSchema()`, `validateFormWithSchema()`, `multiValueProcess()`, `multiValueAfterBuild()`, `removeOneSubmit()`, `removeOneAjax()`, `addMoreSubmit()`, `addMoreAjax()` and `validateCheckboxes()` are deprecated and are removed in 4.0.0. Forms cached by earlier releases still name them, so each one triggers an `E_USER_DEPRECATED` notice and forwards to the callback generated forms name now. Rebuild cached forms before 4.0.0.
+- `FormGeneratorDrupal::getPropFormState()` and `::setPropFormState()` exposed the raw form state storage of array widgets. They are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. Read a widget's items with `SchemaForms\Drupal\WidgetItems::read()`; the Append and Remove buttons change them.
 
 ### Contract test case
 
@@ -360,6 +393,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - Append buttons have the accessible name "Append an item to Tags". Their visible text is unchanged.
 - Item titles count rendered items, so they stay "value 1", "value 2" after a removal instead of skipping a number.
 - `ui:visible: 0` now hides the element; see the UI schema section.
+- Every generated control carries `#visible`, which Drupal core never reads. It is deprecated and is removed in 4.0.0; read `#access` instead, which is `FALSE` exactly when `#visible` is. A render key cannot trigger a notice, so this README is the only warning.
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
 - Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
 - Controls that show the required marker without `#required` carry `aria-required="true"`, and such a radio group's fieldset also gets `role="radiogroup"`. They used to carry no required state for assistive technology.
@@ -387,8 +421,8 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 - `phpmnd`: checks for magic numbers in `php` and `module` files.
 - `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
 - `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
-- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. Its one `ignoreErrors` entry covers the Drupal adapter's six calls to deprecated core methods. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
-- `phpstan_tests`: runs PHPStan over `tests/` at level 1, configured in `phpstan-tests.neon.dist`. Level 2 still fails on the Drupal adapter and kernel tests. Its one `ignoreErrors` entry covers a deprecated call in `FormGeneratorDrupalTest.php`.
+- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline and no ignored errors. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
+- `phpstan_tests`: runs PHPStan over `tests/` at level 1, configured in `phpstan-tests.neon.dist`. Level 2 still fails on the Drupal adapter and kernel tests.
 - `yamllint` and `jsonlint`: check YAML and JSON files.
 - `composer`: runs strict Composer validation, `composer validate --strict`, when `composer.json` or `composer.lock` is present.
 - `composer_normalize`: runs `composer normalize --dry-run` when `composer.json` is present.
@@ -404,7 +438,7 @@ Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms thr
 
 ### CI-only checks
 
-Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` runs these jobs on PHP 8.3. None of their tools is in `composer.json`.
+Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` runs these jobs. The Drupal 11.2 and 11.4 jobs run on PHP 8.3, 8.4 and 8.5, the others on PHP 8.3. None of their tools is in `composer.json`.
 
 - Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.

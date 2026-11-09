@@ -75,6 +75,7 @@ final class ValidationMessages {
    *
    * @return \Drupal\Component\Render\MarkupInterface|string
    *   The description. A plain string is escaped by the message it goes in.
+   *   The messages of common constraints are translatable.
    */
   public static function violation(string $message, ?string $constraint): MarkupInterface|string {
     if ($constraint === NULL) {
@@ -83,7 +84,7 @@ final class ValidationMessages {
     // The quotes are part of the escaped value, so the markup stays what it
     // was when the whole description was one escaped string.
     return new TranslatableMarkup('@message [JSON Schema violation of @constraint]', [
-      '@message' => $message,
+      '@message' => ConstraintMessages::translatable($constraint, $message) ?? $message,
       '@constraint' => '"' . $constraint . '"',
     ]);
   }

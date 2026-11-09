@@ -29,9 +29,9 @@ final class RenderArrayValidator extends ValidateableBase {
   /**
    * Checks one level of a render array.
    *
-   * A key that contains "#" anywhere is a render property. Without one, any
-   * child render array is enough, so an empty container does not reject its
-   * siblings.
+   * Drupal reads a key as a render property only when it starts with "#".
+   * Without one, any child render array is enough, so an empty container
+   * does not reject its siblings.
    *
    * @param mixed $data
    *   The data to check.
@@ -44,7 +44,7 @@ final class RenderArrayValidator extends ValidateableBase {
       return FALSE;
     }
     foreach ($data as $key => $value) {
-      if (str_contains((string) $key, '#') || self::isRenderArray($value)) {
+      if (str_starts_with((string) $key, '#') || self::isRenderArray($value)) {
         return TRUE;
       }
     }

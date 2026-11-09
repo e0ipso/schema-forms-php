@@ -26,6 +26,7 @@ use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetItems;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
@@ -88,8 +89,8 @@ final class WidgetButtonSubmissionTest extends SchemaFormsKernelTestBase {
 
     $result = $this->browserSubmit($form, [], NULL, $names[1], 'Append an item');
 
-    $this->assertSame([0], FormGeneratorDrupal::getPropFormState(['tag_list'], 'tag_list', $result->formState)['items_indices']);
-    $this->assertSame([], FormGeneratorDrupal::getPropFormState(['tag-list'], 'tag-list', $result->formState)['items_indices']);
+    $this->assertSame([0], WidgetItems::read($result->formState, ['tag_list'])->deltas);
+    $this->assertSame([], WidgetItems::read($result->formState, ['tag-list'])->deltas);
   }
 
   /**
@@ -112,8 +113,8 @@ final class WidgetButtonSubmissionTest extends SchemaFormsKernelTestBase {
 
     $result = $this->browserSubmit($form, [], NULL, 'a-b-0-remove', '⨯');
 
-    $this->assertSame([1], array_values(FormGeneratorDrupal::getPropFormState(['a', 'b'], 'b', $result->formState)['items_indices']));
-    $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['a-b'], 'a-b', $result->formState)['items_indices']);
+    $this->assertSame([1], array_values(WidgetItems::read($result->formState, ['a', 'b'])->deltas));
+    $this->assertSame([0, 1], WidgetItems::read($result->formState, ['a-b'])->deltas);
   }
 
   /**

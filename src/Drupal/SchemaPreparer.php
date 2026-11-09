@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace SchemaForms\Drupal;
 
 use SchemaForms\Exception\InvalidSchemaException;
-use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
 
 /**
  * Registers a schema for form generation and checks its property names.
@@ -13,6 +14,16 @@ use SchemaForms\SchemaReferenceResolver;
  * @internal
  */
 final class SchemaPreparer {
+
+  /**
+   * Creates the preparer.
+   *
+   * @param \SchemaForms\SchemaRegistryInterface $registry
+   *   Registers the schema, so its references resolve.
+   */
+  public function __construct(
+    private readonly SchemaRegistryInterface $registry = new RestrictedSchemaRegistry(),
+  ) {}
 
   /**
    * Returns the registered copy of a schema.
@@ -25,10 +36,10 @@ final class SchemaPreparer {
    *   properties are not expanded.
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
-   *   When the schema references a document outside itself.
+   *   When the schema references a document the registry does not allow.
    * @throws \JsonSchema\Exception\RuntimeException
    *   When a reference is not a valid URI.
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidSchemaException
    *   When the schema is not a decoded object, or a property name starts
    *   with '#'.
    */
@@ -36,7 +47,7 @@ final class SchemaPreparer {
     if (!is_object($data)) {
       throw new InvalidSchemaException('The schema must be a decoded JSON object.');
     }
-    $schema = SchemaReferenceResolver::registeredSchema(SchemaReferenceResolver::createFactory($data));
+    $schema = $this->registry->register($data)->schema;
     if (!$schema instanceof \stdClass) {
       throw new InvalidSchemaException('The schema must be a decoded JSON object.');
     }
@@ -62,7 +73,7 @@ final class SchemaPreparer {
    *   The object IDs of the sub-schemas already checked, so that a schema
    *   object graph with cycles cannot recurse forever.
    *
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidSchemaException
    *   When a property name starts with '#'.
    */
   private function rejectRenderPropertyNames(mixed $schema, array $path, array &$visited): void {

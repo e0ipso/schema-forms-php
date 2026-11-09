@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use SchemaForms\SchemaType;
+
 /**
  * Decides which schema type a control is built for.
  *
@@ -73,8 +75,7 @@ final class SchemaTypes {
       is_bool($value) => ['boolean'],
       default => [],
     };
-    $declared = array_filter((array) ($schema->type ?? []), 'is_string');
-    $types = array_values(array_intersect($candidates, $declared));
+    $types = array_values(array_intersect($candidates, SchemaType::listOf($schema)));
     return $types[0] ?? NULL;
   }
 

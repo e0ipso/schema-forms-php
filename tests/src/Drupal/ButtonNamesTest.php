@@ -7,12 +7,15 @@ namespace SchemaForms\Tests\Drupal;
 use Drupal\Core\Render\Element;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormTreeBuilder;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Exception\InvalidOptionException;
+use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
@@ -46,7 +49,7 @@ final class ButtonNamesTest extends TestCase {
       ],
     ]));
     $current = ['a-b' => ['x'], 'a' => ['b' => ['y']], 'grid' => [['z']], 'grid-0' => ['w']];
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['current_input' => $current]));
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => new FormOptions(currentInput: $current)]));
     $names = self::names($form);
 
     $this->assertSame($names, array_unique($names));
@@ -68,10 +71,10 @@ final class ButtonNamesTest extends TestCase {
   public function testNamespacedNames(): void {
     $schema = json_decode('{"type":"object","properties":{"tag_list":{"type":"array","items":{"type":"string"}}}}');
     $names = array_map(
-      static fn (string $namespace): array => self::names((new FormGeneratorDrupal())->transform($schema, new Context([
-        'namespace' => $namespace,
-        'current_input' => ['tag_list' => ['a']],
-      ]))),
+      static function (string $namespace) use ($schema): array {
+        $options = new FormOptions(namespace: $namespace, currentInput: ['tag_list' => ['a']]);
+        return self::names((new FormGeneratorDrupal())->transform($schema, new Context(['options' => $options])));
+      },
       ['left' => 'left', 'odd' => 'a-b::c']
     );
     $this->assertSame([
@@ -82,12 +85,14 @@ final class ButtonNamesTest extends TestCase {
   }
 
   /**
-   * A namespace that is not a non-empty string is refused.
+   * A deprecated namespace key that is not a non-empty string is refused.
    */
   #[DataProvider('invalidNamespaceProvider')]
+  #[IgnoreDeprecations]
   public function testInvalidNamespace(mixed $namespace): void {
     $schema = json_decode('{"type":"object","properties":{"a":{"type":"string"}}}');
-    $this->expectException(\InvalidArgumentException::class);
+    $this->expectException(InvalidOptionException::class);
+    $this->expectExceptionMessage('The "namespace" context key must be a non-empty string.');
     (new FormGeneratorDrupal())->transform($schema, new Context(['namespace' => $namespace]));
   }
 

@@ -34,7 +34,8 @@ final class EnumElements {
    * @param \stdClass $schema
    *   The schema.
    * @param array<mixed> $hints
-   *   The UI hints; 'ui:widget' replaces the radios.
+   *   The UI hints; a 'ui:widget' that SchemaTypes::widget() accepts
+   *   replaces the radios.
    *
    * @return array<int|string, mixed>
    *   The element.
@@ -44,7 +45,7 @@ final class EnumElements {
     if (empty($members) || !is_array($members)) {
       return $element;
     }
-    $element['#type'] = $hints['ui:widget'] ?? self::RADIOS;
+    $element['#type'] = SchemaTypes::widget($hints) ?? self::RADIOS;
     $element['#options'] = self::options($members, $hints);
     return $element;
   }
@@ -69,7 +70,7 @@ final class EnumElements {
     $element['#type'] = self::CHECKBOXES;
     $element['#options'] = self::options($members, $hints);
     $validators = is_array($element['#element_validate'] ?? NULL) ? $element['#element_validate'] : [];
-    $element['#element_validate'] = [...$validators, [FormGeneratorDrupal::class, 'validateCheckboxes']];
+    $element['#element_validate'] = [...$validators, [self::class, 'validateCheckboxes']];
     return $element;
   }
 
@@ -96,7 +97,7 @@ final class EnumElements {
   }
 
   /**
-   * Turns the checked keys of a checkboxes element into a list.
+   * Turns the checked keys into a list; the #element_validate of checkboxes.
    *
    * @param array<int|string, mixed> $element
    *   The checkboxes element.

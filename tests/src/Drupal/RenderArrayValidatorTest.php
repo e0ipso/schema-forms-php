@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Tests\Drupal;
 
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -112,6 +114,15 @@ class RenderArrayValidatorTest extends TestCase {
       ],
       [
         [],
+        FALSE,
+      ],
+      // Drupal reads only a leading "#" as a render property.
+      [
+        ['a#b' => 1],
+        FALSE,
+      ],
+      [
+        ['fa' => ['mi#ly' => 'x']],
         FALSE,
       ],
       [

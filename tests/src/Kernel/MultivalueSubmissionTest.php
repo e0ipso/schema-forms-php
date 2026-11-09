@@ -31,6 +31,7 @@ use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\UserInputCleaner;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetItems;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
@@ -146,7 +147,7 @@ final class MultivalueSubmissionTest extends SchemaFormsKernelTestBase {
     $schema = json_decode('{"type":"object","properties":{"grid":{"type":"array","items":{"type":"array","items":{"type":"string"}}}}}', flags: JSON_THROW_ON_ERROR);
     $form = new GeneratedSchemaForm($schema, currentInput: ['grid' => [['a']]], withSave: TRUE);
     $appended = $this->browserSubmit($form, [], NULL, 'grid_add_more', 'Append an item');
-    $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['grid'], 'grid', $appended->formState)['items_indices']);
+    $this->assertSame([0, 1], WidgetItems::read($appended->formState, ['grid'])->deltas);
     $result = $this->browserSubmit($form, storage: $appended->formState->getStorage());
     $this->assertSame([], $result->errors);
     $this->assertSame([['a']], $result->values['grid']);

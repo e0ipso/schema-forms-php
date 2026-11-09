@@ -5,11 +5,3 @@ parameters:
     - scripts
   parallel:
     maximumNumberOfProcesses: 2
-  ignoreErrors:
-    # The Drupal adapter still calls the deprecated core entry points that
-    # RestrictedSchemaRegistry and RecursiveTypeCaster::refine() replace.
-    # Delete this entry once src/Drupal no longer calls them.
-    -
-      identifier: staticMethod.deprecated
-      path: src/Drupal/*
-      count: 6

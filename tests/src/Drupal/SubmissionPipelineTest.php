@@ -44,6 +44,9 @@ use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\RegisteredSchema;
+use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
 
 /**
  * Unit tests for submission preparation and schema validation.
@@ -228,7 +231,7 @@ final class SubmissionPipelineTest extends TestCase {
   public function testTypeCastRecursive(string $schema, array $submitted, array $expected): void {
     $element = self::element(['wrapper', 'data'], 'Data');
     $form_state = self::formState(['wrapper' => ['data' => $submitted], 'other' => 'untouched']);
-    (new SubmissionPreparer())->prepare($element, $form_state, json_decode($schema));
+    (new SubmissionPreparer())->prepare($element, $form_state, self::registered(json_decode($schema)));
     $this->assertSame($expected, $form_state->getValue(['wrapper', 'data']));
     $this->assertSame('untouched', $form_state->getValue('other'));
   }
@@ -261,7 +264,7 @@ final class SubmissionPipelineTest extends TestCase {
   public function testValidData(string $schema, $submitted): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
-    (new SubmissionValidator())->validate($element, $form_state, json_decode($schema));
+    (new SubmissionValidator())->validate($element, $form_state, self::registered(json_decode($schema)));
     $this->assertSame([], $form_state->getErrors());
   }
 
@@ -303,7 +306,7 @@ final class SubmissionPipelineTest extends TestCase {
   public function testEmptyDataCast(string $schema, ?array $submitted, string $message): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
-    (new SubmissionValidator())->validate($element, $form_state, json_decode($schema));
+    (new SubmissionValidator())->validate($element, $form_state, self::registered(json_decode($schema)));
     // Library releases differ in whether minItems reports the actual count.
     $messages = [$message, str_replace(', 0 found', '', $message)];
     $this->assertContains(
@@ -325,7 +328,7 @@ final class SubmissionPipelineTest extends TestCase {
       'foo' => self::element(['data', 'foo'], 'Foo'),
     ]);
     $form_state = self::formState($values, $input);
-    (new SubmissionValidator())->validate($element, $form_state, $schema);
+    (new SubmissionValidator())->validate($element, $form_state, self::registered($schema));
     // The json-schema majors place a "required" error differently.
     $errors = implode(' ', self::renderedErrors($form_state));
     $this->assertSame($expected === '', $errors === '');
@@ -376,7 +379,7 @@ final class SubmissionPipelineTest extends TestCase {
       ]),
     ]);
     $form_state = self::formState(['wrapper' => ['data' => ['foo' => 'abc', 'list' => ['ab']]]]);
-    (new SubmissionValidator())->validate($element, $form_state, $schema);
+    (new SubmissionValidator())->validate($element, $form_state, self::registered($schema));
     $errors = $form_state->getErrors();
     $this->assertSame(['wrapper][data][foo', 'wrapper][data][list][0][removable_element'], array_keys($errors));
     $this->assertSame('%element: @message', $errors['wrapper][data][foo']->getUntranslatedString());
@@ -445,7 +448,7 @@ final class SubmissionPipelineTest extends TestCase {
       'label' => self::element(['data', 'label'], 'Label'),
     ]) + ['#json_schema' => $schema];
     $form_state = self::formState(['data' => ['count' => '3', 'label' => 'ab']]);
-    (new FormGeneratorDrupal())->validateWithSchema($element, $form_state);
+    SchemaValidationBridge::elementValidate($element, $form_state);
     // The type cast wrote the integer back.
     $this->assertSame(['count' => 3, 'label' => 'ab'], $form_state->getValue('data'));
     // The validation set the error on the element.
@@ -458,24 +461,40 @@ final class SubmissionPipelineTest extends TestCase {
   }
 
   /**
-   * The generator runs with collaborators its caller constructs.
+   * The generator registers schemas with the registry it was given.
+   *
+   * The generated container's validation uses the same registry.
    */
-  public function testGeneratorWithExplicitCollaborators(): void {
-    $generator = new FormGeneratorDrupal(
-      new SchemaPreparer(),
-      new FormTreeBuilder(new FieldBuilder(new MultivalueWidgetBuilder())),
-      new SubmissionPreparer(new PreservedValues()),
-      new SubmissionValidator(new ErrorElementMapper()),
-    );
+  public function testGeneratorUsesItsRegistry(): void {
+    $registry = new class() implements SchemaRegistryInterface {
+
+      /**
+       * The number of schemas registered.
+       */
+      public int $calls = 0;
+
+      /**
+       * {@inheritdoc}
+       */
+      public function register(object $schema): RegisteredSchema {
+        $this->calls++;
+        return (new RestrictedSchemaRegistry())->register($schema);
+      }
+
+    };
     $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer","const":3},"label":{"type":"string","minLength":3}}}');
-    $element = $generator->transform($schema);
-    $this->assertSame('textfield', $element['label']['#type']);
+    $built = (new FormGeneratorDrupal($registry))->transform($schema);
+    $this->assertSame('textfield', $built['label']['#type']);
+    $this->assertSame(1, $registry->calls);
     $element = self::element(['data'], 'Data', [
       'count' => self::element(['data', 'count'], 'Count') + ['#schema_fixed_value' => 3],
       'label' => self::element(['data', 'label'], 'Label'),
-    ]) + ['#json_schema' => $element['#json_schema']];
+    ]) + array_filter($built, static fn (int|string $key): bool => str_starts_with((string) $key, '#'), ARRAY_FILTER_USE_KEY);
     $form_state = self::formState(['data' => ['label' => 'ab']]);
-    $generator->validateWithSchema($element, $form_state);
+
+    call_user_func_array($element['#element_validate'][0], [&$element, $form_state]);
+
+    $this->assertSame(2, $registry->calls);
     $this->assertSame(['label' => 'ab', 'count' => 3], $form_state->getValue('data'));
     $this->assertSame(['data][label'], array_keys(self::renderedErrors($form_state)));
   }
@@ -486,7 +505,7 @@ final class SubmissionPipelineTest extends TestCase {
   public function testFormGeneratorValidateWithoutSchema(): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => ['count' => '3']]);
-    (new FormGeneratorDrupal())->validateWithSchema($element, $form_state);
+    SchemaValidationBridge::elementValidate($element, $form_state);
     $this->assertSame(['count' => '3'], $form_state->getValue('data'));
     $this->assertSame([], $form_state->getErrors());
   }
@@ -501,7 +520,7 @@ final class SubmissionPipelineTest extends TestCase {
     $element = self::element(['schema'], '');
     $state = self::formState(['schema' => []]);
     $schema = json_decode('{"type":"object","required":["first","a&b"]}');
-    (new SubmissionValidator())->validate($element, $state, $schema);
+    (new SubmissionValidator())->validate($element, $state, self::registered($schema));
     $errors = $state->getErrors();
     $this->assertSame(['schema'], array_keys($errors));
     $this->assertStringNotContainsString('errors errors', $errors['schema']->getUntranslatedString());
@@ -514,13 +533,34 @@ final class SubmissionPipelineTest extends TestCase {
   }
 
   /**
+   * A reference to a missing definition sets an error instead of throwing.
+   *
+   * Registration accepts the pointer, because it names the schema itself.
+   * Casting a blank and validating both resolve it, and both fail.
+   */
+  public function testDanglingInternalReference(): void {
+    $schema = self::registered(json_decode('{"type":"object","properties":{"a":{"type":"string","allOf":[{"$ref":"#/definitions/missing"}]}}}'));
+    $element = self::element(['schema'], 'Data');
+    $prepared = self::formState(['schema' => ['a' => '']]);
+    $validated = self::formState(['schema' => ['a' => 'x']]);
+
+    $this->assertFalse((new SubmissionPreparer())->prepare($element, $prepared, $schema));
+    (new SubmissionValidator())->validate($element, $validated, $schema);
+
+    foreach ([$prepared, $validated] as $state) {
+      $this->assertSame(['schema'], array_keys($state->getErrors()));
+      $this->assertSame('The schema contains an unsupported reference. External schema retrieval is disabled.', $state->getErrors()['schema']->getUntranslatedString());
+    }
+  }
+
+  /**
    * Values that cannot be JSON encoded must never validate as {}.
    */
   #[DataProvider('unencodableProvider')]
   public function testUnencodableSubmission(mixed $value): void {
     $element = self::element(['schema'], 'Data');
     $state = self::formState(['schema' => ['value' => $value]]);
-    (new SubmissionValidator())->validate($element, $state, (object) ['type' => 'object']);
+    (new SubmissionValidator())->validate($element, $state, self::registered((object) ['type' => 'object']));
     $this->assertSame(['schema'], array_keys($state->getErrors()));
     $this->assertSame('The submitted data could not be encoded as JSON. Please check the submitted values.', $state->getErrors()['schema']->getUntranslatedString());
   }
@@ -537,6 +577,19 @@ final class SubmissionPipelineTest extends TestCase {
       'not a number' => [NAN],
       'invalid UTF-8' => ["\xB1"],
     ];
+  }
+
+  /**
+   * Registers a schema the way the validation bridge does.
+   *
+   * @param object $schema
+   *   The decoded schema.
+   *
+   * @return \SchemaForms\RegisteredSchema
+   *   The registered schema.
+   */
+  private static function registered(object $schema): RegisteredSchema {
+    return (new RestrictedSchemaRegistry())->register($schema);
   }
 
 }

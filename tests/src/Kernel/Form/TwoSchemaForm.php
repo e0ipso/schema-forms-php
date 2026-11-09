@@ -7,6 +7,7 @@ namespace SchemaForms\Tests\Kernel\Form;
 use Drupal\Core\Form\FormInterface;
 use Drupal\Core\Form\FormStateInterface;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
 /**
@@ -43,11 +44,8 @@ final class TwoSchemaForm implements FormInterface {
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $form['#tree'] = TRUE;
     foreach ($this->namespaces as $key => $namespace) {
-      $context = new Context(['form_state' => $form_state]);
-      if ($namespace !== NULL) {
-        $context['namespace'] = $namespace;
-      }
-      $form[$key] = (new FormGeneratorDrupal())->transform($this->schema, $context);
+      $options = new FormOptions(formState: $form_state, namespace: $namespace);
+      $form[$key] = (new FormGeneratorDrupal())->transform($this->schema, new Context(['options' => $options]));
     }
     $form['actions']['save'] = ['#type' => 'submit', '#value' => 'Save'];
     return $form;

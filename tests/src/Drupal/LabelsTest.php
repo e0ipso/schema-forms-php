@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\Labels;
+use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
@@ -29,10 +30,11 @@ final class LabelsTest extends TestCase {
    */
   public function testRemoveButtonNameIsText(): void {
     $schema = json_decode('{"type":"object","properties":{"tags":{"type":"array","items":{"type":"string"}}}}', flags: JSON_THROW_ON_ERROR);
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context([
-      'ui_hints' => ['tags' => ['ui:title' => '<em>Tags</em> &amp; labels']],
-      'current_input' => ['tags' => ['a']],
-    ]));
+    $options = new FormOptions(
+      uiHints: ['tags' => ['ui:title' => '<em>Tags</em> &amp; labels']],
+      currentInput: ['tags' => ['a']],
+    );
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => $options]));
 
     $item = $form['tags'][0];
     $attributes = (string) new Attribute($item['remove_one']['#attributes']);

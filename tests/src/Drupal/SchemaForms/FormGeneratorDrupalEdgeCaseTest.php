@@ -29,6 +29,7 @@ use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
@@ -67,8 +68,8 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
   #[DataProvider('nonScalarEnumProvider')]
   public function testNonScalarEnumIsUnsupported(string $property, bool $saved): void {
     $schema = json_decode('{"type":"object","properties":{"p":' . $property . '}}');
-    $current = $saved ? ['current_input' => ['p' => [['a']]]] : [];
-    $field = (new FormGeneratorDrupal())->transform($schema, new Context($current))['p'];
+    $options = new FormOptions(currentInput: $saved ? ['p' => [['a']]] : []);
+    $field = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => $options]))['p'];
     $this->assertSame('item', $field['#type']);
     $this->assertFalse($field['#input']);
     $this->assertTrue($field['#disabled']);
@@ -115,7 +116,7 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
       'properties' => (object) ['name' => (object) ['type' => 'string']],
     ];
     $schema = (object) ['type' => 'object', 'properties' => (object) ['p' => $property]];
-    $field = (new FormGeneratorDrupal())->transform($schema, new Context(['current_input' => ['p' => $saved]]))['p'];
+    $field = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => new FormOptions(currentInput: ['p' => $saved])]))['p'];
     $this->assertSame($element, $field['#type']);
     if ($element === 'item') {
       $this->assertSame($saved, $field['#schema_fixed_value']);
@@ -150,7 +151,8 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
    */
   public function testSavedScalarListItem(): void {
     $schema = json_decode('{"type":"object","properties":{"grid":{"type":"array","items":{"type":"array","items":{"type":"string"}}}}}');
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['current_input' => ['grid' => ['x', ['y']]]]));
+    $options = new FormOptions(currentInput: ['grid' => ['x', ['y']]]);
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => $options]));
     $this->assertSame('item', $form['grid'][0]['removable_element']['#type']);
     $this->assertSame('x', $form['grid'][0]['removable_element']['#schema_fixed_value']);
     $this->assertSame('details', $form['grid'][1]['removable_element']['#type']);
@@ -162,7 +164,7 @@ final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
   public function testUiPrefixedPropertyNames(): void {
     $schema = json_decode('{"type":"object","properties":{"p":{"type":"object","properties":{"ui:title":{"type":"string"},"ui:help":{"type":"string"},"name":{"type":"string"}}}}}');
     $hints = ['p' => ['ui:title' => 'Parent', 'ui:help' => 'Parent help', 'name' => 'not a hint array']];
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['ui_hints' => $hints]));
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => new FormOptions(uiHints: $hints)]));
     $this->assertSame('Parent', (string) $form['p']['#title']);
     $this->assertSame('Ui:title', (string) $form['p']['ui:title']['#title']);
     $this->assertArrayNotHasKey('#description', $form['p']['ui:title']);

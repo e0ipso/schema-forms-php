@@ -72,9 +72,9 @@ final class MultivalueWidgetBuilder {
       '#process' => [
         [Details::class, 'processGroup'],
         [Details::class, 'processAjaxForm'],
-        [FormGeneratorDrupal::class, 'multiValueProcess'],
+        [MultivalueCallbacks::class, 'process'],
       ],
-      '#after_build' => [...$after_build, [FormGeneratorDrupal::class, 'multiValueAfterBuild']],
+      '#after_build' => [...$after_build, [MultivalueCallbacks::class, 'afterBuild']],
       RenderKeys::CARDINALITY => $cardinality,
       // Saved items beyond maxItems stay, so that validation reports them.
       RenderKeys::MAX_DELTA => $state->lastDelta(),
@@ -193,9 +193,9 @@ final class MultivalueWidgetBuilder {
         'title' => $name,
       ],
       '#limit_validation_errors' => [],
-      '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],
+      '#submit' => [[MultivalueCallbacks::class, 'removeSubmit']],
       '#ajax' => [
-        'callback' => [FormGeneratorDrupal::class, 'removeOneAjax'],
+        'callback' => [MultivalueCallbacks::class, 'removeAjax'],
         'wrapper' => $wrapper_id,
         'effect' => 'fade',
       ],
@@ -222,9 +222,9 @@ final class MultivalueWidgetBuilder {
       '#name' => ButtonNames::append($context->parents, $context->namespace),
       '#value' => new TranslatableMarkup('Append an item'),
       '#attributes' => ['class' => ['field-add-more-submit'], 'aria-label' => $name],
-      '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
+      '#submit' => [[MultivalueCallbacks::class, 'appendSubmit']],
       '#ajax' => [
-        'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],
+        'callback' => [MultivalueCallbacks::class, 'appendAjax'],
         'wrapper' => $wrapper_id,
         'effect' => 'fade',
       ],

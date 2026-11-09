@@ -7,6 +7,7 @@ namespace SchemaForms\Tests\Kernel\Form;
 use Drupal\Core\Form\FormInterface;
 use Drupal\Core\Form\FormStateInterface;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
 /**
@@ -64,11 +65,12 @@ final class GeneratedSchemaForm implements FormInterface {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    $context = new Context([
-      'form_state' => $form_state,
-      'ui_hints' => $this->uiHints,
-      'current_input' => $this->currentInput,
-    ]);
+    $options = new FormOptions(
+      formState: $form_state,
+      uiHints: $this->uiHints,
+      currentInput: $this->currentInput,
+    );
+    $context = new Context(['options' => $options]);
     $element = (new FormGeneratorDrupal())->transform($this->schema, $context);
     if ($this->parentKey === NULL) {
       $form = $element + $form;

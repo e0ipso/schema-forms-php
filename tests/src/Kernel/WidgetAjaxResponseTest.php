@@ -6,6 +6,7 @@ namespace SchemaForms\Tests\Kernel;
 
 use Drupal\Core\Form\FormStateInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\MultivalueCallbacks;
@@ -33,6 +34,30 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
   protected static $modules = ['system'];
 
   /**
+   * The deprecated AJAX callbacks give the responses the current ones give.
+   */
+  #[IgnoreDeprecations]
+  public function testDeprecatedCallbacks(): void {
+    $this->expectUserDeprecationMessage('FormGeneratorDrupal::addMoreAjax() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::appendAjax() instead. See https://github.com/e0ipso/schema-forms-php#upgrading');
+    $this->expectUserDeprecationMessage('FormGeneratorDrupal::removeOneAjax() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::removeAjax() instead. See https://github.com/e0ipso/schema-forms-php#upgrading');
+    $form = $this->form(['a']);
+    $appended = $this->browserSubmit($form, [], NULL, 'items_add_more', 'Append an item');
+    $rebuilt = $this->rebuild($appended->formState, $form);
+    $this->assertEquals(
+      MultivalueCallbacks::appendAjax($rebuilt, $appended->formState)->getCommands(),
+      FormGeneratorDrupal::addMoreAjax($rebuilt, $appended->formState)->getCommands()
+    );
+
+    $form = $this->form(['a', 'b']);
+    $removed = $this->browserSubmit($form, [], NULL, 'items-0-remove', '⨯');
+    $rebuilt = $this->rebuild($removed->formState, $form);
+    $this->assertEquals(
+      MultivalueCallbacks::removeAjax($rebuilt, $removed->formState)->getCommands(),
+      FormGeneratorDrupal::removeOneAjax($rebuilt, $removed->formState)->getCommands()
+    );
+  }
+
+  /**
    * Append replaces the widget, announces the item and focuses it.
    */
   public function testAppendResponse(): void {
@@ -40,7 +65,7 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
     $result = $this->browserSubmit($form, [], NULL, 'items_add_more', 'Append an item');
     $rebuilt = $this->rebuild($result->formState, $form);
 
-    $commands = FormGeneratorDrupal::addMoreAjax($rebuilt, $result->formState)->getCommands();
+    $commands = MultivalueCallbacks::appendAjax($rebuilt, $result->formState)->getCommands();
 
     $this->assertSame(['insert', 'insert', 'announce', 'focusFirst'], array_column($commands, 'command'));
     $this->assertNull($commands[0]['selector']);
@@ -66,7 +91,7 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
     $rebuilt = $this->rebuild($result->formState, $form);
     $wrapper = $rebuilt['items']['add_more']['#ajax']['wrapper'];
 
-    $commands = FormGeneratorDrupal::addMoreAjax($rebuilt, $result->formState)->getCommands();
+    $commands = MultivalueCallbacks::appendAjax($rebuilt, $result->formState)->getCommands();
 
     $this->assertNotSame($clicked, $wrapper);
     $this->assertSame('prepend', $commands[1]['method']);
@@ -82,7 +107,7 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
     $form = $result->form;
     $result->formState->setTriggeringElement($form['items']['add_more']);
 
-    $commands = FormGeneratorDrupal::addMoreAjax($form, $result->formState)->getCommands();
+    $commands = MultivalueCallbacks::appendAjax($form, $result->formState)->getCommands();
 
     $this->assertSame(['insert', 'insert'], array_column($commands, 'command'));
   }
@@ -94,7 +119,7 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
     $result = $this->browserSubmit($this->form(['a']));
     $result->formState->setTriggeringElement([]);
 
-    $commands = FormGeneratorDrupal::addMoreAjax($result->form, $result->formState)->getCommands();
+    $commands = MultivalueCallbacks::appendAjax($result->form, $result->formState)->getCommands();
 
     $this->assertSame(['insert', 'insert'], array_column($commands, 'command'));
     $this->assertNull($commands[1]['selector']);
@@ -146,7 +171,7 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
       '#array_parents' => ['gone', 0, 'remove_one'],
     ]);
 
-    $commands = FormGeneratorDrupal::removeOneAjax($result->form, $result->formState)->getCommands();
+    $commands = MultivalueCallbacks::removeAjax($result->form, $result->formState)->getCommands();
 
     $this->assertSame(['insert', 'insert', 'announce'], array_column($commands, 'command'));
     $this->assertNull($commands[1]['selector']);
@@ -212,7 +237,7 @@ final class WidgetAjaxResponseTest extends SchemaFormsKernelTestBase {
     $result = $this->browserSubmit($form, [], NULL, 'items-' . $delta . '-remove', '⨯');
     $this->assertSame($delta, $result->formState->getTriggeringElement()['#delta']);
     $rebuilt = $this->rebuild($result->formState, $form);
-    return FormGeneratorDrupal::removeOneAjax($rebuilt, $result->formState)->getCommands();
+    return MultivalueCallbacks::removeAjax($rebuilt, $result->formState)->getCommands();
   }
 
   /**

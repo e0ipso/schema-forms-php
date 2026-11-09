@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use SchemaForms\SchemaType;
+
 /**
  * Gives submitted arrays the JSON shape their schema describes.
  *
@@ -56,7 +58,7 @@ final class JsonShape {
    *   TRUE when the array is an object.
    */
   private static function isObject(array $data, ?\stdClass $schema): bool {
-    $types = $schema === NULL ? [] : (array) ($schema->type ?? []);
+    $types = $schema === NULL ? [] : SchemaType::listOf($schema);
     if (in_array('object', $types, TRUE) && !in_array('array', $types, TRUE)) {
       return TRUE;
     }
