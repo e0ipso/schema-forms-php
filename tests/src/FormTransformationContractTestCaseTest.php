@@ -139,20 +139,12 @@ final class FormTransformationContractTestCaseTest extends TestCase {
       }
 
     };
-    return new class('contract', $transformation) extends FormTransformationContractTestCase {
+    $contract = new class('contract') extends FormTransformationContractTestCase {
 
       /**
        * The implementation under test.
        */
-      private FormTransformationInterface $transformation;
-
-      /**
-       * {@inheritdoc}
-       */
-      public function __construct(string $name, FormTransformationInterface $transformation) {
-        parent::__construct($name);
-        $this->transformation = $transformation;
-      }
+      public FormTransformationInterface $transformation;
 
       /**
        * {@inheritdoc}
@@ -163,6 +155,8 @@ final class FormTransformationContractTestCaseTest extends TestCase {
       }
 
     };
+    $contract->transformation = $transformation;
+    return $contract;
   }
 
 }

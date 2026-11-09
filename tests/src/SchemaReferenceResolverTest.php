@@ -8,6 +8,7 @@ use JsonSchema\Exception\UnresolvableJsonPointerException;
 use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Exception\ExceptionInterface;
@@ -136,6 +137,7 @@ final class SchemaReferenceResolverTest extends TestCase {
   /**
    * The deprecated factory helpers still register and read schemas.
    */
+  #[IgnoreDeprecations]
   public function testDeprecatedFactoryHelpers(): void {
     $schema = json_decode('{"type":"object","definitions":{"a":{"type":"string"}},"properties":{"x":{"$ref":"#/definitions/a"}}}');
     $factory = SchemaReferenceResolver::createFactory($schema);

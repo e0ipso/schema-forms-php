@@ -1,0 +1,15 @@
+# The tests run at a lower level than src/: level 2 fails on errors in the
+# Drupal adapter and kernel tests. Raise the level as those tests are fixed.
+parameters:
+  level: 1
+  paths:
+    - tests
+  parallel:
+    maximumNumberOfProcesses: 2
+  ignoreErrors:
+    # This test still calls the deprecated two-argument refinement; delete
+    # the entry once it calls SubmissionRefiner.
+    -
+      identifier: staticMethod.deprecated
+      path: tests/src/Drupal/SchemaForms/FormGeneratorDrupalTest.php
+      count: 1

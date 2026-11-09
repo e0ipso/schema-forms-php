@@ -6,6 +6,7 @@ namespace SchemaForms\Tests;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\EnumMemberMatcher;
 use SchemaForms\Exception\UnsupportedReferenceException;
@@ -322,6 +323,7 @@ class RecursiveTypeCasterTest extends TestCase {
   /**
    * The deprecated entry point refines the same way, with or without a factory.
    */
+  #[IgnoreDeprecations]
   public function testDeprecatedEntryPoint(): void {
     $schema = json_decode('{"type":"object","definitions":{"name":{"type":"string","minLength":1}},"properties":{"name":{"$ref":"#/definitions/name"},"count":{"type":"integer"}}}');
     $data = ['name' => '', 'count' => '3'];

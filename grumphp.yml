@@ -49,6 +49,12 @@ grumphp:
       configuration: phpstan.neon.dist
       memory_limit: 1G
       use_grumphp_paths: false
+    phpstan_tests:
+      configuration: phpstan-tests.neon.dist
+      memory_limit: 1G
+      use_grumphp_paths: false
+      metadata:
+        task: phpstan
     phpparser:
       visitors:
         no_exit_statements: ~
