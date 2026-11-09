@@ -25,16 +25,10 @@ final class SchemaValidationBridge {
   /**
    * Creates the bridge.
    *
-   * @param \SchemaForms\Drupal\SubmissionPreparer $preparer
-   *   Cleans and casts submitted values.
-   * @param \SchemaForms\Drupal\SubmissionValidator $validator
-   *   Validates the prepared values against the schema.
    * @param \SchemaForms\SchemaRegistryInterface $registry
    *   Registers the schema, so its references resolve.
    */
   public function __construct(
-    private readonly SubmissionPreparer $preparer = new SubmissionPreparer(),
-    private readonly SubmissionValidator $validator = new SubmissionValidator(),
     private readonly SchemaRegistryInterface $registry = new RestrictedSchemaRegistry(),
   ) {}
 
@@ -85,8 +79,8 @@ final class SchemaValidationBridge {
     }
     // Validation reads the value preparation stored, so it checks exactly
     // what the submit handlers receive.
-    if ($this->preparer->prepare($element, $form_state, $registered)) {
-      $this->validator->validate($element, $form_state, $registered);
+    if ((new SubmissionPreparer())->prepare($element, $form_state, $registered)) {
+      (new SubmissionValidator())->validate($element, $form_state, $registered);
     }
   }
 
@@ -132,7 +126,7 @@ final class SchemaValidationBridge {
    */
   private static function forContainer(array $container): self {
     $registry = $container[RenderKeys::REGISTRY] ?? NULL;
-    return new self(registry: $registry instanceof SchemaRegistryInterface ? $registry : new RestrictedSchemaRegistry());
+    return new self($registry instanceof SchemaRegistryInterface ? $registry : new RestrictedSchemaRegistry());
   }
 
 }

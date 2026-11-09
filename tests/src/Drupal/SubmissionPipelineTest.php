@@ -12,7 +12,6 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\Core\StringTranslation\TranslationInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\Drupal\ErrorElementMapper;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\SubmissionPreparer;
@@ -366,7 +365,7 @@ final class SubmissionPipelineTest extends TestCase {
    */
   #[DataProvider('dataProviderConstraintName')]
   public function testConstraintName(array $error, ?string $expected): void {
-    $method = new \ReflectionMethod(ErrorElementMapper::class, 'constraintName');
+    $method = new \ReflectionMethod(SubmissionValidator::class, 'constraintName');
     $this->assertSame($expected, $method->invoke(NULL, $error));
   }
 
