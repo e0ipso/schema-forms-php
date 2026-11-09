@@ -14,12 +14,10 @@ use Drupal\Core\Render\Element\RenderCallbackInterface;
  * Nested properties only show the marker, because Form API would reject a
  * blank value the schema accepts. Schema validation enforces both.
  *
- * A marker that Form API does not enforce is visual only, so the control
- * also gets aria-required. The HTML required attribute is not an option:
- * the browser would refuse to submit the blank value the schema accepts.
+ * A marker Form API does not enforce also gets aria-required; the HTML
+ * required attribute would make the browser refuse the blank value.
  *
- * Generated render arrays name afterBuild() and preRender(), and cached forms
- * keep those names, so the class and both methods keep their names.
+ * Cached forms name afterBuild() and preRender(), so the names stay.
  *
  * @internal
  */
@@ -28,8 +26,7 @@ final class RequiredMarker implements RenderCallbackInterface {
   /**
    * Element types that show their title in a fieldset legend.
    *
-   * Core reads #label_attributes only for labels, and shows the legend marker
-   * only when #required is set.
+   * Core shows the legend marker only when #required is set.
    */
   private const GROUP_TYPES = [EnumElements::CHECKBOXES, EnumElements::RADIOS];
 
@@ -106,11 +103,8 @@ final class RequiredMarker implements RenderCallbackInterface {
    * Lets core render its own required marker.
    *
    * Validation is over when an element renders, so #required set here only
-   * changes the markup. Attributes set here reach only the fieldset, because
-   * the options copied the group's attributes when they were built. A radio
-   * group tells assistive technology it is required through the radiogroup
-   * role; ARIA has no required state for a group of checkboxes, so those
-   * keep the visible marker alone.
+   * changes the markup. A radio group gets the radiogroup role with
+   * aria-required; ARIA has no required state for a group of checkboxes.
    *
    * @param array<int|string, mixed> $element
    *   The element.

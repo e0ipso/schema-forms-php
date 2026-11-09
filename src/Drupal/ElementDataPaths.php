@@ -23,8 +23,8 @@ final class ElementDataPaths {
    *   The generated root container.
    *
    * @return list<array{list<int|string>, array<int|string, mixed>}>
-   *   The path and the element of the root and its descendants, in form
-   *   order. Buttons and item containers hold no value and are left out.
+   *   The path and element of the root and its descendants, in form order,
+   *   without buttons and item containers.
    */
   public static function all(array $root): array {
     return self::collect($root, [], static fn (array $element): bool => FALSE);
@@ -39,8 +39,7 @@ final class ElementDataPaths {
    *   Decides whether an element matches.
    *
    * @return list<array{list<int|string>, array<int|string, mixed>}>
-   *   The path and the element of each match in form order, without their
-   *   descendants.
+   *   The path and element of each match, in form order.
    */
   public static function outermost(array $root, callable $matches): array {
     return array_values(array_filter(

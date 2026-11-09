@@ -151,9 +151,7 @@ final class FieldBuilder {
    * @param \SchemaForms\Drupal\FieldContext $context
    *   The field context.
    * @param string $type
-   *   The type the control is built for. Without mapped properties it
-   *   becomes the '#type' as it is, for the compound builders, a 'ui:widget'
-   *   or the unsupported check to deal with.
+   *   The type the control is built for, the '#type' unless mapped.
    * @param array<string, mixed> $mapped
    *   The element properties an element mapper gave, if any.
    *
@@ -186,10 +184,7 @@ final class FieldBuilder {
   }
 
   /**
-   * Turns the element into the plain text of a constant.
-   *
-   * An item element shows the title as a label next to the text; without a
-   * type the text would render with no label at all.
+   * Turns the element into the plain text of a constant, as a labelled item.
    *
    * @param array<int|string, mixed> $element
    *   The element.
@@ -230,9 +225,6 @@ final class FieldBuilder {
 
   /**
    * Builds the parts of the control that depend on the schema keywords.
-   *
-   * An enum makes a choice first, then an array or an object builds its
-   * sub-controls over it.
    *
    * @param array<int|string, mixed> $element
    *   The scaffolded element.
@@ -288,8 +280,7 @@ final class FieldBuilder {
    *   The field context.
    *
    * @return array<int|string, mixed>
-   *   The element. An object without properties is left for the unsupported
-   *   check.
+   *   The element; unchanged for an object without properties.
    */
   private function objectElement(array $element, FieldContext $context): array {
     $properties = $context->schema->properties ?? NULL;
@@ -359,11 +350,9 @@ final class FieldBuilder {
   /**
    * Decides whether the generator built the element on purpose.
    *
-   * Otherwise a JSON Schema type reached '#type' unchanged, and no JSON
-   * Schema type is a Drupal element: ElementInfoManager::getInfo() returns
-   * an empty array for an unknown type, so the element renders as an empty
-   * string with no exception, no warning and no log entry. The property
-   * would then look exactly like one the schema never declared.
+   * Otherwise a JSON Schema type reached '#type' unchanged. Drupal renders an
+   * unknown element type as an empty string without any warning, so the
+   * property would look like one the schema never declared.
    *
    * @param array<int|string, mixed> $element
    *   The element.
@@ -373,9 +362,8 @@ final class FieldBuilder {
    *   The properties an element mapper gave the element.
    *
    * @return bool
-   *   TRUE for a supported element. A 'ui:widget' names an element the caller
-   *   picked deliberately, so it is taken at face value, and so is the
-   *   element a mapper picked.
+   *   TRUE for a supported element. A 'ui:widget' or a mapper's element is
+   *   taken at face value.
    */
   private function isSupported(array $element, array $hints, array $mapped): bool {
     $type = $element['#type'] ?? NULL;
@@ -412,9 +400,6 @@ final class FieldBuilder {
   /**
    * Turns an element into a disabled item that explains why.
    *
-   * A property with no control and no message would look exactly like one
-   * the schema never declared.
-   *
    * @param array<int|string, mixed> $element
    *   The element.
    * @param string $type
@@ -439,9 +424,6 @@ final class FieldBuilder {
 
   /**
    * Converts decoded objects to arrays, recursively.
-   *
-   * Callers may pass saved values as decoded objects or associative arrays,
-   * and child controls look their value up by key either way.
    *
    * @param mixed $value
    *   The value.

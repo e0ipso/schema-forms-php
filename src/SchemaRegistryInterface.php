@@ -8,9 +8,6 @@ namespace SchemaForms;
  * Registers schemas so that their references resolve without a fetch.
  *
  * The registry decides which documents a schema may reference.
- * RestrictedSchemaRegistry allows the schema itself and the bundled draft-04
- * meta-schema, and fetches nothing. SubmissionRefiner accepts any
- * implementation.
  *
  * @api
  */

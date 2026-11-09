@@ -12,9 +12,9 @@ use SchemaForms\Exception\UnsupportedReferenceException;
  * Checks reference targets even in branches validation may not evaluate.
  *
  * Optional blank values can be omitted before final validation, so checking
- * only references followed by the validator would silently accept some
- * unsupported schemas. Traverse schema keywords, not literal default, enum or
- * const values. The retriever remains the boundary for every actual fetch.
+ * only the references the validator follows would accept some unsupported
+ * schemas. Only schema keywords are walked, not default, enum or const
+ * values.
  *
  * @internal
  */
@@ -48,7 +48,7 @@ final class ReferenceChecker {
    * Starts a check that resolves targets from the given storage.
    *
    * @param \JsonSchema\SchemaStorageInterface $storage
-   *   Storage containing the root schema and any registered subschemas.
+   *   The storage holding the root schema.
    */
   private function __construct(
     private readonly SchemaStorageInterface $storage,
@@ -60,7 +60,7 @@ final class ReferenceChecker {
    * @param object $schema
    *   The registered schema.
    * @param \JsonSchema\SchemaStorageInterface $storage
-   *   Storage containing the root schema and any registered subschemas.
+   *   The storage holding the root schema.
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
    *   When a reference is not a string, or its target is outside the

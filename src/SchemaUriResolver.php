@@ -10,9 +10,8 @@ use SchemaForms\Exception\UnsupportedReferenceException;
 /**
  * Resolves schema URIs without touching the local filesystem.
  *
- * UriResolver reads a base without a scheme as a local path and runs
- * is_file(), is_dir() and realpath() on it. Schemas supply these values, so
- * such a base is refused before it reaches the resolver.
+ * UriResolver runs is_file(), is_dir() and realpath() on a base without a
+ * scheme. Schemas supply these values, so such a base is refused first.
  *
  * @internal
  */

@@ -12,9 +12,7 @@ use Drupal\Core\Form\FormStateInterface;
 /**
  * Runs the Form API callbacks of multivalue widgets.
  *
- * The generated render arrays name these static methods, so a cached form
- * stores only their names. Forms cached by releases before 3.2.0 name the
- * deprecated forwarders on FormGeneratorDrupal instead.
+ * Static, so a cached form stores only their names.
  *
  * @internal
  *
@@ -29,8 +27,7 @@ final class MultivalueCallbacks {
    *   The widget, with its Form API parents assigned.
    *
    * @return array<int|string, mixed>
-   *   The widget. An element without an Append button is returned as it
-   *   is, instead of gaining a button with no type.
+   *   The widget. An element without an Append button is returned as it is.
    */
   public static function process(array $element): array {
     if (!is_array($element[RenderKeys::APPEND_BUTTON] ?? NULL)) {
@@ -49,8 +46,7 @@ final class MultivalueCallbacks {
    *   The form state.
    *
    * @return array<int|string, mixed>
-   *   The widget. Any other element is returned untouched, so that no state
-   *   is stored for a widget that does not exist.
+   *   The widget. Any other element is returned untouched, storing no state.
    */
   public static function afterBuild(array $element, FormStateInterface $form_state): array {
     if (!MultivalueWidget::is($element)) {
@@ -95,8 +91,7 @@ final class MultivalueCallbacks {
   /**
    * Responds to a removal with the rebuilt widget.
    *
-   * The whole widget is replaced, so an Append button hidden at the item
-   * limit comes back once an item is removed.
+   * The whole widget is replaced, so a hidden Append button comes back.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
@@ -142,8 +137,6 @@ final class MultivalueCallbacks {
 
   /**
    * Responds to an appended item with the rebuilt widget.
-   *
-   * Finite widgets are replaced too, so a hidden Append button disappears.
    *
    * @param array<int|string, mixed> $form
    *   The rebuilt form.
@@ -209,11 +202,7 @@ final class MultivalueCallbacks {
   }
 
   /**
-   * Finds the widget a button belongs to.
-   *
-   * The button's nearest ancestor that is a multivalue widget owns it. Asking
-   * the widget structure, instead of counting levels, keeps this right
-   * wherever the builder places the buttons inside the widget.
+   * Finds the widget a button belongs to: its nearest widget ancestor.
    *
    * @param array<int|string, mixed> $form
    *   The form.

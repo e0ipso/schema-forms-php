@@ -9,17 +9,11 @@ use Drupal\Component\Utility\NestedArray;
 /**
  * Names the buttons of multivalue widgets.
  *
- * FormBuilder finds the button that submitted a form by its name and value,
- * so two buttons with one name act on whichever widget comes first. Two
- * naming schemes exist:
- *
- * - Legacy names join the schema path with hyphens and underscores, which
- *   property names may also hold: "tag-list" and "tag_list" share an Append
- *   name, and ["a-b"] and ["a", "b"] share a Remove name. Forms built by
- *   earlier releases use them, so they stay wherever they are unique.
- * - Escaped names cannot collide; see escaped(). Buttons whose legacy names
- *   collide get one, and inside a namespaced container every button does,
- *   so that two containers in one form keep apart.
+ * FormBuilder finds the button that submitted a form by its name, so two
+ * buttons with one name act on whichever widget comes first. Legacy names
+ * join the schema path with hyphens and underscores, which property names
+ * may also hold; they stay wherever they are unique. Colliding buttons, and
+ * every button of a namespaced container, get an escaped name instead.
  *
  * @internal
  */
@@ -112,8 +106,7 @@ final class ButtonNames {
    *   The keys from the generated root to the element.
    *
    * @return list<array{path: list<int|string>, parents: list<string>, name: string, removes: bool}>
-   *   Each button's path from the root, the schema path of its widget or
-   *   item, its name, and whether it removes an item.
+   *   Each button's path, schema path, name and kind.
    */
   private static function buttons(array $element, array $path): array {
     $append = $element[RenderKeys::APPEND_BUTTON] ?? NULL;
@@ -159,16 +152,10 @@ final class ButtonNames {
   /**
    * Builds a name no other path, namespace or button kind maps to.
    *
-   * Escaping leaves only letters, digits and three-character escapes that
-   * start with ":" followed by two hexadecimal digits. Hence:
-   * - a hyphen never appears inside a segment, so it only joins segments;
-   * - "::" never appears inside an escaped part, so it only ends the
-   *   namespace;
-   * - the endings cannot be escapes, because "r" is not a hexadecimal digit
-   *   and escaped text holds no "_", so they only tell the kinds apart.
-   * Each part can thus be read back, and different inputs give different
-   * names. Legacy names end in "-remove" or "_add_more" instead, so the two
-   * schemes never meet either.
+   * Escaped text holds only letters, digits and ":xx" hexadecimal escapes,
+   * so "-" only joins segments, "::" only ends the namespace, and the
+   * endings, which no escape can spell, only tell the kinds apart. Legacy
+   * names end in "-remove" or "_add_more", so the two schemes never meet.
    *
    * @param array<int|string> $parents
    *   The schema path.
@@ -193,8 +180,7 @@ final class ButtonNames {
    *   The segment.
    *
    * @return string
-   *   The segment with every byte outside [A-Za-z0-9] written as ":" and its
-   *   two hexadecimal digits.
+   *   The segment with every byte outside [A-Za-z0-9] written as ":xx".
    */
   private static function escape(string $segment): string {
     return (string) preg_replace_callback(

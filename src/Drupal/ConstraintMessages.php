@@ -9,14 +9,11 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 /**
  * Makes the messages of common JSON Schema violations translatable.
  *
- * The validator writes its messages in English, already filled in. Each
- * template here spells one such message with placeholders. When a template
- * matches the message, the text in place of each placeholder becomes its
- * value, so the English output of the translatable string is the
- * validator's message, byte for byte. Matching the message, rather than
- * rebuilding it from the error's parameters, keeps that true for both
- * supported json-schema majors, which format values differently and do not
- * always report them.
+ * Each template spells one validator message with placeholders. When it
+ * matches the message, the matched text becomes the placeholder values, so
+ * the English output is the validator's message byte for byte. Matching the
+ * message, rather than rebuilding it from the error's parameters, holds for
+ * both json-schema majors, which format and report values differently.
  *
  * @internal
  */
@@ -39,8 +36,7 @@ final class ConstraintMessages {
    *   The validator's message.
    *
    * @return \Drupal\Core\StringTranslation\TranslatableMarkup|null
-   *   The message as translatable markup, or NULL when no template of the
-   *   constraint matches it.
+   *   The translatable message, or NULL when no template matches.
    */
   public static function translatable(string $constraint, string $message): ?TranslatableMarkup {
     $names = $constraint === 'format' ? self::FORMATS : [$constraint];
@@ -110,8 +106,7 @@ final class ConstraintMessages {
    *   The template, without values.
    *
    * @return \Drupal\Core\StringTranslation\TranslatableMarkup|null
-   *   The template with the values the message holds, or NULL when the
-   *   message does not match it.
+   *   The template with the message's values, or NULL on no match.
    */
   private static function fromMessage(string $message, TranslatableMarkup $template): ?TranslatableMarkup {
     $english = $template->getUntranslatedString();

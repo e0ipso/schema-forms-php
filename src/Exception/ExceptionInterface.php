@@ -7,9 +7,8 @@ namespace SchemaForms\Exception;
 /**
  * Marks every exception this library throws.
  *
- * Catch this interface to handle any failure from the library at once. Each
- * implementation also extends the exception it replaced, so existing catch
- * blocks keep matching.
+ * Each implementation also extends the exception it replaced, so existing
+ * catch blocks keep matching.
  *
  * @api
  */

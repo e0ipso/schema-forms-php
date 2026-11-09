@@ -14,8 +14,8 @@ final class SchemaType {
   /**
    * Lists the type names a schema declares.
    *
-   * "type" holds one name or a list of them. Members that are not strings,
-   * such as the schemas a draft-03 union allows, name no type.
+   * Members that are not strings, such as draft-03 union schemas, are left
+   * out.
    *
    * @param object $schema
    *   The schema.

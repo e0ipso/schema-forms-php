@@ -27,8 +27,6 @@ final class JsonShape {
    *
    * @return mixed
    *   The value, with objects as \stdClass where the schema asks for one.
-   *   Arrays the schema does not describe keep the shape json_encode() gives
-   *   them.
    */
   public static function fromSchema(mixed $data, mixed $schema): mixed {
     if (!is_array($data)) {
@@ -67,9 +65,6 @@ final class JsonShape {
 
   /**
    * Finds the schema of a declared property.
-   *
-   * Generated forms only render declared properties, so other names keep
-   * the shape json_encode() gives them.
    *
    * @param \stdClass|null $schema
    *   The object schema, if known.

@@ -21,11 +21,8 @@ use Shaper\Validator\ValidateableInterface;
 /**
  * Generates Drupal Form API forms from JSON-Schema documents.
  *
- * Call transform() to build a form. The generated render arrays name static
- * callbacks on the classes that do the work, so a cached form stores no
- * generator. The Form API callbacks still declared here are what forms
- * cached by releases before 3.2.0 name; each one is deprecated and forwards
- * to the callback generated forms name now.
+ * The deprecated Form API callbacks here are named by forms cached before
+ * 3.2.0; each forwards to the static callback generated forms name now.
  *
  * @api
  */
@@ -63,12 +60,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * form cached before they existed unserializes with the defaults.
    *
    * @param \SchemaForms\SchemaRegistryInterface|null $registry
-   *   Registers each schema, so its references resolve; NULL for a
-   *   RestrictedSchemaRegistry. Generated forms keep it, so validation
-   *   registers the schema with it again, and a cached form serializes it.
+   *   Registers each schema; NULL for a RestrictedSchemaRegistry.
    * @param array<mixed> $element_mappers
-   *   ElementMapperInterface objects to ask, in order, before the generator's
-   *   own mapper, for the element of a schema with no compound control.
+   *   ElementMapperInterface objects to ask, in order, before the default one.
    *
    * @throws \SchemaForms\Exception\InvalidOptionException
    *   When an element mapper does not implement ElementMapperInterface.
@@ -91,9 +85,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Builds the generated container; call transform() instead.
    *
-   * Shaper declares this method protected. It stays public here because it
-   * always was, but transform() is the entry point: it also validates the
-   * schema and the result.
+   * Public since 3.1.1, although Shaper declares it protected; only
+   * transform() validates the schema and the result.
    *
    * @param mixed $data
    *   The decoded schema.
@@ -153,10 +146,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Keeps the input validator out of serialized forms.
    *
-   * Forms cached by releases before 3.2.0 reference the generator, and a host
-   * may keep one in its form object. The input validator only matters while
-   * a schema is being accepted, and getInputValidator() builds a new one on
-   * demand.
+   * Forms cached before 3.2.0 reference the generator; getInputValidator()
+   * builds a new validator on demand.
    *
    * @return string[]
    *   The names of the properties to serialize.
@@ -377,7 +368,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param array<mixed> $prop_state
    *   The state to store.
    * @param string|null $namespace
-   *   The 'namespace' context key the container was built with, if any.
+   *   The namespace the container was built with, if any.
    *
    * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
    *   The Append and Remove buttons keep the widget state; read it with
@@ -395,15 +386,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Reads the options from the "options" context key.
    *
-   * Releases before 3.2.0 took the options as four separate keys. They are
-   * still read, with a deprecation notice; drop them in 4.0.0.
+   * The four context keys of releases before 3.2.0 are still read, with a
+   * deprecation notice; drop them in 4.0.0.
    *
    * @param \Shaper\Util\Context $context
    *   The context of the transform() call.
    *
    * @return \SchemaForms\FormOptions
-   *   The options. A deprecated key with a value of the wrong type reads as
-   *   absent, as it always did.
+   *   The options. A deprecated key of the wrong type reads as absent.
    *
    * @throws \SchemaForms\Exception\InvalidOptionException
    *   When the deprecated "namespace" key is not a non-empty string.
@@ -459,13 +449,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Adds the schema validation callbacks to a generated container.
    *
-   * Drupal runs #element_validate when the container sits under a key, but
-   * not on the form itself: there it runs only the form-level #validate
-   * handlers, and it ignores #validate on any other element. Each placement
-   * therefore runs the bridge exactly once. FormBuilder::prepareForm()
-   * appends the form's own ::validateForm after the #validate handler. A
-   * registry the caller gave goes along, so validation registers the schema
-   * the same way.
+   * Drupal runs #element_validate when the container sits under a key, and
+   * only the form-level #validate handlers when it is the form itself, so
+   * each placement runs the bridge exactly once. A registry the caller gave
+   * goes along, so validation registers the schema the same way.
    *
    * @param array<int|string, mixed> $element
    *   The generated container.

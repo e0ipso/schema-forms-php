@@ -34,8 +34,7 @@ final class EnumElements {
    * @param \stdClass $schema
    *   The schema.
    * @param array<mixed> $hints
-   *   The UI hints; a 'ui:widget' that SchemaTypes::widget() accepts
-   *   replaces the radios.
+   *   The UI hints; a 'ui:widget' replaces the radios.
    *
    * @return array<int|string, mixed>
    *   The element.
@@ -52,9 +51,6 @@ final class EnumElements {
 
   /**
    * Turns the element into a list of choices from the item enum.
-   *
-   * A 'ui:widget' never reaches here: it replaces the array type, so the
-   * array is not built as a list of choices.
    *
    * @param array<int|string, mixed> $element
    *   The element.
@@ -118,15 +114,13 @@ final class EnumElements {
    * Builds the options of an enum, keyed by the value Form API submits.
    *
    * Each key is assigned on its own: array_merge() would renumber the integer
-   * keys PHP makes of numeric strings, so ["10", "12"] would offer 0 and 1.
-   * A float key is a string, because PHP truncates a float key to an integer.
-   * A NULL member takes the key '', which Form API also submits for an
-   * unselected control.
+   * keys PHP makes of numeric strings. A float key is a string, because PHP
+   * truncates a float key to an integer.
    *
    * @param array<mixed> $members
-   *   The scalar enum members, as decoded from the schema.
+   *   The scalar enum members.
    * @param array<mixed> $hints
-   *   The UI hints, whose 'ui:enum' labels map members to labels.
+   *   The UI hints.
    *
    * @return array<int|string, \Drupal\Component\Render\MarkupInterface|string>
    *   The options.
@@ -145,9 +139,8 @@ final class EnumElements {
   /**
    * Gives the label of an enum member that no mapping labels.
    *
-   * Casting TRUE, FALSE and NULL to a string gives "1" or an empty label,
-   * and the empty string has no text at all. An empty label leaves the
-   * option without an accessible name.
+   * TRUE, FALSE, NULL and "" would otherwise give "1" or an empty label,
+   * which leaves the option without an accessible name.
    *
    * @param mixed $member
    *   The scalar enum member.

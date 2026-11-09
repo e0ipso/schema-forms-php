@@ -7,9 +7,7 @@ namespace SchemaForms\Drupal;
 /**
  * The keys the generator adds to the render arrays it builds.
  *
- * Generation, the widget callbacks and submission validation all read these
- * keys, so they are spelled once here. Host code may read them too, so their
- * values never change.
+ * Host code may read them, so their values never change.
  *
  * @internal
  */
@@ -22,10 +20,6 @@ final class RenderKeys {
 
   /**
    * The schema registry the caller gave the generator, on the root container.
-   *
-   * Only a generator built with a registry sets it, so that validation
-   * registers the schema the same way. Without it, validation uses a
-   * RestrictedSchemaRegistry.
    */
   public const REGISTRY = '#schema_registry';
 
@@ -46,9 +40,6 @@ final class RenderKeys {
 
   /**
    * Marks an empty multivalue widget that showed a saved value or a default.
-   *
-   * Such a widget stores its empty list. Without the mark, an empty list item
-   * is one that was appended and never filled, and it is not stored.
    */
   public const SHOWED_VALUE = '#schema_showed_value';
 

@@ -11,9 +11,8 @@ use JsonSchema\SchemaStorage;
  * Registers schemas whose references stay inside registered documents.
  *
  * A reference may point inside the schema and to the bundled draft-04
- * meta-schema. Every other target is refused when the schema is registered,
- * including targets in branches that validation never reaches. No file or
- * URL is ever fetched.
+ * meta-schema. Every other target is refused, even in branches validation
+ * never reaches. No file or URL is ever fetched.
  *
  * @api
  */
@@ -44,9 +43,6 @@ final class RestrictedSchemaRegistry implements SchemaRegistryInterface {
   /**
    * Creates a factory that resolves no reference but the meta-schema.
    *
-   * Use it to validate against the bundled draft-04 meta-schema, or to
-   * register more documents in its storage.
-   *
    * @return \JsonSchema\Constraints\Factory
    *   A factory in the normal check mode, with nothing registered.
    */
@@ -58,8 +54,8 @@ final class RestrictedSchemaRegistry implements SchemaRegistryInterface {
   /**
    * Deep-copies the decoded objects and arrays of a schema.
    *
-   * Objects other than stdClass are not schema data and stay shared. Shared
-   * and cyclic members keep their shape in the copy.
+   * Objects other than stdClass stay shared. Shared and cyclic members keep
+   * their shape in the copy.
    *
    * @param mixed $value
    *   The schema or one of its members.

@@ -35,8 +35,8 @@ final class Labels {
   /**
    * Gives the hidden title of a multivalue item.
    *
-   * The item control and the removal announcement both use it, so a screen
-   * reader hears the same name for the item in both places.
+   * The removal announcement uses it too, so a screen reader hears the same
+   * name in both places.
    *
    * @param mixed $title
    *   The title of the widget.
@@ -55,10 +55,6 @@ final class Labels {
 
   /**
    * Gives the accessible name of a multivalue item's Remove button.
-   *
-   * The name goes into the aria-label and title attributes. Drupal's
-   * Attribute turns markup into plain text there, so a title with markup
-   * is read as its text.
    *
    * @param mixed $title
    *   The title of the widget.
@@ -79,13 +75,13 @@ final class Labels {
    * Gives the accessible name of a multivalue widget's Append button.
    *
    * Every widget's button shows the same text, so the name says which list
-   * it adds to. It goes into the aria-label attribute.
+   * it adds to.
    *
    * @param mixed $title
    *   The title of the widget.
    *
    * @return \Drupal\Core\StringTranslation\TranslatableMarkup
-   *   The accessible name.
+   *   The name.
    */
   public static function appendButtonName(mixed $title): TranslatableMarkup {
     return new TranslatableMarkup('Append an item to @title', [
@@ -95,9 +91,6 @@ final class Labels {
 
   /**
    * Gives a value that a translation placeholder can hold.
-   *
-   * A title in a render array can hold anything, and a placeholder fails on
-   * an array or an object that has no string form.
    *
    * @param mixed $value
    *   The value.

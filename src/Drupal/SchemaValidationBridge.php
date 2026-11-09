@@ -12,11 +12,8 @@ use SchemaForms\SchemaRegistryInterface;
 /**
  * Validates a submitted generated container against its schema.
  *
- * Drupal runs #element_validate when the container sits under a key, but on
- * the form itself it runs only the form-level #validate handlers. The
- * generated container names elementValidate() and formValidate() for the two
- * placements. They are static, so a cached form stores only their names,
- * and they build the bridge from the container on each request.
+ * The static elementValidate() and formValidate() serve the two placements
+ * of the container, so a cached form stores only their names.
  *
  * @internal
  */
@@ -70,7 +67,6 @@ final class SchemaValidationBridge {
       return;
     }
     try {
-      // One registration serves casting and validation alike.
       $registered = $this->registry->register($schema);
     }
     catch (ExceptionInterface $e) {
@@ -87,11 +83,9 @@ final class SchemaValidationBridge {
   /**
    * Prepares and validates a generated container that is the form itself.
    *
-   * The form's values also hold Drupal's own keys, such as form_build_id and
-   * form_id, and the values of elements the module added next to the
-   * generated ones. Only the schema's properties are validated, so those
-   * keys cannot fail a schema that forbids additional properties. The other
-   * values are put back afterwards.
+   * Only the schema's properties are validated, so Drupal's own keys, such
+   * as form_id, cannot fail a schema that forbids additional properties.
+   * The other values are put back afterwards.
    *
    * @param array<int|string, mixed> $form
    *   The form, which is the generated container.
@@ -122,7 +116,7 @@ final class SchemaValidationBridge {
    *   The generated container.
    *
    * @return self
-   *   A bridge with the registry the generator was given, if any.
+   *   The bridge.
    */
   private static function forContainer(array $container): self {
     $registry = $container[RenderKeys::REGISTRY] ?? NULL;

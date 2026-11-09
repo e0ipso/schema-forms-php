@@ -11,9 +11,7 @@ use Drupal\Core\StringTranslation\TranslatableMarkup;
 /**
  * Builds the user-facing messages of form generation and validation.
  *
- * Every message is translatable, and every value that comes from the schema,
- * the submission or the JSON Schema validator goes in through a placeholder,
- * so it is escaped exactly once.
+ * Every outside value goes in through a placeholder, so it is escaped once.
  *
  * @internal
  */
@@ -75,7 +73,6 @@ final class ValidationMessages {
    *
    * @return \Drupal\Component\Render\MarkupInterface|string
    *   The description. A plain string is escaped by the message it goes in.
-   *   The messages of common constraints are translatable.
    */
   public static function violation(string $message, ?string $constraint): MarkupInterface|string {
     if ($constraint === NULL) {

@@ -135,8 +135,7 @@ final class SubmissionValidator {
    *   The value path.
    *
    * @return string
-   *   The pointer, escaped per segment the way both supported json-schema
-   *   majors escape the pointers of their errors.
+   *   The pointer, escaped as both json-schema majors escape theirs.
    */
   private static function pointer(array $path): string {
     $segments = array_map(
@@ -163,10 +162,8 @@ final class SubmissionValidator {
   /**
    * Names the constraint a validation error violated.
    *
-   * `justinrainbow/json-schema` changed the shape of this value in 6.0: it was
-   * the constraint's name as a plain string, and it is now
-   * `['name' => <name>, 'params' => [...]]`. This library supports
-   * `^5.2 || ^6.3`, so both shapes reach here and neither may be assumed.
+   * The json-schema 5.x error gives the name as a string, 6.x as
+   * `['name' => <name>, 'params' => [...]]`.
    *
    * @param array<mixed> $error
    *   The error the JSON Schema validator reported.

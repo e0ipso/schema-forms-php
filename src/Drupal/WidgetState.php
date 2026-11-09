@@ -14,13 +14,9 @@ use Drupal\Core\Form\FormStateInterface;
  * Form state storage survives the rebuilds the widget buttons trigger. The
  * state is placed at
  * ['prop_storage', '#parents', ...$parents, '#props', $propName], so that a
- * property name never clashes with a segment of another widget's parents.
- * The widgets of a namespaced container keep theirs under
- * ['prop_storage', '#namespaces', $namespace], followed by the same keys.
- * Host code may read the stored array, so neither the keys nor the array
- * change: 'items_indices' lists the item deltas, 'array_parents' records
- * where the widget was last built, and 'next_delta' appears once an item
- * has been removed.
+ * property name never clashes with a segment of another widget's parents,
+ * after ['prop_storage', '#namespaces', $namespace] in a namespaced
+ * container. Host code may read the stored array, so its keys never change.
  *
  * @internal
  */
@@ -30,10 +26,9 @@ final readonly class WidgetState {
    * Creates the state.
    *
    * @param array<int>|null $itemsIndices
-   *   The item deltas in form order. Removals leave gaps in the keys, as the
-   *   stored list always had them. NULL when nothing was stored.
+   *   The item deltas in form order, or NULL when nothing was stored.
    * @param array<mixed> $arrayParents
-   *   The #array_parents of the widget, recorded after it is built.
+   *   The #array_parents of the widget.
    * @param int|null $nextDelta
    *   The lowest delta no item has used yet, once an item was removed.
    */

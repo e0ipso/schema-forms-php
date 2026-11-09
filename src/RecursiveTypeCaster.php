@@ -10,10 +10,6 @@ use JsonSchema\Validator;
 /**
  * Casts a data structure to its JSON-Schema the best it can.
  *
- * Walks lists and objects with their item and property schemas. Scalars go
- * to ScalarCaster, and OptionalBlankRule decides which untouched properties
- * to leave out.
- *
  * @internal
  */
 final class RecursiveTypeCaster {
@@ -34,8 +30,7 @@ final class RecursiveTypeCaster {
    * @param mixed $data
    *   The data.
    * @param \SchemaForms\RegisteredSchema $schema
-   *   The schema and the factory that resolves its references. Optional
-   *   blanks are validated with that factory, in its configured check mode.
+   *   The schema and the factory that resolves its references.
    *
    * @return mixed
    *   The same data with refined types.
@@ -57,8 +52,7 @@ final class RecursiveTypeCaster {
    * @param mixed $data
    *   The data.
    * @param object $schema
-   *   The schema. Without a factory, a copy of it is registered and that copy
-   *   is walked.
+   *   The schema; registered first when no factory is given.
    * @param \JsonSchema\Constraints\Factory|null $factory
    *   A factory whose storage holds $schema, references expanded.
    *
@@ -136,8 +130,6 @@ final class RecursiveTypeCaster {
   /**
    * Refines each property and omits optional blanks the schema rejects.
    *
-   * A stdClass is changed in place, so it stays an object at every level.
-   *
    * @param array<mixed>|object $data
    *   The object data.
    * @param object $schema
@@ -175,9 +167,6 @@ final class RecursiveTypeCaster {
   /**
    * Returns the enum member a submitted option key stands for.
    *
-   * Forms submit option keys as strings or integers, so an untyped enum of
-   * other scalars needs its members back.
-   *
    * @param string|int $data
    *   The submitted option key.
    * @param mixed $enum
@@ -201,10 +190,7 @@ final class RecursiveTypeCaster {
   }
 
   /**
-   * Finds the schema that describes one property of an object.
-   *
-   * A declared property wins, then the first matching pattern property, then
-   * an additionalProperties schema.
+   * Finds the schema of a property: declared, pattern, then additional.
    *
    * @param object $schema
    *   The object schema.
@@ -239,8 +225,7 @@ final class RecursiveTypeCaster {
    *   The property name.
    *
    * @return bool
-   *   TRUE on a match. An invalid pattern matches nothing; validation reports
-   *   it.
+   *   TRUE on a match. An invalid pattern matches nothing.
    */
   private static function matchesPattern(string $pattern, string $name): bool {
     // Escape each "~" that no backslash escapes already, so the delimiter

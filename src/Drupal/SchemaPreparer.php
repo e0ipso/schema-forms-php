@@ -32,8 +32,7 @@ final class SchemaPreparer {
    *   The decoded schema.
    *
    * @return \stdClass
-   *   The registered copy, with normalized reference URIs. Referenced
-   *   properties are not expanded.
+   *   The registered copy.
    *
    * @throws \SchemaForms\Exception\UnsupportedReferenceException
    *   When the schema references a document the registry does not allow.
@@ -59,19 +58,15 @@ final class SchemaPreparer {
   /**
    * Rejects schema property names that Drupal would read as render properties.
    *
-   * Property names become render-array keys. A name such as '#process' or
-   * '#element_validate' would make Drupal call whatever the schema puts there,
-   * and '#type' or '#tree' would corrupt the form. The schema is checked as a
-   * whole before any element is built, so array items that are not rendered
-   * yet are covered too.
+   * A name such as '#process' would make Drupal call whatever the schema puts
+   * there. The whole schema is checked, including items not rendered yet.
    *
    * @param mixed $schema
    *   The registered schema, or one of its sub-schemas.
    * @param list<string> $path
    *   The schema path of $schema, as keys from the root.
    * @param array<int, true> $visited
-   *   The object IDs of the sub-schemas already checked, so that a schema
-   *   object graph with cycles cannot recurse forever.
+   *   The object IDs already checked, so cycles end.
    *
    * @throws \SchemaForms\Exception\InvalidSchemaException
    *   When a property name starts with '#'.

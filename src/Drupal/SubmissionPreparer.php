@@ -49,10 +49,8 @@ final class SubmissionPreparer {
   /**
    * Reads the stored value of an element.
    *
-   * A plugin form embedded through a subform state resolves value paths
-   * relative to the subform, while element #parents are absolute. The value
-   * is read from the complete form state, where setValueForElement() and
-   * setError() also resolve #parents, so validation sees what is stored.
+   * A subform state resolves value paths relative to the subform, while
+   * #parents are absolute, so the complete form state is read.
    *
    * @param array<int|string, mixed> $element
    *   The element, with its #parents.
@@ -73,8 +71,8 @@ final class SubmissionPreparer {
   /**
    * Supplies the values of generated elements that collect no input.
    *
-   * Fixed values are already JSON values. They go in after cleaning and
-   * casting, so NULL is not dropped and constants keep their exact type.
+   * They go in after cleaning and casting, so NULL is not dropped and
+   * constants keep their exact type.
    *
    * @param array<int|string, mixed> $element
    *   The generated root container.
@@ -103,9 +101,7 @@ final class SubmissionPreparer {
   /**
    * Restores the saved NULLs of untouched controls.
    *
-   * An editable control cannot show NULL, so one that held a saved NULL
-   * submits its empty value instead, which cleaning may drop or casting may
-   * change. A control the user left as it was gets its NULL back.
+   * An editable control cannot show NULL, so it submits its empty value.
    *
    * @param array<int|string, mixed> $element
    *   The generated root container.
@@ -133,10 +129,6 @@ final class SubmissionPreparer {
 
   /**
    * Decides whether a control still submits what it showed for a saved NULL.
-   *
-   * A saved NULL renders as an unchecked checkbox, an empty selection, an
-   * empty text input or a list with no items. Buttons and fixed values do not
-   * count.
    *
    * @param array<int|string, mixed> $element
    *   The element.

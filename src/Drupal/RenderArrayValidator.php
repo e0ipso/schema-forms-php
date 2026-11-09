@@ -29,9 +29,8 @@ final class RenderArrayValidator extends ValidateableBase {
   /**
    * Checks one level of a render array.
    *
-   * Drupal reads a key as a render property only when it starts with "#".
-   * Without one, any child render array is enough, so an empty container
-   * does not reject its siblings.
+   * Without a "#" key, any child render array is enough, so an empty
+   * container does not reject its siblings.
    *
    * @param mixed $data
    *   The data to check.
