@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\ContextOptions;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormTreeBuilder;
+use SchemaForms\Exception\InvalidOptionException;
 use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -66,6 +67,23 @@ final class LegacyContextKeysTest extends TestCase {
    */
   public function testNamespace(): void {
     $this->assertSameForm(['namespace' => 'settings'], new FormOptions(namespace: 'settings'));
+  }
+
+  /**
+   * A context without options or deprecated keys gives the defaults.
+   */
+  public function testNoOptions(): void {
+    $this->assertEquals(new FormOptions(), ContextOptions::read(new Context(['options' => 'not options'])));
+  }
+
+  /**
+   * A deprecated namespace key that is not a non-empty string is refused.
+   */
+  public function testInvalidNamespace(): void {
+    $this->expectUserDeprecationMessage(self::NOTICE);
+    $this->expectException(InvalidOptionException::class);
+    $this->expectExceptionMessage('The "namespace" context key must be a non-empty string.');
+    ContextOptions::read(new Context(['namespace' => 7]));
   }
 
   /**
