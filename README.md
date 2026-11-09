@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 8.3 or later. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or later. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
@@ -338,7 +338,7 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 - `phpmnd`: checks for magic numbers in `php` and `module` files.
 - `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
 - `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
-- `phpstan`: runs PHPStan at level `max` over `src/` and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. The Drupal adapter in `src/Drupal` is not analysed yet.
+- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
 - `yamllint` and `jsonlint`: check YAML and JSON files.
 - `composer`: runs strict Composer validation, `composer validate --strict`, when `composer.json` or `composer.lock` is present.
 - `composer_normalize`: runs `composer normalize --dry-run` when `composer.json` is present.
@@ -358,6 +358,7 @@ Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` 
 
 - Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
+- Drupal 11.4: requires `drupal/core-recommended:~11.4.0`, the newest Drupal 11 minor after the locked 11.3 release, then runs PHPUnit.
 - Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks the symbols listed under [Public API](#public-api).
 - Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal` or the test case in `src/Testing`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
 
