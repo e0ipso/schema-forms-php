@@ -4,31 +4,9 @@ declare(strict_types=1);
 
 namespace SchemaForms\Tests\Drupal\SchemaForms;
 
-use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\Drupal\ButtonNames;
-use SchemaForms\Drupal\ElementScaffold;
-use SchemaForms\Drupal\EnumElements;
-use SchemaForms\Drupal\FieldBuilder;
-use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormTreeBuilder;
-use SchemaForms\Drupal\Labels;
-use SchemaForms\Drupal\MultivalueCallbacks;
-use SchemaForms\Drupal\MultivalueWidgetBuilder;
-use SchemaForms\Drupal\RenderChildren;
-use SchemaForms\Drupal\RequiredMarker;
-use SchemaForms\Drupal\SavedInput;
-use SchemaForms\Drupal\SchemaPreparer;
-use SchemaForms\Drupal\SchemaTypes;
-use SchemaForms\Drupal\UnsupportedElement;
-use SchemaForms\Drupal\ValidationMessages;
-use SchemaForms\Drupal\WidgetButton;
-use SchemaForms\Drupal\WidgetButtons;
-use SchemaForms\Drupal\WidgetLocation;
-use SchemaForms\Drupal\WidgetState;
-use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
@@ -36,28 +14,6 @@ use Shaper\Util\Context;
 /**
  * Schemas and saved values that used to stop the form from building.
  */
-#[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(ButtonNames::class)]
-#[CoversClass(WidgetButtons::class)]
-#[CoversClass(ElementScaffold::class)]
-#[CoversClass(EnumElements::class)]
-#[CoversClass(FieldBuilder::class)]
-#[CoversClass(FieldContext::class)]
-#[CoversClass(FormTreeBuilder::class)]
-#[CoversClass(Labels::class)]
-#[CoversClass(MultivalueCallbacks::class)]
-#[CoversClass(MultivalueWidgetBuilder::class)]
-#[CoversClass(RenderChildren::class)]
-#[CoversClass(RequiredMarker::class)]
-#[CoversClass(SavedInput::class)]
-#[CoversClass(SchemaPreparer::class)]
-#[CoversClass(SchemaTypes::class)]
-#[CoversClass(UnsupportedElement::class)]
-#[CoversClass(WidgetButton::class)]
-#[CoversClass(WidgetState::class)]
-#[CoversClass(WidgetStateStorage::class)]
-#[CoversClass(WidgetLocation::class)]
-#[CoversClass(ValidationMessages::class)]
 final class FormGeneratorDrupalEdgeCaseTest extends TestCase {
 
   use TranslationContainer;
