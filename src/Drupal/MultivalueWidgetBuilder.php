@@ -95,7 +95,7 @@ final class MultivalueWidgetBuilder {
     foreach (array_values($state->deltas()) as $position => $delta) {
       $element[$delta] = $this->item($element, $context->item($delta, $items), $build_item, $wrapper_id, $position + 1);
     }
-    $element[RenderKeys::APPEND_BUTTON] = $this->appendButton($context, $wrapper_id);
+    $element[RenderKeys::APPEND_BUTTON] = $this->appendButton($context, $wrapper_id, Labels::appendButtonName($element['#title'] ?? ''));
     if ($state->isFull($cardinality)) {
       // An inaccessible button cannot trigger a submission either.
       $element[RenderKeys::APPEND_BUTTON]['#access'] = FALSE;
@@ -210,16 +210,18 @@ final class MultivalueWidgetBuilder {
    *   The field context of the array.
    * @param string $wrapper_id
    *   The HTML ID of the widget wrapper, which the response replaces.
+   * @param \Drupal\Core\StringTranslation\TranslatableMarkup $name
+   *   The accessible name of the button.
    *
    * @return array<string, mixed>
    *   The button.
    */
-  private function appendButton(FieldContext $context, string $wrapper_id): array {
+  private function appendButton(FieldContext $context, string $wrapper_id, TranslatableMarkup $name): array {
     return [
       '#type' => 'submit',
       '#name' => ButtonNames::append($context->parents, $context->namespace),
       '#value' => new TranslatableMarkup('Append an item'),
-      '#attributes' => ['class' => ['field-add-more-submit']],
+      '#attributes' => ['class' => ['field-add-more-submit'], 'aria-label' => $name],
       '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
       '#ajax' => [
         'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],

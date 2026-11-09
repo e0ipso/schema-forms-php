@@ -456,7 +456,12 @@ class FormGeneratorDrupalTest extends TestCase {
       '#type' => 'submit',
       '#name' => 'tag_labels_add_more',
       '#value' => new TranslatableMarkup('Append an item'),
-      '#attributes' => ['class' => ['field-add-more-submit']],
+      '#attributes' => [
+        'class' => ['field-add-more-submit'],
+        'aria-label' => new TranslatableMarkup('Append an item to @title', [
+          '@title' => Markup::create('Labels'),
+        ]),
+      ],
       '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
       '#ajax' => [
         'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],

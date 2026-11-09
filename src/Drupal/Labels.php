@@ -76,6 +76,24 @@ final class Labels {
   }
 
   /**
+   * Gives the accessible name of a multivalue widget's Append button.
+   *
+   * Every widget's button shows the same text, so the name says which list
+   * it adds to. It goes into the aria-label attribute.
+   *
+   * @param mixed $title
+   *   The title of the widget.
+   *
+   * @return \Drupal\Core\StringTranslation\TranslatableMarkup
+   *   The accessible name.
+   */
+  public static function appendButtonName(mixed $title): TranslatableMarkup {
+    return new TranslatableMarkup('Append an item to @title', [
+      '@title' => self::placeholder($title),
+    ]);
+  }
+
+  /**
    * Gives a value that a translation placeholder can hold.
    *
    * A title in a render array can hold anything, and a placeholder fails on
