@@ -25,33 +25,37 @@ final class ScalarCaster {
    *   The cast value, or the value unchanged when no cast applies.
    */
   public static function cast(mixed $data, array $types, object $schema): mixed {
-    // The first cast that succeeds wins, so the order matters.
-    self::tryCastingNumber($data, $types)
-      || self::tryCastingBoolean($data, $types)
-      || self::tryCastingNull($data, $types, $schema)
-      || self::tryCastingString($data, $types);
-    return $data;
+    // The first cast that applies wins, so the order matters.
+    if (self::tryCastingNumber($data, $types)) {
+      return $data;
+    }
+    if (self::tryCastingBoolean($data, $types)) {
+      return $data;
+    }
+    if (self::tryCastingNull($data, $types, $schema)) {
+      return $data;
+    }
+    return self::castToString($data, $types);
   }
 
   /**
-   * Attempts to cast the data to a string.
+   * Casts the data to a string, as the last resort.
    *
    * @param mixed $input
-   *   The input data. Passed by reference to change its type.
+   *   The input data.
    * @param array<mixed> $types
    *   The possible types.
    *
-   * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
+   * @return mixed
+   *   The string, or the input unchanged when it cannot be one.
    */
-  private static function tryCastingString(mixed &$input, array $types): bool {
+  private static function castToString(mixed $input, array $types): mixed {
     // Arrays and objects have no string spelling; validation reports them.
     $has_string_spelling = is_scalar($input) || $input === NULL;
     if (!$has_string_spelling || !in_array('string', $types, TRUE)) {
-      return FALSE;
+      return $input;
     }
-    $input = (string) $input;
-    return TRUE;
+    return (string) $input;
   }
 
   /**
