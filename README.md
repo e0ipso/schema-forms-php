@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 8.3 or later. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or a later 8.x release (`^8.3`); Composer refuses PHP 9 until CI tests it. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
@@ -328,6 +328,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 ### Schemas and dependencies
 
 - The schema you pass in is no longer changed. Its `$ref` strings used to be rewritten to internal storage URIs.
+- The PHP requirement is `^8.3` instead of `>=8.3`, so Composer refuses PHP 9 until the package is tested on it.
 - Composer refuses `marc-mabe/php-enum` releases before 4.4.0, which PHP 8 reports with a warning on every load.
 - `justinrainbow/json-schema` must be 5.3.0 or later in the 5.x line (`^5.3 || ^6.3`). Up to 5.2.10, every validation raises a `strlen()` deprecation on PHP 8.3, and PHP 8.4 deprecates the implicitly nullable parameters that every 5.2 release declares.
 
