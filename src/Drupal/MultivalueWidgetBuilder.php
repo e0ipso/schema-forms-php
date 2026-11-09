@@ -145,12 +145,8 @@ final class MultivalueWidgetBuilder {
     // The wrapping details element shows the title and description, even
     // when maxItems is 1; each item gets an invisible numbered title.
     $title = $widget['#title'] ?? '';
-    $arguments = [
-      '@title' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
-      '@number' => $number,
-    ];
     $control = [
-      '#title' => new TranslatableMarkup('@title (value @number)', $arguments),
+      '#title' => Labels::itemTitle($title, $number),
       '#title_display' => 'invisible',
       '#description' => '',
     ] + $build_item($context);
@@ -164,7 +160,7 @@ final class MultivalueWidgetBuilder {
       '#suffix' => '</div>',
       '#attributes' => ['style' => 'position: relative;'],
       RenderKeys::ITEM => $control,
-      RenderKeys::REMOVE_BUTTON => $this->removeButton($context, $wrapper_id, new TranslatableMarkup('Remove @title (value @number)', $arguments)),
+      RenderKeys::REMOVE_BUTTON => $this->removeButton($context, $wrapper_id, Labels::removeButtonName($title, $number)),
     ];
   }
 

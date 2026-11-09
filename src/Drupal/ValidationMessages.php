@@ -101,7 +101,7 @@ final class ValidationMessages {
    */
   public static function elementViolation(mixed $title, MarkupInterface|string $violation): TranslatableMarkup {
     return new TranslatableMarkup('%element: @message', [
-      '%element' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
+      '%element' => Labels::placeholder($title),
       '@message' => $violation,
     ]);
   }

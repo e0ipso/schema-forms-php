@@ -41,9 +41,8 @@ final class WidgetAjaxResponse {
     if (!is_int($delta) || $item === NULL) {
       return $response;
     }
-    $title = $item['#title'] ?? '';
     $response->addCommand(new AnnounceCommand((string) new TranslatableMarkup('Item added: @item.', [
-      '@item' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
+      '@item' => Labels::placeholder($item['#title'] ?? ''),
     ])));
     return self::focus($response, self::itemSelector($widget, $delta) ?? self::wrapperSelector($widget));
   }
@@ -65,11 +64,7 @@ final class WidgetAjaxResponse {
     $deltas = self::itemDeltas($widget);
     $before = array_filter($deltas, static fn (int $delta): bool => $delta < $removed);
     $after = array_values(array_filter($deltas, static fn (int $delta): bool => $delta > $removed));
-    $title = $widget['#title'] ?? '';
-    $item = new TranslatableMarkup('@title (value @number)', [
-      '@title' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
-      '@number' => count($before) + 1,
-    ]);
+    $item = Labels::itemTitle($widget['#title'] ?? '', count($before) + 1);
     $response->addCommand(new AnnounceCommand((string) new TranslatableMarkup('Item removed: @item.', ['@item' => $item])));
     $next = $after === [] ? NULL : self::itemSelector($widget, $after[0]);
     return self::focus($response, $next ?? self::appendSelector($widget) ?? self::wrapperSelector($widget));
