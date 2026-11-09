@@ -174,8 +174,6 @@ Semantic versioning covers these symbols, with Shaper's `Context` carrying a `Fo
 - `SchemaForms\SchemaRegistryInterface`: registers a schema so its references resolve. Implement it to change which documents a schema may reference.
 - `SchemaForms\SubmissionRefiner`: casts submitted values to the types of a schema, without Drupal. See [Refining submissions without Drupal](#refining-submissions-without-drupal).
 
-`tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
-
 ### Options
 
 Pass a `SchemaForms\FormOptions` as the `options` key of the `Context`. Every argument is optional:
@@ -309,7 +307,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Submission values
 
-- `SchemaForms\SubmissionRefiner` is the public way to cast submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()` and `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0.
+- `SchemaForms\SubmissionRefiner` casts submitted values without the Drupal generator. `RecursiveTypeCaster::recursiveTypeRefinements()`, `SchemaReferenceResolver::createFactory()` and `::registeredSchema()` were never public API; they are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0.
 - A numeric string with an exponent and a fraction, such as `"1e-3"`, becomes the float `0.001`. It used to become the integer `0`.
 - An empty value of a required property with a numeric name, such as `"123"`, is kept, so validation reports it. It used to be dropped.
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
@@ -318,7 +316,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Options
 
-- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. `FormOptions` rejects an empty namespace with the message `The "namespace" option must be a non-empty string.`; the old key keeps its own message.
+- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys; see [Options](#options). `FormOptions` rejects an empty namespace with the message `The "namespace" option must be a non-empty string.`; the old key keeps its own message.
 
 ### Form API callbacks
 
@@ -331,14 +329,11 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - Enum options for `true`, `false` and `null` are labelled "True", "False" and "None". They used to be labelled "1" and two empty strings.
 - An enum option for the empty string is labelled "Empty" unless `ui:enum` maps it. It used to have an empty label.
 - A `const` property renders as an `item` element with its title as a label, and its description when it has one. It used to render as bare text with no label.
-- Remove buttons have the accessible name "Remove Tags (value 2)" instead of the `title` "Remove item", and grew from 20 to 24 pixels.
-- Append buttons have the accessible name "Append an item to Tags". Their visible text is unchanged.
-- Item titles count rendered items, so they stay "value 1", "value 2" after a removal instead of skipping a number.
+- Multivalue items, Remove buttons and Append buttons have the accessible names listed under [Accessibility](#accessibility), and items are numbered by position. Remove buttons grew from 20 to 24 pixels; their `title` was "Remove item".
 - `ui:visible: 0` now hides the element; see the UI schema section.
 - Every generated control carries `#visible`, which Drupal core never reads. It is deprecated and is removed in 4.0.0; read `#access` instead, which is `FALSE` exactly when `#visible` is. A render key cannot trigger a notice, so this README is the only warning.
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
-- Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
-- Controls that show the required marker without `#required` carry `aria-required="true"`, and such a radio group's fieldset also gets `role="radiogroup"`. They used to carry no required state for assistive technology.
+- Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too, with the `aria-required` state described under Accessibility.
 - The `details` elements of objects and arrays, and `const` items, no longer carry `#default_value`. Drupal never read it there, but a cached form stored the saved subtree once more for each level of nesting. Read saved values from the inputs inside them.
 - The status messages of the Append and Remove AJAX responses go into the rebuilt widget. They used to target the wrapper ID from before the rebuild, which no longer exists after the response replaces it, so they were not shown.
 
@@ -374,7 +369,7 @@ Tasks with file filters skip when no matching files are present. The pre-commit 
 
 Unit tests name the classes they cover with class-level `#[CoversClass]` attributes, so executed private helpers count toward their class. Kernel tests and tests that build whole forms name none, so every class they run counts. With Xdebug enabled, run `XDEBUG_MODE=coverage composer test`; with PCOV, run `php -d pcov.enabled=1 -d pcov.directory=src vendor/bin/phpunit`. PHPUnit writes line coverage to `build/logs/clover.xml`. Run `php scripts/check-coverage.php` afterward, or pass a Clover path as its only argument. CI runs this check after `composer test` and fails on coverage below the floor or on a missing or invalid report.
 
-The line coverage floor is 98%, a little below the measured 99.6%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`. Keep coverage attribution at class level when adding tests.
+The line coverage floor is 98%, a little below the measured 99.6%, defined by `$coverage_floor` in `scripts/check-coverage.php`. To raise it, measure the complete suite with a coverage driver, increase that value to a percentage the suite meets, and update the boundary cases in `tests/coverage-checker.php`. Run those dependency-free checker fixtures with `php tests/coverage-checker.php`.
 
 Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms through the FormBuilder. They need the `pdo_sqlite` extension: `phpunit.xml` sets `SIMPLETEST_DB=sqlite://localhost/:memory:`, and CI sets the same variable.
 
