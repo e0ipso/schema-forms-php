@@ -1,154 +1,223 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Drupal;
 
 use Drupal\Component\Render\MarkupInterface;
 
 /**
- * Cleans the lingering user input from the form submissions.
+ * Removes the form scaffolding from submitted values.
+ *
+ * Turns multivalue items into a plain list and drops the NULL that a control
+ * left without a choice submits.
  *
  * @internal
  */
-class UserInputCleaner {
+final class UserInputCleaner {
 
   /**
-   * Cleans the input.
+   * Cleans submitted values.
    *
    * @param mixed $data
-   *   The input before cleaning.
-   *
-   * @return array|mixed
-   *   The clean input.
-   */
-  public static function cleanUserInput($data) {
-    return static::filterEmptyItems(
-      static::doCleanUserInput($data)
-    );
-  }
-
-  /**
-   * Cleans the input.
-   *
-   * @param mixed $data
-   *   The input before cleaning.
-   *
-   * @return array|mixed
-   *   The clean input.
-   */
-  private static function doCleanUserInput($data) {
-    if (!is_array($data)) {
-      return $data;
-    }
-    // Get rid of the 'add_more' button. This will allow array_is_list to be
-    // more reliable.
-    foreach ($data as $key => $datum) {
-      if ($key === 'add_more' && $datum instanceof MarkupInterface) {
-        unset($data[$key]);
-      }
-    }
-    $data = static::reKey($data);
-    if (array_is_list($data)) {
-      return static::cleanRemoveButton($data);
-    }
-    foreach ($data as $key => $datum) {
-      $clean_datum = static::cleanUserInput($datum);
-      if (is_null($clean_datum)) {
-        unset($data[$key]);
-        continue;
-      }
-      $data[$key] = $clean_datum;
-    }
-    return $data;
-  }
-
-  /**
-   * Removes the items a multivalue submitted nothing for, recursively.
-   *
-   * Only a list is filtered, and only ::doCleanUserInput() produces one: it is
-   * what a multivalue's item list becomes once the `add_more` button is gone
-   * and ::cleanRemoveButton() has undone the per-item form nesting. An item
-   * left at `[]` there is the scaffolding an appended-but-never-filled item
-   * leaves behind, and it must not become a stored item.
-   *
-   * An empty array under a *named* key is not that. It is the whole value of a
-   * property whose type is `array` and whose item list is empty, which is a
-   * value the user chose and a value the schema accepts. Filtering both meant
-   * a property could be given `[]` and have it silently disappear from the
-   * submission, with no way to tell the two apart.
-   *
-   * @param mixed $data
-   *   The data.
+   *   The submitted values.
+   * @param array<int|string, mixed>|null $element
+   *   The generated element the values belong to. Without it, lists are
+   *   recognised by the button values the widget adds.
    *
    * @return mixed
-   *   The filtered data.
+   *   The clean values.
    */
-  private static function filterEmptyItems($data) {
-    if (!is_array($data)) {
+  public static function cleanUserInput(mixed $data, ?array $element = NULL): mixed {
+    return match (TRUE) {
+      !is_array($data) => $data,
+      $element === NULL => self::cleanWithoutElement($data),
+      MultivalueWidget::is($element) => self::cleanItems($data, $element),
+      default => self::cleanProperties($data, $element),
+    };
+  }
+
+  /**
+   * Cleans the value of a descendant element.
+   *
+   * @param mixed $data
+   *   The descendant's value.
+   * @param array<int|string, mixed>|null $element
+   *   The descendant element, if there is one.
+   *
+   * @return mixed
+   *   The clean value.
+   */
+  private static function cleanDescendant(mixed $data, ?array $element): mixed {
+    // Each multivalue widget cleans its own value in #after_build, which runs
+    // before any ancestor's, so its value is already a clean list here.
+    if ($element !== NULL && MultivalueWidget::is($element)) {
       return $data;
     }
-    $data = array_map([static::class, 'filterEmptyItems'], $data);
-    if (!array_is_list($data)) {
-      return $data;
-    }
-    // array_values(): dropping an item has to leave a list behind. A gapped
-    // array is an object by the time it reaches the JSON Schema validator,
-    // and the property it belongs to declares `array`.
-    return array_values(array_filter(
+    return self::cleanUserInput($data, $element);
+  }
+
+  /**
+   * Turns a multivalue widget's value into its stored item list.
+   *
+   * @param array<int|string, mixed> $data
+   *   The widget value, keyed by form delta.
+   * @param array<int|string, mixed> $widget
+   *   The widget.
+   *
+   * @return list<mixed>
+   *   The item values.
+   */
+  private static function cleanItems(array $data, array $widget): array {
+    $entries = array_filter(
       $data,
-      static fn ($item): bool => !is_array($item) || $item !== []
+      static fn (int|string $key): bool => !MultivalueWidget::isButton(self::child($widget, $key) ?? []),
+      ARRAY_FILTER_USE_KEY
+    );
+    $items = array_map(
+      static fn (int|string $key): ?array => MultivalueWidget::item($widget, $key),
+      array_keys($entries)
+    );
+    $values = array_map([self::class, 'itemValue'], array_values($entries), $items);
+    $stored = array_filter(
+      array_keys($values),
+      static fn (int $index): bool => self::isStored($values[$index], $items[$index])
+    );
+    return array_values(array_map(
+      static fn (int $index): mixed => self::cleanDescendant($values[$index], $items[$index]),
+      $stored
     ));
   }
 
   /**
-   * Removes the cruft introduced to support the remove button.
+   * Takes an item's value out of its container.
    *
-   * [['removable_element' => 'foo', 'remove_one' => TranslatebleMarkup], ...]
-   * becomes ['foo', '...'].
+   * @param mixed $entry
+   *   The submitted entry for one form delta.
+   * @param array<int|string, mixed>|null $item
+   *   The item control, if the widget has one at that delta.
    *
-   * @param array $data
-   *   The input data.
-   *
-   * @return array
-   *   The data without the repercussions of the remove button.
+   * @return mixed
+   *   The item value.
    */
-  public static function cleanRemoveButton(array $data): array {
-    $two = 2;
-    // Make sure we can undo the remove button data structure.
-    $can_undo_form_nesting = static fn (array $items) => array_reduce(
-      $items,
-      static fn(bool $carry, $item) => $carry
-        && is_array($item)
-        && count(array_intersect(array_keys($item), [
-          'removable_element',
-          'remove_one',
-        ])) === $two
-        && $item['remove_one'] instanceof MarkupInterface,
-      TRUE
-    );
-    $undo_form_nesting = static fn (array $items) => array_values(array_map(
-      static fn(array $item) => $item['removable_element'] ?? NULL,
-      $items
-    ));
-
-    return $can_undo_form_nesting($data) ? $undo_form_nesting($data) : $data;
+  private static function itemValue(mixed $entry, ?array $item): mixed {
+    if ($item === NULL && !self::isItemContainer($entry)) {
+      return $entry;
+    }
+    return is_array($entry) ? ($entry[RenderKeys::ITEM] ?? NULL) : NULL;
   }
 
   /**
-   * Re-keys the data to account for deleted indices.
+   * Decides whether an item belongs in the stored list.
    *
-   * @param array $data
-   *   The input data.
+   * @param mixed $value
+   *   The item value.
+   * @param array<int|string, mixed>|null $item
+   *   The item control, if there is one.
    *
-   * @return array
-   *   The re-keyed data.
+   * @return bool
+   *   TRUE when the item is stored.
    */
-  private static function reKey(array $data): array {
-    $all_keys_numeric = array_reduce(
-      array_keys($data),
-      static fn (bool $carry, $key) => $carry && is_numeric($key),
-      TRUE
+  private static function isStored(mixed $value, ?array $item): bool {
+    // Without its control, a saved item and an appended, unfilled one look
+    // alike. One that submitted nothing at all is taken to be unfilled.
+    if ($item === NULL) {
+      return $value !== [];
+    }
+    return !MultivalueWidget::isNeverFilled($item);
+  }
+
+  /**
+   * Gets the child element under a key.
+   *
+   * @param array<int|string, mixed> $element
+   *   The element.
+   * @param int|string $key
+   *   The child key.
+   *
+   * @return array<int|string, mixed>|null
+   *   The child element, or NULL when there is none.
+   */
+  private static function child(array $element, int|string $key): ?array {
+    return is_array($element[$key] ?? NULL) ? $element[$key] : NULL;
+  }
+
+  /**
+   * Cleans the values under named keys.
+   *
+   * @param array<int|string, mixed> $data
+   *   The values, keyed by property name.
+   * @param array<int|string, mixed> $element
+   *   The element that holds them.
+   *
+   * @return array<int|string, mixed>
+   *   The clean values.
+   */
+  private static function cleanProperties(array $data, array $element): array {
+    $keys = array_keys($data);
+    $children = array_map(static fn (int|string $key): ?array => self::child($element, $key), $keys);
+    $values = array_combine($keys, array_map([self::class, 'cleanDescendant'], $data, $children));
+    // A control left without a choice submits NULL, and the property is then
+    // absent, as it is when a JSON object leaves it out. A NULL inside a
+    // single control's list value has no element and keeps its position.
+    return array_filter(
+      $values,
+      static fn (mixed $value, int|string $key): bool => $value !== NULL || self::child($element, $key) === NULL,
+      ARRAY_FILTER_USE_BOTH
     );
-    return $all_keys_numeric ? array_values($data) : $data;
+  }
+
+  /**
+   * Cleans values whose element is unknown.
+   *
+   * @param array<int|string, mixed> $data
+   *   The values.
+   *
+   * @return array<int|string, mixed>
+   *   The clean values.
+   */
+  private static function cleanWithoutElement(array $data): array {
+    $has_append_button = ($data[RenderKeys::APPEND_BUTTON] ?? NULL) instanceof MarkupInterface;
+    $values = $has_append_button ? array_diff_key($data, [RenderKeys::APPEND_BUTTON => TRUE]) : $data;
+    $containers = array_filter($values, [self::class, 'isItemContainer']);
+    $is_widget = $has_append_button || ($values !== [] && count($containers) === count($values));
+    if ($is_widget) {
+      return self::cleanItemsWithoutElement($values);
+    }
+    if (array_is_list($values)) {
+      return array_map([self::class, 'cleanUserInput'], $values);
+    }
+    return array_map([self::class, 'cleanUserInput'], array_filter($values, static fn (mixed $value): bool => $value !== NULL));
+  }
+
+  /**
+   * Turns the items of a multivalue value into a list, without its widget.
+   *
+   * @param array<int|string, mixed> $items
+   *   The item containers, keyed by form delta.
+   *
+   * @return list<mixed>
+   *   The item values.
+   */
+  private static function cleanItemsWithoutElement(array $items): array {
+    $values = array_map(static fn (mixed $entry): mixed => self::itemValue($entry, NULL), array_values($items));
+    $stored = array_filter($values, static fn (mixed $value): bool => self::isStored($value, NULL));
+    return array_map([self::class, 'cleanUserInput'], array_values($stored));
+  }
+
+  /**
+   * Decides whether a value is an item nested under its remove button.
+   *
+   * @param mixed $item
+   *   The value.
+   *
+   * @return bool
+   *   TRUE for an item container.
+   */
+  private static function isItemContainer(mixed $item): bool {
+    return is_array($item)
+      && array_key_exists(RenderKeys::ITEM, $item)
+      && ($item[RenderKeys::REMOVE_BUTTON] ?? NULL) instanceof MarkupInterface;
   }
 
 }

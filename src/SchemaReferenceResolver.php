@@ -1,17 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use JsonSchema\Constraints\Factory;
-use JsonSchema\Entity\JsonPointer;
-use JsonSchema\Exception\UnresolvableJsonPointerException;
-use JsonSchema\SchemaStorage;
-use JsonSchema\SchemaStorageInterface;
-use JsonSchema\Uri\UriResolver;
 use JsonSchema\UriRetrieverInterface;
+use SchemaForms\Exception\UnreadableMetaSchemaException;
+use SchemaForms\Exception\UnsupportedReferenceException;
 
 /**
- * Keeps schema retrieval inside registered documents and bundled metadata.
+ * Retrieves the bundled draft-04 meta-schema and refuses every other URI.
  *
  * @internal
  */
@@ -23,98 +22,127 @@ final class SchemaReferenceResolver implements UriRetrieverInterface {
   public const SCHEMA_URI = 'internal:/schema-with-refs';
 
   /**
-   * Creates a factory with the same restricted retriever on both entry points.
+   * The draft-04 identifiers the bundled file answers, never the network.
+   */
+  private const DRAFT_04_URIS = [
+    'http://json-schema.org/draft-04/schema',
+    'http://json-schema.org/draft-04/schema#',
+    'https://json-schema.org/draft-04/schema',
+    'https://json-schema.org/draft-04/schema#',
+  ];
+
+  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat, Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
+
+  /**
+   * Creates a factory with the restricted retriever.
    *
    * @param object|null $schema
    *   The schema to register and check before rendering or casting values.
    *
    * @return \JsonSchema\Constraints\Factory
    *   A factory which cannot retrieve external schemas.
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   When the schema references a document outside itself.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Use RestrictedSchemaRegistry::register() for a schema, or
+   *   RestrictedSchemaRegistry::factory() without one.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function createFactory(?object $schema = NULL): Factory {
-    $retriever = new self();
-    $storage = new SchemaStorage($retriever);
-    $factory = new Factory($storage, $retriever);
-    if ($schema !== NULL) {
-      // Older releases treat a single-slash internal URI as a local file base.
-      // Expand local references with a URI both supported majors recognize,
-      // then retain the original storage key for explicitly registered refs.
-      $storage->addSchema('internal://schema-with-refs/', $schema);
-      $storage->addSchema(self::SCHEMA_URI, $schema);
-      $visited = [];
-      self::checkReferences($schema, $storage, $visited);
-    }
-    return $factory;
+    @trigger_error('SchemaReferenceResolver::createFactory() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use RestrictedSchemaRegistry::register() or RestrictedSchemaRegistry::factory() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    $registry = new RestrictedSchemaRegistry();
+    return $schema === NULL ? $registry->factory() : $registry->register($schema)->factory;
   }
+
+  /**
+   * Returns the schema registered by createFactory(), references expanded.
+   *
+   * @param \JsonSchema\Constraints\Factory $factory
+   *   A factory returned by createFactory() for a schema.
+   *
+   * @return object
+   *   The registered copy of the schema.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Use the schema property of RestrictedSchemaRegistry::register().
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
+   */
+  public static function registeredSchema(Factory $factory): object {
+    @trigger_error('SchemaReferenceResolver::registeredSchema() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use the schema property of RestrictedSchemaRegistry::register() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    $schema = $factory->getSchemaStorage()->getSchema(self::SCHEMA_URI);
+    // createFactory() registers an object, never a boolean schema.
+    assert(is_object($schema));
+    return $schema;
+  }
+
+  // phpcs:enable
 
   /**
    * {@inheritdoc}
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   For every URI except the bundled draft-04 meta-schema.
+   * @throws \SchemaForms\Exception\UnreadableMetaSchemaException
+   *   When the bundled meta-schema cannot be read.
    */
-  public function retrieve($uri, $baseUri = NULL) {
-    $resolved = (new UriResolver())->resolve($uri, $baseUri);
-    $metadata_path = dirname(__DIR__) . '/meta-schema-draft4.json';
+  #[\Override]
+  public function retrieve(mixed $uri, mixed $baseUri = NULL): object {
+    $resolved = SchemaUriResolver::resolve($uri, $baseUri);
     // Registered schemas are served by SchemaStorage without a retrieval. Only
     // these exact metadata URIs may reach disk. Never pass a target to a
     // generic retriever, even when its scheme is file or internal.
-    if (!in_array($resolved, [
-      'file://' . $metadata_path,
-      'http://json-schema.org/draft-04/schema',
-      'http://json-schema.org/draft-04/schema#',
-      'https://json-schema.org/draft-04/schema',
-      'https://json-schema.org/draft-04/schema#',
-    ], TRUE)) {
-      throw new UnresolvableJsonPointerException('External schema retrieval is disabled.');
+    if ($resolved !== self::metaSchemaUri() && !in_array($resolved, self::DRAFT_04_URIS, TRUE)) {
+      throw new UnsupportedReferenceException('External schema retrieval is disabled.');
     }
-    return json_decode(file_get_contents($metadata_path), FALSE, 512, JSON_THROW_ON_ERROR);
+    return self::readMetaSchema();
   }
 
   /**
-   * Checks reference targets even in branches validation may not evaluate.
+   * Reads the bundled draft-04 meta-schema.
    *
-   * Optional blank values can be omitted before final validation, so checking
-   * only references followed by the validator would silently accept some
-   * unsupported schemas. Traverse schema keywords, not literal default, enum
-   * or const values. The retriever remains the boundary for every actual fetch.
+   * @return object
+   *   The decoded meta-schema.
    *
-   * @param mixed $schema
-   *   A schema or a list of schemas.
-   * @param \JsonSchema\SchemaStorageInterface $storage
-   *   Storage containing the root schema and any registered subschemas.
-   * @param array $visited
-   *   Object IDs already checked.
+   * @throws \SchemaForms\Exception\UnreadableMetaSchemaException
+   *   When the file is missing, unreadable or not a JSON object.
    */
-  private static function checkReferences($schema, SchemaStorageInterface $storage, array &$visited): void {
-    if (is_array($schema)) {
-      foreach ($schema as $member) {
-        self::checkReferences($member, $storage, $visited);
-      }
-      return;
+  private static function readMetaSchema(): object {
+    $path = self::metaSchemaPath();
+    $json = is_readable($path) ? file_get_contents($path) : FALSE;
+    $metadata = is_string($json) ? json_decode($json) : NULL;
+    if (!is_object($metadata)) {
+      throw new UnreadableMetaSchemaException('The bundled meta-schema-draft4.json is missing or is not a JSON object. Reinstall the e0ipso/schema-forms package.');
     }
-    if (!is_object($schema) || isset($visited[spl_object_id($schema)])) {
-      return;
-    }
-    $visited[spl_object_id($schema)] = TRUE;
-    if (isset($schema->{'$ref'})) {
-      $target = (new JsonPointer($schema->{'$ref'}))->getFilename();
-      // Checking the document does not expand recursive internal references.
-      self::checkReferences($storage->getSchema($target), $storage, $visited);
-    }
-    if (isset($schema->extends) && is_string($schema->extends)) {
-      $target = (new UriResolver())->resolve($schema->id ?? NULL, $schema->extends);
-      self::checkReferences($storage->getSchema($target), $storage, $visited);
-    }
-    foreach (['properties', 'patternProperties', 'definitions', '$defs', 'dependencies', 'dependentSchemas'] as $keyword) {
-      foreach ((array) ($schema->{$keyword} ?? []) as $member) {
-        self::checkReferences($member, $storage, $visited);
-      }
-    }
-    foreach ([
-      'items', 'additionalItems', 'additionalProperties',
-      'allOf', 'anyOf', 'oneOf', 'not', 'extends', 'type', 'disallow',
-      'contains', 'propertyNames', 'if', 'then', 'else',
-    ] as $keyword) {
-      self::checkReferences($schema->{$keyword} ?? NULL, $storage, $visited);
-    }
+    return $metadata;
+  }
+
+  /**
+   * Returns the file URI of the bundled draft-04 meta-schema.
+   *
+   * The retriever allows this exact URI, so every reference to the file is
+   * built here.
+   *
+   * @return string
+   *   The URI.
+   */
+  public static function metaSchemaUri(): string {
+    return 'file://' . self::metaSchemaPath();
+  }
+
+  /**
+   * Returns the path of the bundled draft-04 meta-schema.
+   *
+   * @return string
+   *   The path, the only file the retriever reads.
+   */
+  private static function metaSchemaPath(): string {
+    return dirname(__DIR__) . '/meta-schema-draft4.json';
   }
 
 }

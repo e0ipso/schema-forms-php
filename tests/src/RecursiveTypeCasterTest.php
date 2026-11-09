@@ -1,11 +1,22 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Tests;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
+use SchemaForms\Exception\UnsupportedReferenceException;
+use SchemaForms\OptionalBlankRule;
 use SchemaForms\RecursiveTypeCaster;
+use SchemaForms\ScalarCaster;
+use SchemaForms\RegisteredSchema;
+use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
+use SchemaForms\SchemaType;
+use SchemaForms\SubmissionRefiner;
 
 /**
  * Unit tests for the \SchemaForms\RecursiveTypeCaster class.
@@ -13,6 +24,12 @@ use SchemaForms\RecursiveTypeCaster;
  * @package SchemaForms
  */
 #[CoversClass(RecursiveTypeCaster::class)]
+#[CoversClass(OptionalBlankRule::class)]
+#[CoversClass(ScalarCaster::class)]
+#[CoversClass(SchemaType::class)]
+#[CoversClass(SubmissionRefiner::class)]
+#[CoversClass(RestrictedSchemaRegistry::class)]
+#[CoversClass(RegisteredSchema::class)]
 class RecursiveTypeCasterTest extends TestCase {
 
   /**
@@ -60,15 +77,110 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"a":{"type":["string","null"]},"b":{"type":["integer","null"]},"c":{"type":["string","null"]}}}',
         ['a' => '', 'b' => NULL, 'c' => '0'],
       ],
+      // A decimal property name becomes an integer key in a PHP array.
+      'required decimal property name keeps its blank' => [
+        ['123' => '', 'abc' => '', '456' => ''],
+        '{"type":"object","required":["123","abc"],"properties":{"123":{"type":"string","minLength":1},"abc":{"type":"string","minLength":1},"456":{"type":"string","minLength":1}}}',
+        ['123' => '', 'abc' => ''],
+      ],
+      'required decimal property name on stdClass keeps its blank' => [
+        (object) ['123' => '', 'abc' => ''],
+        '{"type":"object","required":["123"],"properties":{"123":{"type":"string","minLength":1},"abc":{"type":"string","minLength":1}}}',
+        (object) ['123' => ''],
+      ],
+      'a non-list required keyword is ignored' => [
+        ['a' => ''],
+        '{"type":"object","required":"a","properties":{"a":{"type":"string","minLength":1}}}',
+        [],
+      ],
+      // A value with no string spelling is left for validation to report.
+      'string keeps a list' => [['x'], '{"type":"string"}', ['x']],
+      'string keeps a map' => [['a' => 'x'], '{"type":"string"}', ['a' => 'x']],
+      'string spells a float' => [1.5, '{"type":"string"}', '1.5'],
+      'string spells TRUE' => [TRUE, '{"type":"string"}', '1'],
+      'string spells NULL' => [NULL, '{"type":"string"}', ''],
+      'each optional blank is checked on its own' => [
+        ['a' => '', 'b' => '', 'c' => ''],
+        '{"type":"object","properties":{"a":{"type":"string","minLength":1},"b":{"type":"string"},"c":{"type":"string","minLength":1}}}',
+        ['b' => ''],
+      ],
+      // A property is refined with properties, then patternProperties, then
+      // an additionalProperties schema; otherwise it is left as it is.
+      'pattern property is refined' => [
+        ['n_a' => '3', 'other' => '3'],
+        '{"type":"object","patternProperties":{"^n_":{"type":"integer"}}}',
+        ['n_a' => 3, 'other' => '3'],
+      ],
+      'declared property wins over a pattern' => [
+        ['n_a' => '3'],
+        '{"type":"object","properties":{"n_a":{"type":"string"}},"patternProperties":{"^n_":{"type":"integer"}}}',
+        ['n_a' => '3'],
+      ],
+      'additional properties schema is refined' => [
+        ['x' => '3', 'blank' => ''],
+        '{"type":"object","additionalProperties":{"type":["integer","null"]}}',
+        ['x' => 3, 'blank' => NULL],
+      ],
+      'additional properties FALSE leaves values alone' => [
+        ['x' => '3', 'blank' => ''],
+        '{"type":"object","additionalProperties":false}',
+        ['x' => '3', 'blank' => ''],
+      ],
+      'undeclared blank is kept' => [
+        ['x' => '', 'y' => NULL],
+        '{"type":"object","properties":{}}',
+        ['x' => '', 'y' => NULL],
+      ],
+      'items do not describe object properties' => [
+        ['x' => '3'],
+        '{"type":"object","items":{"type":"integer"}}',
+        ['x' => '3'],
+      ],
+      'an invalid pattern matches nothing' => [
+        ['x' => '3'],
+        '{"type":"object","patternProperties":{"(":{"type":"integer"}},"additionalProperties":{"type":"number"}}',
+        ['x' => 3],
+      ],
+      'a pattern may contain the delimiter' => [
+        ['a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a~b$":{"type":"integer"}}}',
+        ['a~b' => 3],
+      ],
+      'a pattern may escape the delimiter' => [
+        ['a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a\\\\~b$":{"type":"integer"}}}',
+        ['a~b' => 3],
+      ],
+      'a pattern may escape a backslash before the delimiter' => [
+        ['a\\~b' => '3', 'a~b' => '3'],
+        '{"type":"object","patternProperties":{"^a\\\\\\\\~b$":{"type":"integer"}}}',
+        ['a\\~b' => 3, 'a~b' => '3'],
+      ],
+      'a non-object property schema is skipped' => [
+        ['x' => '3'],
+        '{"type":"object","properties":{"x":true},"additionalProperties":{"type":"integer"}}',
+        ['x' => 3],
+      ],
       // Unsafe numeric conversions must retain the input string.
       'non-finite positive exponent' => ['1e999', '{"type":"number"}', '1e999'],
       'non-finite negative exponent' => ['-1e999', '{"type":"number"}', '-1e999'],
+      'non-finite exponent with a dot' => ['1.5e999', '{"type":"number"}', '1.5e999'],
       'positive integer overflow' => ['99999999999999999999', '{"type":"integer"}', '99999999999999999999'],
       'negative integer overflow' => ['-99999999999999999999', '{"type":"integer"}', '-99999999999999999999'],
       'ordinary negative decimal' => ['-1.5', '{"type":"number"}', -1.5],
       // Numeric strings become the number they spell.
       'number casts a decimal string to float' => ['1.5', '{"type":"number"}', 1.5],
       'plain integer casts a numeric string' => ['3', '{"type":"integer"}', 3],
+      // An exponent without a dot keeps a fraction and casts a whole number.
+      'number keeps a negative exponent fraction' => ['1e-3', '{"type":"number"}', 0.001],
+      'number casts a whole exponent to integer' => ['1E3', '{"type":"number"}', 1000],
+      'number keeps a negative fraction exponent' => ['-2e-1', '{"type":"number"}', -0.2],
+      'integer keeps a negative exponent fraction' => ['1e-3', '{"type":"integer"}', 0.001],
+      'integer casts a whole exponent' => ['1E3', '{"type":"integer"}', 1000],
+      'integer keeps a negative fraction exponent' => ['-2e-1', '{"type":"integer"}', -0.2],
+      'number keeps a dotted whole number a float' => ['1.0', '{"type":"number"}', 1.0],
+      'number casts a plain integer string' => ['12', '{"type":"number"}', 12],
+      'exponent integer overflow' => ['1e20', '{"type":"integer"}', '1e20'],
       // A list is refined item by item with the `items` sub-schema.
       'list items are refined individually' => [
         ['1', '2', '3'],
@@ -80,7 +192,105 @@ class RecursiveTypeCasterTest extends TestCase {
         '{"type":"object","properties":{"ids":{"type":"array","items":{"type":"integer"}},"label":{"type":"string"}}}',
         ['ids' => [1, 2], 'label' => 'x'],
       ],
+      // An untyped enum maps a submitted option key back to its member.
+      'untyped enum maps a key to an integer' => ['1', '{"enum":[1,2]}', 1],
+      'untyped enum maps a key to a float' => ['1.5', '{"enum":[1.5]}', 1.5],
+      'untyped enum maps an integer key to a boolean' => [1, '{"enum":[true,false]}', TRUE],
+      'untyped enum keeps an unknown key' => ['3', '{"enum":[1,2]}', '3'],
+      'untyped enum map maps a key to its member' => ['1', '{"enum":{"a":1}}', 1],
+      'untyped scalar enum keeps the key' => ['1', '{"enum":1}', '1'],
+      'untyped enum skips non-scalar members' => ['1', '{"enum":[[1],{"a":1},1]}', 1],
+      'untyped enum leaves a float alone' => [1.5, '{"enum":[1.5]}', 1.5],
+      'typed enum casts by its type' => ['1.5', '{"type":"string","enum":[1.5]}', '1.5'],
+      // The first cast that succeeds is final.
+      'boolean wins over a later string' => ['1', '{"type":["boolean","string"]}', TRUE],
+      'integer wins over a later boolean' => [1, '{"type":["integer","boolean"]}', 1],
+      'float wins over a later string' => ['0.5', '{"type":["number","string"]}', 0.5],
+      'integer wins over a later string' => ['5', '{"type":["integer","string"]}', 5],
+      // The integer range is exact at both ends.
+      'smallest integer' => ['-9223372036854775808', '{"type":"integer"}', PHP_INT_MIN],
+      'largest integer' => ['9223372036854775807', '{"type":"integer"}', PHP_INT_MAX],
+      'one below the smallest integer' => ['-9223372036854775809', '{"type":"integer"}', '-9223372036854775809'],
+      'one above the largest integer' => ['9223372036854775808', '{"type":"integer"}', '9223372036854775808'],
+      // Skipping or omitting one property does not stop the walk.
+      'an undescribed property is skipped' => [
+        ['extra' => '1', 'n' => '2'],
+        '{"type":"object","properties":{"n":{"type":"integer"}}}',
+        ['extra' => '1', 'n' => 2],
+      ],
+      'an omitted property is skipped' => [
+        ['a' => '', 'n' => '2'],
+        '{"type":"object","properties":{"a":{"type":"string","minLength":1},"n":{"type":"integer"}}}',
+        ['n' => 2],
+      ],
     ];
+  }
+
+  /**
+   * Omitting a stdClass property does not stop the walk.
+   */
+  public function testOmittedStdClassPropertyIsSkipped(): void {
+    $data = (object) ['a' => '', 'n' => '2'];
+    $schema = json_decode('{"type":"object","properties":{"a":{"type":"string","minLength":1},"n":{"type":"integer"}}}');
+    $actual = (new SubmissionRefiner())->refine($data, $schema);
+    $this->assertObjectNotHasProperty('a', $actual);
+    $this->assertSame(2, $actual->n);
+  }
+
+  /**
+   * Pattern properties given as a PHP array are matched too.
+   */
+  public function testPatternPropertiesArray(): void {
+    $schema = (object) ['type' => 'object', 'patternProperties' => ['^n' => (object) ['type' => 'integer']]];
+    $this->assertSame(['n1' => 5], (new SubmissionRefiner())->refine(['n1' => '5'], $schema));
+  }
+
+  /**
+   * An invalid pattern raises no warning and leaves the error handler alone.
+   */
+  public function testInvalidPatternIsQuiet(): void {
+    $schema = json_decode('{"type":"object","patternProperties":{"(":{"type":"integer"}}}');
+    $warnings = [];
+    $handler = static function (int $severity, string $message) use (&$warnings): bool {
+      $warnings[] = $message;
+      return TRUE;
+    };
+    set_error_handler($handler);
+    error_clear_last();
+    try {
+      $actual = (new SubmissionRefiner())->refine(['x' => '3'], $schema);
+    }
+    finally {
+      // Read the installed handler, then remove it and the test's own.
+      $current = set_error_handler(NULL);
+      restore_error_handler();
+      restore_error_handler();
+    }
+    $this->assertSame([], $warnings);
+    // PHP's own handler, which records the last error, did not run either.
+    $this->assertNull(error_get_last());
+    $this->assertSame($handler, $current);
+    $this->assertSame(['x' => '3'], $actual);
+  }
+
+  /**
+   * A patternProperties value that is not a map is skipped without a warning.
+   */
+  public function testScalarPatternPropertiesIsSkipped(): void {
+    $schema = json_decode('{"type":"object","patternProperties":5,"additionalProperties":{"type":"integer"}}');
+    $warnings = [];
+    set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+      $warnings[] = $message;
+      return TRUE;
+    });
+    try {
+      $actual = (new SubmissionRefiner())->refine(['x' => '3'], $schema);
+    }
+    finally {
+      restore_error_handler();
+    }
+    $this->assertSame([], $warnings);
+    $this->assertSame(['x' => 3], $actual);
   }
 
   /**
@@ -88,8 +298,107 @@ class RecursiveTypeCasterTest extends TestCase {
    */
   #[DataProvider('dataProviderRecursiveTypeRefinements')]
   public function testRecursiveTypeRefinements($data, string $schema, $expected): void {
-    $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, json_decode($schema));
+    $actual = (new SubmissionRefiner())->refine($data, json_decode($schema));
+    if (is_object($expected)) {
+      $this->assertEquals($expected, $actual);
+      return;
+    }
     $this->assertSame($expected, $actual);
+  }
+
+  /**
+   * A registered schema's factory resolves references the schema makes.
+   */
+  public function testRegisteredSchemaFactory(): void {
+    $factory = (new RestrictedSchemaRegistry())->register(json_decode('{"type":"object"}'))->factory;
+    $factory->getSchemaStorage()->addSchema('internal://labels/', json_decode('{"definitions":{"label":{"type":"string","minLength":2}}}'));
+    $schema = json_decode('{"type":"object","properties":{"field":{"type":"string","allOf":[{"$ref":"internal://labels/#/definitions/label"}]},"count":{"type":"integer"}}}');
+    $data = ['field' => '', 'count' => '3'];
+    $this->assertSame(['count' => 3], RecursiveTypeCaster::refine($data, new RegisteredSchema($schema, $factory)));
+    $this->expectException(UnsupportedReferenceException::class);
+    (new SubmissionRefiner())->refine($data, $schema);
+  }
+
+  /**
+   * The deprecated entry point refines the same way, with or without a factory.
+   */
+  #[IgnoreDeprecations]
+  public function testDeprecatedEntryPoint(): void {
+    $this->expectUserDeprecationMessage('RecursiveTypeCaster::recursiveTypeRefinements() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use SubmissionRefiner::refine() instead. See https://github.com/e0ipso/schema-forms-php#upgrading');
+    $schema = json_decode('{"type":"object","definitions":{"name":{"type":"string","minLength":1}},"properties":{"name":{"$ref":"#/definitions/name"},"count":{"type":"integer"}}}');
+    $data = ['name' => '', 'count' => '3'];
+    $this->assertSame(['count' => 3], RecursiveTypeCaster::recursiveTypeRefinements($data, $schema));
+    $registered = (new RestrictedSchemaRegistry())->register($schema);
+    $this->assertSame(['count' => 3], RecursiveTypeCaster::recursiveTypeRefinements($data, $registered->schema, $registered->factory));
+  }
+
+  /**
+   * A registry passed to the refiner registers each schema.
+   */
+  public function testRefinerUsesItsRegistry(): void {
+    $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer"}}}');
+    $registry = new class() implements SchemaRegistryInterface {
+
+      /**
+       * The schemas registered so far.
+       *
+       * @var list<object>
+       */
+      public array $schemas = [];
+
+      /**
+       * {@inheritdoc}
+       */
+      #[\Override]
+      public function register(object $schema): RegisteredSchema {
+        $this->schemas[] = $schema;
+        return (new RestrictedSchemaRegistry())->register(json_decode('{"type":"object","properties":{"count":{"type":"string"}}}'));
+      }
+
+    };
+    $this->assertSame(['count' => '3'], (new SubmissionRefiner($registry))->refine(['count' => '3'], $schema));
+    $this->assertSame([$schema], $registry->schemas);
+  }
+
+  /**
+   * An object where a string is expected stays an object.
+   */
+  public function testStringKeepsAnObject(): void {
+    $value = (object) ['a' => 'x'];
+    $actual = (new SubmissionRefiner())->refine(['field' => $value], json_decode('{"type":"object","properties":{"field":{"type":"string"}}}'));
+    $this->assertSame(['field' => $value], $actual);
+  }
+
+  /**
+   * Every draft-04 type keeps its boolean refinement result.
+   *
+   * The type list is matched strictly. Only a non-string type member could
+   * match differently, and the validator rejects such a schema.
+   */
+  #[DataProvider('dataProviderBooleanTypes')]
+  public function testBooleanTypeMatching(array $types, mixed $input, mixed $expected): void {
+    $schema = (object) ['type' => $types];
+    $this->assertSame($expected, (new SubmissionRefiner())->refine($input, $schema));
+  }
+
+  /**
+   * Data provider for testBooleanTypeMatching.
+   */
+  public static function dataProviderBooleanTypes(): array {
+    $cases = [];
+    foreach (['array', 'boolean', 'integer', 'null', 'number', 'object', 'string'] as $type) {
+      foreach (['0', '1', 0, 1, 'true', ''] as $input) {
+        $expected = match (TRUE) {
+          $type === 'boolean' && in_array($input, ['0', '1', 0, 1], TRUE) => (bool) $input,
+          in_array($type, ['integer', 'number'], TRUE) && is_numeric($input) => (int) $input,
+          $type === 'null' && $input === '' => NULL,
+          $type === 'string' => (string) $input,
+          default => $input,
+        };
+        $cases[sprintf('%s %s', $type, var_export($input, TRUE))] = [[$type], $input, $expected];
+      }
+    }
+    return $cases;
   }
 
   /**
@@ -98,7 +407,7 @@ class RecursiveTypeCasterTest extends TestCase {
   public function testStdClassProperties(): void {
     $data = json_decode('{"count":"3","nested":{"ratio":"1.5","optional":""}}');
     $schema = json_decode('{"type":"object","properties":{"count":{"type":"integer"},"nested":{"type":"object","properties":{"ratio":{"type":"number"},"optional":{"type":"string","minLength":1}}}}}');
-    $actual = RecursiveTypeCaster::recursiveTypeRefinements($data, $schema);
+    $actual = (new SubmissionRefiner())->refine($data, $schema);
     $this->assertSame($data, $actual);
     $this->assertInstanceOf(\stdClass::class, $actual);
     $this->assertInstanceOf(\stdClass::class, $actual->nested);

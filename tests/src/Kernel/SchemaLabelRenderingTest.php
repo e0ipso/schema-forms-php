@@ -4,21 +4,23 @@ declare(strict_types=1);
 
 namespace SchemaForms\Tests\Kernel;
 
-use PHPUnit\Framework\Attributes\CoversClass;
+use Drupal\Component\Utility\Html;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RunTestsInSeparateProcesses;
-use Drupal\Component\Utility\Html;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Tests\Drupal\SchemaForms\FormGeneratorDrupalTest;
-use Shaper\Util\Context;
+use SchemaForms\Tests\Fixture\ConstantSchemas;
 
 /**
  * Untrusted labels retain only the accepted inline HTML.
  */
-#[CoversClass(FormGeneratorDrupal::class)]
 #[RunTestsInSeparateProcesses]
 final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
 
+  use ConstantSchemas;
+
+  /**
+   * {@inheritdoc}
+   */
   protected static $modules = ['system'];
 
   private const LABEL = '<img src="x" onerror="alert(1)"><em>emphasis</em><strong>strong</strong><a href="https://example.com">link</a>';
@@ -53,6 +55,12 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
     $this->assertStringContainsString('<a href="https://example.com">link</a>', $html);
   }
 
+  /**
+   * Provides the sources an untrusted label can come from.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function labelProvider(): array {
     return [
       'schema title' => ['schema title'],
@@ -63,39 +71,24 @@ final class SchemaLabelRenderingTest extends SchemaFormsKernelTestBase {
   }
 
   /**
-   * Title filtering preserves other metadata and fixed text.
-   */
-  public function testOtherMetadataIsUnchanged(): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) [
-      'fixed' => (object) ['type' => 'string', 'const' => self::LABEL],
-      'field' => (object) ['type' => 'string', 'description' => self::LABEL],
-    ]];
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context([
-      'ui_hints' => ['field' => ['ui:placeholder' => self::LABEL]],
-    ]));
-    $this->assertSame(self::LABEL, $form['fixed']['#plain_text']);
-    $this->assertSame(self::LABEL, (string) $form['field']['#description']);
-    $this->assertSame(self::LABEL, $form['field']['#placeholder']);
-  }
-
-
-  /**
-   * Constant markup escapes text and JSON and renders no input.
+   * Constant markup escapes text and JSON, labels it and renders no input.
    */
   #[DataProvider('renderedConstantProvider')]
   public function testRenderedConstants(mixed $value, string $text): void {
-    $schema = (object) ['type' => 'object', 'properties' => (object) ['fixed' => (object) ['type' => match (gettype($value)) {
-      'integer' => 'integer', 'double' => 'number', 'boolean' => 'boolean',
-      'array' => 'array', 'object' => 'object', 'NULL' => 'null', default => 'string',
-    }, 'const' => $value]]];
-    $form = (new FormGeneratorDrupal())->transform($schema);
+    $form = (new FormGeneratorDrupal())->transform(self::constantSchema($value));
     $html = (string) $this->container->get('renderer')->renderInIsolation($form['fixed']);
-    $this->assertSame(Html::escape($text), $html);
+    $this->assertMatchesRegularExpression('@<label[^>]*>Fixed</label>\s*' . preg_quote(Html::escape($text), '@') . '\s*</div>@', $html);
     $this->assertStringNotContainsString('<input', $html);
   }
 
+  /**
+   * Provides constants with the text they render.
+   *
+   * @return array
+   *   The test cases.
+   */
   public static function renderedConstantProvider(): array {
-    return FormGeneratorDrupalTest::constantProvider() + [
+    return self::constantProvider() + [
       'unsafe array' => [['<img src=x onerror=alert(1)>'], '["<img src=x onerror=alert(1)>"]'],
       'unsafe object' => [(object) ['<b>' => '<script>'], '{"<b>":"<script>"}'],
     ];

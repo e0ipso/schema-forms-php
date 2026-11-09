@@ -1,14 +1,16 @@
 <?php
 
-namespace SchemaForms\Tests;
+declare(strict_types=1);
+
+namespace SchemaForms\Tests\Drupal;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\RenderArrayValidator;
+use SchemaForms\Drupal\RenderArrayValidator;
 
 /**
- * Unit tests for the \SchemaForms\RenderArrayValidator class.
+ * Unit tests for the \SchemaForms\Drupal\RenderArrayValidator class.
  *
  * @package SchemaForms
  */
@@ -18,7 +20,7 @@ class RenderArrayValidatorTest extends TestCase {
   /**
    * The validator.
    *
-   * @var \SchemaForms\RenderArrayValidator
+   * @var \SchemaForms\Drupal\RenderArrayValidator
    */
   private $sut;
 
@@ -37,6 +39,16 @@ class RenderArrayValidatorTest extends TestCase {
   public function testIsValid($render_array, bool $expected) {
     $actual = $this->sut->isValid($render_array);
     $this->assertSame($expected, $actual);
+  }
+
+  /**
+   * A rejection records an error, and the next check clears it.
+   */
+  public function testErrors(): void {
+    $this->assertFalse($this->sut->isValid(['fa' => 'mily']));
+    $this->assertSame(['Expected a render array: an array with a "#" key, or with a child that is a render array.'], $this->sut->getErrors());
+    $this->assertTrue($this->sut->isValid(['#fa' => 'mily']));
+    $this->assertSame([], $this->sut->getErrors());
   }
 
   /**
@@ -88,8 +100,35 @@ class RenderArrayValidatorTest extends TestCase {
           '#va' => [['Foo\Bar', 'validateWithSchema']],
           'fa' => ['#fa' => 'mily'],
         ],
-        TRUE
-      ]
+        TRUE,
+      ],
+      // A render property holds any value, not only a string.
+      [
+        ['#markup' => new \stdClass()],
+        TRUE,
+      ],
+      // Any child render array is enough; an empty sibling does not reject it.
+      [
+        ['fa' => [], 'mily' => ['#type' => 'item']],
+        TRUE,
+      ],
+      [
+        [],
+        FALSE,
+      ],
+      // Drupal reads only a leading "#" as a render property.
+      [
+        ['a#b' => 1],
+        FALSE,
+      ],
+      [
+        ['fa' => ['mi#ly' => 'x']],
+        FALSE,
+      ],
+      [
+        ['fa' => [[]]],
+        FALSE,
+      ],
     ];
   }
 

@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace SchemaForms\Tests\Kernel;
 
 use Composer\Autoload\ClassLoader;
+use Drupal\Component\Utility\NestedArray;
+use Drupal\Core\Form\FormInterface;
 use Drupal\Core\Form\FormState;
+use Drupal\Core\Render\Element;
 use Drupal\KernelTests\KernelTestBase;
 use SchemaForms\Tests\Kernel\Form\GeneratedSchemaForm;
+use Symfony\Component\Routing\Route;
 
 /**
  * Builds and submits generated forms through Drupal's FormBuilder.
@@ -50,7 +54,7 @@ abstract class SchemaFormsKernelTestBase extends KernelTestBase {
     // AJAX buttons need a current route even in the disposable kernel fixture.
     $request = $this->container->get('request_stack')->getCurrentRequest();
     $request->attributes->set('_route', 'schema_forms_test');
-    $request->attributes->set('_route_object', new \Symfony\Component\Routing\Route('/schema-form'));
+    $request->attributes->set('_route_object', new Route('/schema-form'));
     $form_object = new GeneratedSchemaForm($schema, $ui_hints, $parent_key, $tree, $current_input);
     $this->container->get('form_builder')->submitForm($form_object, $form_state);
     $errors = array_map('strval', $form_state->getErrors());
@@ -60,6 +64,90 @@ abstract class SchemaFormsKernelTestBase extends KernelTestBase {
       $errors,
       $form_state->getValues(),
     );
+  }
+
+  /**
+   * Builds a form once, then submits the controls a browser would send.
+   *
+   * Unlike ::submitSchemaForm(), the submitted values come from the built
+   * form, so untouched controls send exactly what they showed.
+   *
+   * @param \Drupal\Core\Form\FormInterface $form_object
+   *   The form, which needs a Save button when $button is 'op'.
+   * @param array<string, mixed> $edits
+   *   Values to change, keyed by their dot-separated path below the form or,
+   *   with a parent key, below that key.
+   * @param string|null $parent
+   *   The form key that holds the generated container, or NULL.
+   * @param string $button
+   *   The name of the button that submits the form.
+   * @param string $button_value
+   *   The value the button submits.
+   * @param array $storage
+   *   The form state storage of an earlier request, such as the item list of
+   *   a multivalue widget after a removal.
+   *
+   * @return \SchemaForms\Tests\Kernel\SchemaFormSubmission
+   *   The processed form, its state, its errors and its values.
+   */
+  protected function browserSubmit(FormInterface $form_object, array $edits = [], ?string $parent = NULL, string $button = 'op', string $button_value = 'Save', array $storage = []): SchemaFormSubmission {
+    $request = $this->container->get('request_stack')->getCurrentRequest();
+    $request->setMethod('POST');
+    $request->attributes->set('_route', 'schema_forms_test');
+    $request->attributes->set('_route_object', new Route('/schema-form'));
+    $builder = $this->container->get('form_builder');
+    $build_state = new FormState();
+    $build_state->setStorage($storage);
+    $built = $builder->buildForm($form_object, $build_state);
+    $values = [];
+    $this->browserValues($built, $values);
+    foreach ($edits as $path => $value) {
+      NestedArray::setValue($values, [...($parent === NULL ? [] : [$parent]), ...explode('.', $path)], $value);
+    }
+    $values[$button] = $button_value;
+    $state = new FormState();
+    $state->setStorage($storage);
+    $state->setValues($values);
+    // A browser cannot submit input for an inaccessible element, so Drupal
+    // ignores it; programmed submissions would bypass that check.
+    $state->setProgrammedBypassAccessCheck(FALSE);
+    $builder->submitForm($form_object, $state);
+    return new SchemaFormSubmission($state->getCompleteForm(), $state, array_map('strval', $state->getErrors()), $state->getValues());
+  }
+
+  /**
+   * Collects successful browser controls using Drupal's final input paths.
+   *
+   * @param array $element
+   *   The built element whose controls are collected.
+   * @param array $values
+   *   The collected values, keyed like the browser would post them.
+   */
+  private function browserValues(array $element, array &$values): void {
+    foreach (Element::children($element) as $key) {
+      $child = $element[$key];
+      if (($child['#access'] ?? TRUE) === FALSE || !empty($child['#disabled'])) {
+        continue;
+      }
+      $type = $child['#type'] ?? '';
+      if (in_array($type, ['submit', 'button', 'radio'], TRUE)) {
+        continue;
+      }
+      if (empty($child['#input']) || $type === 'checkboxes') {
+        $this->browserValues($child, $values);
+        continue;
+      }
+      if ($type === 'checkbox') {
+        if (!empty($child['#value'])) {
+          NestedArray::setValue($values, $child['#parents'], $child['#return_value']);
+        }
+        continue;
+      }
+      if ($type === 'radios' && ($child['#value'] ?? '') === '') {
+        continue;
+      }
+      NestedArray::setValue($values, $child['#parents'], $child['#value'] ?? '');
+    }
   }
 
   /**

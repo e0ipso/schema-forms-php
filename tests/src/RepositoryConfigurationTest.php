@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Tests;
 
 use PHPUnit\Framework\Attributes\CoversNothing;
@@ -15,6 +17,9 @@ use Symfony\Component\Yaml\Yaml;
 #[CoversNothing]
 final class RepositoryConfigurationTest extends TestCase {
 
+  /**
+   * Returns the repository root.
+   */
   private function root(): string {
     return dirname(__DIR__, 2);
   }
@@ -55,6 +60,9 @@ final class RepositoryConfigurationTest extends TestCase {
     }
   }
 
+  /**
+   * Runs the commit-msg task on a message and checks its exit code.
+   */
   private function assertCommitExit(string $file, string $message, int $expected, ?string $config = NULL): void {
     file_put_contents($file, $message . "\n");
     $command = [PHP_BINARY, $this->root() . '/vendor/bin/grumphp.phar', 'git:commit-msg', '--no-interaction'];
@@ -68,6 +76,30 @@ final class RepositoryConfigurationTest extends TestCase {
   }
 
   /**
+   * Core code and its tests never reach into Drupal or the adapter.
+   *
+   * The adapter under src/Drupal depends on the core, never the reverse, so
+   * the core can be used and tested without Drupal installed.
+   */
+  public function testCoreDoesNotDependOnDrupal(): void {
+    $files = [
+      ...glob($this->root() . '/src/*.php'),
+      ...glob($this->root() . '/src/Exception/*.php'),
+      ...glob($this->root() . '/tests/src/*Test.php'),
+    ];
+    $this->assertNotEmpty($files);
+    foreach ($files as $file) {
+      $names = array_filter(
+        \PhpToken::tokenize(file_get_contents($file)),
+        static fn (\PhpToken $token): bool => $token->is([T_NAME_QUALIFIED, T_NAME_FULLY_QUALIFIED]),
+      );
+      foreach ($names as $name) {
+        $this->assertDoesNotMatchRegularExpression('/^\\\\?(Drupal|SchemaForms\\\\Drupal)\\\\/', $name->text, $file);
+      }
+    }
+  }
+
+  /**
    * The Development section names the configured checks.
    */
   public function testDevelopmentDocumentsEveryTask(): void {
@@ -77,7 +109,17 @@ final class RepositoryConfigurationTest extends TestCase {
     foreach (array_keys($config['grumphp']['tasks']) as $task) {
       $this->assertStringContainsString('`' . $task . '`', $development);
     }
-    foreach (['no `else`', 'no `exit`', 'no `var_dump` or `kint`', 'composer validate --strict', 'composer audit --no-dev --locked', 'staged files', 'commit-msg hook', 'file filters skip'] as $instruction) {
+    $instructions = [
+      'no `else`',
+      'no `exit`',
+      'no `var_dump` or `kint`',
+      'composer validate --strict',
+      'composer audit --no-dev --locked',
+      'staged files',
+      'commit-msg hook',
+      'file filters skip',
+    ];
+    foreach ($instructions as $instruction) {
       $this->assertStringContainsString($instruction, $development);
     }
   }
@@ -134,9 +176,20 @@ final class RepositoryConfigurationTest extends TestCase {
 #!/usr/bin/env bash
 set -eu
 case "$1" in
-  */prepare-json-schema-5.php) mkdir -p "$2/runtime" ;;
+  */prepare-json-schema-5.php) mkdir -p "$2/runtime" && touch "$2/grumphp.yml" ;;
   */bootstrap.php) if [[ "$FIXTURE_FAILURE" == bootstrap ]]; then exit 24; fi ;;
-  */grumphp.phar) if [[ "$FIXTURE_FAILURE" == tests ]]; then exit 25; fi ;;
+  */grumphp.phar)
+    # GrumPHP reads a file list from a piped stdin and waits for it to close.
+    if [[ -p /dev/stdin ]]; then exit 28; fi
+    # A container wrapper only sees a config path given as its own argument.
+    config=''
+    for argument in "$@"; do
+      if [[ "$argument" == --config=* ]]; then exit 26; fi
+      if [[ "$config" == next ]]; then config=$argument; fi
+      if [[ "$argument" == --config ]]; then config=next; fi
+    done
+    if [[ ! -f "$config" ]]; then exit 27; fi
+    if [[ "$FIXTURE_FAILURE" == tests ]]; then exit 25; fi ;;
 esac
 SH);
     file_put_contents($composer, <<<'SH'
@@ -169,8 +222,16 @@ SH);
     }
   }
 
+  /**
+   * Data provider for testCompatibilityRunnerExitAndCleanup().
+   */
   public static function compatibilityExitProvider(): array {
-    return ['success' => ['', 0], 'install failure' => ['install', 23], 'bootstrap failure' => ['bootstrap', 24], 'test failure' => ['tests', 25]];
+    return [
+      'success' => ['', 0],
+      'install failure' => ['install', 23],
+      'bootstrap failure' => ['bootstrap', 24],
+      'test failure' => ['tests', 25],
+    ];
   }
 
   /**
@@ -181,15 +242,18 @@ SH);
     $directory = sys_get_temp_dir() . '/schema-bootstrap-' . bin2hex(random_bytes(8));
     mkdir($directory);
     try {
-      $prepare = new Process([PHP_BINARY, $this->root() . '/scripts/prepare-json-schema-5.php', $directory, $this->root() . '/phpunit.xml', $this->root() . '/grumphp.yml'], $this->root(), timeout: 30);
+      $prepare = new Process($this->prepareCommand($directory), $this->root(), timeout: 30);
       $this->assertSame(0, $prepare->run(), $prepare->getErrorOutput());
       $manifest = json_decode(file_get_contents($directory . '/runtime/composer.json'), TRUE);
-      $this->assertSame('5.3.4', $manifest['require']['justinrainbow/json-schema']);
+      // The runner pins the lowest JSON Schema 5 release composer.json allows.
+      $this->assertSame('5.3.0', $manifest['require']['justinrainbow/json-schema']);
+      $project = json_decode(file_get_contents($this->root() . '/composer.json'), TRUE);
+      $this->assertStringStartsWith('^5.3 ', $project['require']['justinrainbow/json-schema']);
       $this->assertArrayNotHasKey('require-dev', $manifest);
       $this->assertArrayNotHasKey('autoload', $manifest);
       mkdir($directory . '/runtime/vendor/composer', 0700, TRUE);
       $installed = require $this->root() . '/vendor/composer/installed.php';
-      $installed['versions']['justinrainbow/json-schema']['version'] = $wrong_version ? '6.13.1.0' : '5.3.4.0';
+      $installed['versions']['justinrainbow/json-schema']['version'] = $wrong_version ? '6.13.1.0' : '5.3.0.0';
       $installed['versions']['justinrainbow/json-schema']['install_path'] = $directory . '/runtime';
       file_put_contents($directory . '/runtime/vendor/composer/installed.php', '<?php return ' . var_export($installed, TRUE) . ';');
       file_put_contents($directory . '/runtime/vendor/autoload.php', '<?php return require ' . var_export($this->root() . '/vendor/autoload.php', TRUE) . ';');
@@ -202,8 +266,33 @@ SH);
     }
   }
 
+  /**
+   * Data provider for testCompatibilityBootstrapGuards().
+   */
   public static function compatibilityGuardProvider(): array {
-    return ['wrong version' => [TRUE, 'Expected isolated JSON Schema 5.3.4.'], 'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator']];
+    return [
+      'wrong version' => [TRUE, 'Expected isolated JSON Schema 5.3.0.'],
+      'wrong class path' => [FALSE, 'Unexpected compatibility class path: JsonSchema\\Validator'],
+    ];
+  }
+
+  /**
+   * Builds the command that prepares a compatibility workspace.
+   *
+   * @param string $directory
+   *   The work directory.
+   *
+   * @return list<string>
+   *   The command and its arguments.
+   */
+  private function prepareCommand(string $directory): array {
+    return [
+      PHP_BINARY,
+      $this->root() . '/scripts/prepare-json-schema-5.php',
+      $directory,
+      $this->root() . '/phpunit.xml',
+      $this->root() . '/grumphp.yml',
+    ];
   }
 
 }

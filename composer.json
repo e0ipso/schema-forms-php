@@ -21,10 +21,10 @@
         "source": "https://github.com/e0ipso/schema-forms-php"
     },
     "require": {
-        "php": ">=8.3",
+        "php": "^8.3",
         "ext-json": "*",
         "e0ipso/shaper": "^1.2",
-        "justinrainbow/json-schema": "^5.2 || ^6.3"
+        "justinrainbow/json-schema": "^5.3 || ^6.3"
     },
     "require-dev": {
         "drupal/coder": "^8.3",
@@ -38,8 +38,11 @@
         "povils/phpmnd": "^3.6",
         "squizlabs/php_codesniffer": "^3.7"
     },
+    "conflict": {
+        "marc-mabe/php-enum": "<4.4"
+    },
     "suggest": {
-        "drupal/core": "Required for the SchemaForms\\Drupal classes; tested with Drupal 11."
+        "drupal/core": "Required for the SchemaForms\\Drupal classes; tested with Drupal 11.2, 11.3 and 11.4."
     },
     "autoload": {
         "psr-4": {

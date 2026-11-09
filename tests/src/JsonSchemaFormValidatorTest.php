@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Tests;
 
 use JsonSchema\Constraints\Constraint;
@@ -7,7 +9,8 @@ use JsonSchema\Validator;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use SchemaForms\ArrayToStdClass;
+use SchemaForms\Exception\ExceptionInterface;
+use SchemaForms\Exception\ValidatorReplacementException;
 use SchemaForms\JsonSchemaFormValidator;
 use SchemaForms\SchemaReferenceResolver;
 
@@ -22,11 +25,9 @@ class JsonSchemaFormValidatorTest extends TestCase {
    */
   #[DataProvider('dataProviderIsValid')]
   public function testIsValid(array $schema, bool $expected, string $message): void {
-    $validator = new JsonSchemaFormValidator(
-      new Validator(),
-      Constraint::CHECK_MODE_TYPE_CAST
-    );
-    $data = (new ArrayToStdClass())->transform($schema);
+    $validator = new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
+    // Decode the way json_decode() delivers schemas: maps become objects.
+    $data = json_decode(json_encode($schema, JSON_THROW_ON_ERROR));
     $this->assertSame($expected, $validator->isValid($data), $message);
   }
 
@@ -66,6 +67,86 @@ class JsonSchemaFormValidatorTest extends TestCase {
   }
 
   /**
+   * The validator checks schemas against the bundled meta-schema.
+   */
+  public function testMetaSchemaReference(): void {
+    $validator = new JsonSchemaFormValidator();
+    $uri = 'file://' . dirname(__DIR__, 2) . '/meta-schema-draft4.json';
+    $this->assertSame($uri, SchemaReferenceResolver::metaSchemaUri());
+    $this->assertSame(json_encode(['$ref' => $uri]), $validator->toJSON());
+  }
+
+  /**
+   * An unserialized validator keeps the restricted resolver and check mode.
+   */
+  public function testUnserializedValidatorStaysRestricted(): void {
+    $validator = new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
+    $restored = unserialize(serialize($validator), ['allowed_classes' => [JsonSchemaFormValidator::class]]);
+    $this->assertInstanceOf(JsonSchemaFormValidator::class, $restored);
+    $inner = (fn () => $this->validator)->call($restored);
+    $retriever = (fn () => $this->factory->getUriRetriever())->call($inner);
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $retriever);
+    // Type casting accepts the empty list that encodes an empty properties map.
+    $schema = json_decode('{"type":"object","properties":[]}');
+    $this->assertTrue($restored->isValid($schema));
+    $this->assertFalse($restored->isValid(json_decode('{"type":"string"}')));
+  }
+
+  /**
+   * The constructor installs a restricted validator in the given check mode.
+   *
+   * Type casting accepts the empty list that encodes an empty properties
+   * map, and normal mode rejects it.
+   */
+  #[DataProvider('dataProviderCheckMode')]
+  public function testConstructorRestrictsTheValidator(int $mode, bool $expected): void {
+    $validator = new JsonSchemaFormValidator($mode);
+    $inner = (fn () => $this->validator)->call($validator);
+    $retriever = (fn () => $this->factory->getUriRetriever())->call($inner);
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $retriever);
+    $storage_retriever = (fn () => $this->factory->getSchemaStorage()->getUriRetriever())->call($inner);
+    $this->assertInstanceOf(SchemaReferenceResolver::class, $storage_retriever);
+    $schema = json_decode('{"type":"object","properties":[]}');
+    $this->assertSame($expected, $validator->isValid($schema));
+  }
+
+  /**
+   * Data provider for testConstructorRestrictsTheValidator.
+   */
+  public static function dataProviderCheckMode(): array {
+    return [
+      'type cast' => [Constraint::CHECK_MODE_TYPE_CAST, TRUE],
+      'normal' => [Constraint::CHECK_MODE_NORMAL, FALSE],
+    ];
+  }
+
+  /**
+   * The default check mode is the normal one.
+   */
+  public function testDefaultCheckMode(): void {
+    $this->assertFalse((new JsonSchemaFormValidator())->isValid(json_decode('{"type":"object","properties":[]}')));
+    $this->assertTrue((new JsonSchemaFormValidator())->isValid(json_decode('{"type":"object","properties":{}}')));
+  }
+
+  /**
+   * Another validator is refused instead of being swapped silently.
+   */
+  public function testSetValidatorIsRefused(): void {
+    $validator = new JsonSchemaFormValidator();
+    $inner = (fn () => $this->validator)->call($validator);
+    try {
+      $validator->setValidator(new Validator());
+      $this->fail('setValidator() must refuse another validator.');
+    }
+    catch (ValidatorReplacementException $e) {
+      $this->assertInstanceOf(\LogicException::class, $e);
+      $this->assertInstanceOf(ExceptionInterface::class, $e);
+      $this->assertStringContainsString('Pass the check mode to the constructor', $e->getMessage());
+    }
+    $this->assertSame($inner, (fn () => $this->validator)->call($validator));
+  }
+
+  /**
    * Tests raw inputs, built the way FormGeneratorDrupal builds the validator.
    *
    * Regression: an associative array passed the type-cast meta-schema check,
@@ -74,10 +155,7 @@ class JsonSchemaFormValidatorTest extends TestCase {
    */
   #[DataProvider('dataProviderRawInput')]
   public function testRawInput(mixed $data, bool $expected, string $message): void {
-    $validator = new JsonSchemaFormValidator(
-      new Validator(SchemaReferenceResolver::createFactory()),
-      Constraint::CHECK_MODE_TYPE_CAST
-    );
+    $validator = new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
     set_error_handler(static function (int $severity, string $error): never {
       throw new \ErrorException($error, 0, $severity);
     });

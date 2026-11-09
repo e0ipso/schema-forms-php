@@ -1,0 +1,8 @@
+# The tests run at a lower level than src/: level 2 fails on errors in the
+# Drupal adapter and kernel tests. Raise the level as those tests are fixed.
+parameters:
+  level: 1
+  paths:
+    - tests
+  parallel:
+    maximumNumberOfProcesses: 2

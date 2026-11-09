@@ -1,0 +1,236 @@
+<?php
+
+declare(strict_types=1);
+
+namespace SchemaForms\Drupal;
+
+use Drupal\Component\Utility\Html;
+use Drupal\Core\Field\FieldStorageDefinitionInterface;
+use Drupal\Core\Render\Element\Details;
+use Drupal\Core\StringTranslation\TranslatableMarkup;
+
+/**
+ * Builds the widget of an array with one item schema.
+ *
+ * @internal
+ *
+ * @see \SchemaForms\Drupal\MultivalueWidget
+ */
+final class MultivalueWidgetBuilder {
+
+  /**
+   * The position of the Remove button inside its item.
+   */
+  private const REMOVE_BUTTON_WEIGHT = 101;
+
+  /**
+   * The inline style that puts the Remove button on the item's corner.
+   *
+   * A library has no asset library to hold this rule. 24 by 24 pixels is the
+   * WCAG 2.2 minimum target size.
+   */
+  private const REMOVE_BUTTON_STYLE = 'opacity: 0.9;display: block;position: absolute;top: -12px;left: -12px;margin: 0;overflow: hidden;width: 24px;height: 24px;padding: 0;border-radius: 15px;';
+
+  /**
+   * Builds the widget.
+   *
+   * @param array<int|string, mixed> $element
+   *   The scaffolded element.
+   * @param \SchemaForms\Drupal\FieldContext $context
+   *   The field context of the array.
+   * @param \stdClass $items
+   *   The item schema.
+   * @param \Closure(\SchemaForms\Drupal\FieldContext): array<int|string, mixed> $build_item
+   *   Builds the control of one item; a callable keeps the builders apart.
+   *
+   * @return array<int|string, mixed>
+   *   The widget.
+   */
+  public function build(array $element, FieldContext $context, \stdClass $items, \Closure $build_item): array {
+    $state = $this->state($context);
+    $cardinality = self::cardinality($context->schema);
+    $id_prefix = implode('-', $context->parents);
+    $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
+    $after_build = is_array($element['#after_build'] ?? NULL) ? $element['#after_build'] : [];
+    // Core reads #default_value only on inputs. The items show the saved
+    // list, and a copy on the widget would only grow the cached form.
+    $showed_value = array_key_exists('#default_value', $element);
+    unset($element['#default_value']);
+    $element = [
+      '#type' => 'details',
+      '#open' => TRUE,
+      '#process' => [
+        [Details::class, 'processGroup'],
+        [Details::class, 'processAjaxForm'],
+        [MultivalueCallbacks::class, 'process'],
+      ],
+      '#after_build' => [...$after_build, [MultivalueCallbacks::class, 'afterBuild']],
+      RenderKeys::CARDINALITY => $cardinality,
+      // Saved items beyond maxItems stay, so that validation reports them.
+      RenderKeys::MAX_DELTA => $state->lastDelta(),
+      '#prefix' => '<div id="' . $wrapper_id . '">',
+      '#suffix' => '</div>',
+    ] + $element;
+    if ($showed_value && $state->lastDelta() === NULL) {
+      // Tells a saved empty list from an appended item never filled.
+      $element[RenderKeys::SHOWED_VALUE] = TRUE;
+    }
+    if ($context->namespace !== NULL) {
+      $element[RenderKeys::NAMESPACE] = $context->namespace;
+    }
+    // Number items by position, so a removal leaves no gap.
+    foreach (array_values($state->deltas()) as $position => $delta) {
+      $element[$delta] = $this->item($element, $context->item($delta, $items), $build_item, $wrapper_id, $position + 1);
+    }
+    $element[RenderKeys::APPEND_BUTTON] = $this->appendButton($context, $wrapper_id, Labels::appendButtonName($element['#title'] ?? ''));
+    if ($state->isFull($cardinality)) {
+      $element[RenderKeys::APPEND_BUTTON]['#access'] = FALSE;
+    }
+    return $element;
+  }
+
+  /**
+   * Gets the widget state, starting it from the saved items on first build.
+   *
+   * @param \SchemaForms\Drupal\FieldContext $context
+   *   The field context of the array.
+   *
+   * @return \SchemaForms\Drupal\WidgetState
+   *   The state.
+   */
+  private function state(FieldContext $context): WidgetState {
+    $keys = $context->widgetKeys();
+    $stored = WidgetState::stored($context->formState, $keys);
+    if (!empty($stored)) {
+      return WidgetState::fromStorage($stored);
+    }
+    $count = is_array($context->currentInput) ? count($context->currentInput) : 0;
+    $state = WidgetState::forSavedItems($count);
+    $state->save($context->formState, $keys);
+    return $state;
+  }
+
+  /**
+   * Builds the container of one item.
+   *
+   * @param array<int|string, mixed> $widget
+   *   The widget so far.
+   * @param \SchemaForms\Drupal\FieldContext $context
+   *   The field context of the item.
+   * @param \Closure(\SchemaForms\Drupal\FieldContext): array<int|string, mixed> $build_item
+   *   Builds the item control.
+   * @param string $wrapper_id
+   *   The HTML ID of the widget wrapper.
+   * @param int $number
+   *   The position of the item among the rendered items, from 1.
+   *
+   * @return array<int|string, mixed>
+   *   The item container.
+   */
+  private function item(array $widget, FieldContext $context, \Closure $build_item, string $wrapper_id, int $number): array {
+    // The details element shows the title and description; each item gets
+    // an invisible numbered title.
+    $title = $widget['#title'] ?? '';
+    $control = [
+      '#title' => Labels::itemTitle($title, $number),
+      '#title_display' => 'invisible',
+      '#description' => '',
+    ] + $build_item($context);
+    // The ID is taken after the item control is built, so nested widgets
+    // claim their IDs first and every ID stays as it always was.
+    $container_id = Html::getUniqueId(sprintf('%s-%d-container', implode('-', array_slice($context->parents, 0, -1)), $context->name));
+    return [
+      '#type' => 'container',
+      '#prefix' => '<div id="' . $container_id . '">',
+      '#wrapper_id' => $container_id,
+      '#suffix' => '</div>',
+      '#attributes' => ['style' => 'position: relative;'],
+      RenderKeys::ITEM => $control,
+      RenderKeys::REMOVE_BUTTON => $this->removeButton($context, $wrapper_id, Labels::removeButtonName($title, $number)),
+    ];
+  }
+
+  /**
+   * Builds the Remove button of an item.
+   *
+   * @param \SchemaForms\Drupal\FieldContext $context
+   *   The field context of the item.
+   * @param string $wrapper_id
+   *   The HTML ID of the widget wrapper, which the response replaces.
+   * @param \Drupal\Core\StringTranslation\TranslatableMarkup $name
+   *   The accessible name.
+   *
+   * @return array<string, mixed>
+   *   The button.
+   */
+  private function removeButton(FieldContext $context, string $wrapper_id, TranslatableMarkup $name): array {
+    return [
+      '#delta' => (int) $context->name,
+      '#type' => 'submit',
+      '#name' => ButtonNames::remove($context->parents, $context->namespace),
+      '#value' => new TranslatableMarkup('⨯'),
+      '#validate' => [],
+      RenderKeys::PROP_PARENTS => $context->parents,
+      '#attributes' => [
+        'class' => ['field-remove-one-submit'],
+        'style' => self::REMOVE_BUTTON_STYLE,
+        // The visible "⨯" names no item, so screen readers get the name.
+        'aria-label' => $name,
+        'title' => $name,
+      ],
+      '#limit_validation_errors' => [],
+      '#submit' => [[MultivalueCallbacks::class, 'removeSubmit']],
+      '#ajax' => [
+        'callback' => [MultivalueCallbacks::class, 'removeAjax'],
+        'wrapper' => $wrapper_id,
+        'effect' => 'fade',
+      ],
+      '#weight' => self::REMOVE_BUTTON_WEIGHT,
+    ];
+  }
+
+  /**
+   * Builds the Append button of the widget.
+   *
+   * @param \SchemaForms\Drupal\FieldContext $context
+   *   The field context of the array.
+   * @param string $wrapper_id
+   *   The HTML ID of the widget wrapper, which the response replaces.
+   * @param \Drupal\Core\StringTranslation\TranslatableMarkup $name
+   *   The accessible name of the button.
+   *
+   * @return array<string, mixed>
+   *   The button.
+   */
+  private function appendButton(FieldContext $context, string $wrapper_id, TranslatableMarkup $name): array {
+    return [
+      '#type' => 'submit',
+      '#name' => ButtonNames::append($context->parents, $context->namespace),
+      '#value' => new TranslatableMarkup('Append an item'),
+      '#attributes' => ['class' => ['field-add-more-submit'], 'aria-label' => $name],
+      '#submit' => [[MultivalueCallbacks::class, 'appendSubmit']],
+      '#ajax' => [
+        'callback' => [MultivalueCallbacks::class, 'appendAjax'],
+        'wrapper' => $wrapper_id,
+        'effect' => 'fade',
+      ],
+    ];
+  }
+
+  /**
+   * Gets the item limit from the array schema.
+   *
+   * @param \stdClass $schema
+   *   The array schema.
+   *
+   * @return int
+   *   The integer maxItems when it is at least 1, otherwise unlimited.
+   */
+  private static function cardinality(\stdClass $schema): int {
+    $max_items = $schema->maxItems ?? NULL;
+    return is_int($max_items) && $max_items >= 1
+      ? $max_items
+      : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
+  }
+
+}

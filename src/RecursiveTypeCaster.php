@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms;
 
 use JsonSchema\Constraints\Factory;
@@ -13,243 +15,232 @@ use JsonSchema\Validator;
 final class RecursiveTypeCaster {
 
   /**
+   * Starts a refinement.
+   *
+   * @param \SchemaForms\OptionalBlankRule $blanks
+   *   Decides which blank properties to omit.
+   */
+  private function __construct(
+    private readonly OptionalBlankRule $blanks,
+  ) {}
+
+  /**
+   * Refines data against a registered schema.
+   *
+   * @param mixed $data
+   *   The data.
+   * @param \SchemaForms\RegisteredSchema $schema
+   *   The schema and the factory that resolves its references.
+   *
+   * @return mixed
+   *   The same data with refined types.
+   *
+   * @throws \JsonSchema\Exception\InvalidArgumentException
+   *   When a reference inside the schema cannot be resolved.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
+   */
+  public static function refine(mixed $data, RegisteredSchema $schema): mixed {
+    return (new self(new OptionalBlankRule(new Validator($schema->factory))))->refineValue($data, $schema->schema);
+  }
+
+  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat, Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
+
+  /**
    * Takes a data structure and tries its best to fit the types in the schema.
    *
    * @param mixed $data
    *   The data.
    * @param object $schema
-   *   The schema.
+   *   The schema; registered first when no factory is given.
+   * @param \JsonSchema\Constraints\Factory|null $factory
+   *   A factory whose storage holds $schema, references expanded.
    *
    * @return mixed
    *   The same data with refined types.
+   *
+   * @throws \SchemaForms\Exception\UnsupportedReferenceException
+   *   When the schema references a document outside itself.
+   * @throws \JsonSchema\Exception\InvalidArgumentException
+   *   When a reference inside the schema cannot be resolved.
+   * @throws \JsonSchema\Exception\RuntimeException
+   *   When a reference is not a valid URI.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Use refine() with a RegisteredSchema, or SubmissionRefiner::refine().
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
-  public static function recursiveTypeRefinements($data, object $schema) {
-    return static::refineValue($data, $schema, SchemaReferenceResolver::createFactory($schema));
+  public static function recursiveTypeRefinements(mixed $data, object $schema, ?Factory $factory = NULL): mixed {
+    @trigger_error('RecursiveTypeCaster::recursiveTypeRefinements() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use SubmissionRefiner::refine() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    $registered = $factory === NULL
+      ? (new RestrictedSchemaRegistry())->register($schema)
+      : new RegisteredSchema($schema, $factory);
+    return self::refine($data, $registered);
   }
 
+  // phpcs:enable
+
   /**
-   * Refines a value while keeping root references available to blank checks.
+   * Refines a value against the schema that describes it.
    *
    * @param mixed $data
    *   The data.
    * @param object $schema
    *   The schema for this value.
-   * @param \JsonSchema\Constraints\Factory $factory
-   *   The restricted factory with the root schema registered.
    *
    * @return mixed
    *   The same data with refined types.
    */
-  private static function refineValue($data, object $schema, Factory $factory) {
-    if (!isset($schema->type) && !empty($schema->enum) && (is_string($data) || is_int($data))) {
-      $members = [];
-      foreach ($schema->enum as $member) {
-        if (!is_scalar($member) && $member !== NULL) {
-          continue;
-        }
-        // Match rendering keys; the last member wins when keys collide.
-        $key = is_float($member) ? (string) $member : ($member ?? '');
-        $members[$key] = $member;
-      }
-      return array_key_exists($data, $members) ? $members[$data] : $data;
+  private function refineValue(mixed $data, object $schema): mixed {
+    $enum = $schema->enum ?? NULL;
+    if (!isset($schema->type) && !empty($enum) && (is_string($data) || is_int($data))) {
+      return self::enumMember($data, $enum);
     }
-    $types = $schema->type ?? [];
-    $types = is_array($types) ? $types : [$types];
+    $types = SchemaType::listOf($schema);
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
-      // Missing or list-form items give no single item schema to cast against.
-      if (!is_object($schema->items ?? NULL)) {
-        return $data;
-      }
-      return array_map(static fn($item) => static::refineValue($item, $schema->items, $factory), $data);
+      return $this->refineItems($data, $schema);
     }
     if ((is_array($data) || is_object($data)) && in_array('object', $types, TRUE)) {
-      // Handle each property recursively.
-      foreach ((array) $data as $key => $value) {
-        $sub_schema = $schema->properties->{$key} ?? $schema->items ?? (object) ['type' => 'null'];
-        $refined_value = static::refineValue($value, $sub_schema, $factory);
-        // Nullable refinements take precedence over omitting untouched fields.
-        if ($value === '' && $refined_value === '' && !in_array($key, $schema->required ?? [], TRUE)) {
-          $validator = new Validator($factory);
-          $validator->validate($value, $sub_schema);
-          if (!$validator->isValid()) {
-            if (is_object($data)) {
-              unset($data->{$key});
-              continue;
-            }
-            unset($data[$key]);
-            continue;
-          }
-        }
-        if (is_object($data)) {
-          $data->{$key} = $refined_value;
-          continue;
-        }
-        $data[$key] = $refined_value;
-      }
+      return $this->refineProperties($data, $schema);
+    }
+    return ScalarCaster::cast($data, $types, $schema);
+  }
+
+  /**
+   * Refines each item of a list with the item schema.
+   *
+   * @param list<mixed> $data
+   *   The list.
+   * @param object $schema
+   *   The array schema.
+   *
+   * @return list<mixed>
+   *   The refined list.
+   */
+  private function refineItems(array $data, object $schema): array {
+    $items = $schema->items ?? NULL;
+    // Missing or list-form items give no single item schema to cast against.
+    if (!is_object($items)) {
       return $data;
     }
-    array_reduce([
-      static fn(&$data, $types) => static::tryCastingNumber($data, $types),
-      static fn(&$data, $types) => static::tryCastingBoolean($data, $types),
-      static fn(&$data, $types) => static::tryCastingNull($data, $types, $schema),
-      static fn(&$data, $types) => static::tryCastingString($data, $types),
-    ],
-      static function (bool $casted, callable $method) use (&$data, $types) {
-        return $casted ?: $method($data, $types);
-      },
-      FALSE
-    );
+    return array_map(fn(mixed $item): mixed => $this->refineValue($item, $items), $data);
+  }
+
+  /**
+   * Refines each property and omits optional blanks the schema rejects.
+   *
+   * @param array<mixed>|object $data
+   *   The object data.
+   * @param object $schema
+   *   The object schema.
+   *
+   * @return array<mixed>|object
+   *   The refined data.
+   */
+  private function refineProperties(array|object $data, object $schema): array|object {
+    foreach ((array) $data as $key => $value) {
+      $property_schema = self::propertySchema($schema, (string) $key);
+      // A property the schema does not describe is left for validation.
+      if ($property_schema === NULL) {
+        continue;
+      }
+      $refined = $this->refineValue($value, $property_schema);
+      $omit = $this->blanks->omits($key, $value, $refined, $schema, $property_schema);
+      if ($omit && is_object($data)) {
+        unset($data->{$key});
+        continue;
+      }
+      if ($omit) {
+        unset($data[$key]);
+        continue;
+      }
+      if (is_object($data)) {
+        $data->{$key} = $refined;
+        continue;
+      }
+      $data[$key] = $refined;
+    }
     return $data;
   }
 
   /**
-   * Attempts to cast the data to a string.
+   * Returns the enum member a submitted option key stands for.
    *
-   * @param mixed $input
-   *   The input data. Passed by reference to change its type.
-   * @param array $types
-   *   The possible types.
+   * @param string|int $data
+   *   The submitted option key.
+   * @param mixed $enum
+   *   The enum keyword of an untyped schema.
    *
-   * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
+   * @return mixed
+   *   The matching member, or the data when no member matches.
    */
-  private static function tryCastingString(&$input, array $types): bool {
-    if (in_array('string', $types, TRUE)) {
-      $input = (string) $input;
-      return TRUE;
-    }
-    return FALSE;
-  }
-
-  /**
-   * Attempts to cast the data to NULL.
-   *
-   * Only values that already mean "there is nothing here" become NULL. `null`
-   * in a type union means the property *also* accepts absence; it does not
-   * turn every falsy value the property's other types can hold into absence.
-   * FALSE on a `["boolean", "null"]` property and "0" on a
-   * `["string", "null"]` one are values the caller chose.
-   *
-   * The empty string is the one ambiguous case, because Form API submits it
-   * for a control the user never touched. It is resolved per type rather than
-   * globally: a `string` type can hold it, so it is kept; every other type
-   * cannot, so it can only have come from an untouched control and it becomes
-   * NULL. A `string` whose shape or length is constrained cannot hold it
-   * either -- `minLength`, `format`, `pattern` and an `enum` that does not
-   * list "" all rule it out -- so those become NULL too.
-   *
-   * @param mixed $input
-   *   The input data. Passed by reference to change its type.
-   * @param array $types
-   *   The possible types.
-   * @param object $schema
-   *   The schema of the property the value belongs to. Read for the keywords
-   *   that decide whether a `string` type can hold the empty string.
-   *
-   * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
-   */
-  private static function tryCastingNull(&$input, array $types, object $schema): bool {
-    if (!in_array('null', $types, TRUE)) {
-      return FALSE;
-    }
-    if ($input === NULL) {
-      return TRUE;
-    }
-    if ($input === '' && !static::acceptsTheEmptyString($types, $schema)) {
-      $input = NULL;
-      return TRUE;
-    }
-    return FALSE;
-  }
-
-  /**
-   * Decides whether any declared type can hold the empty string.
-   *
-   * @param array $types
-   *   The possible types.
-   * @param object $schema
-   *   The schema of the property the value belongs to.
-   *
-   * @return bool
-   *   TRUE when the empty string is a value the property may hold.
-   */
-  private static function acceptsTheEmptyString(array $types, object $schema): bool {
-    if (!in_array('string', $types, TRUE)) {
-      return FALSE;
-    }
-    $constrains_the_string = ($schema->minLength ?? 0) > 0
-      || ($schema->format ?? '') !== ''
-      || ($schema->pattern ?? '') !== '';
-    if ($constrains_the_string) {
-      return FALSE;
-    }
-    $enum = $schema->enum ?? NULL;
-    return !is_array($enum) || in_array('', $enum, TRUE);
-  }
-
-  /**
-   * Attempts to cast the data to a boolean.
-   *
-   * @param mixed $input
-   *   The input data. Passed by reference to change its type.
-   * @param array $types
-   *   The possible types.
-   *
-   * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
-   */
-  private static function tryCastingBoolean(&$input, array $types): bool {
-    $is_quasi_boolean = $input === '0' || $input === '1' || $input === 0 || $input === 1;
-    if (in_array('boolean', $types) && $is_quasi_boolean) {
-      $input = (bool) $input;
-      return TRUE;
-    }
-    return FALSE;
-  }
-
-  /**
-   * Attempts to cast the data to a number.
-   *
-   * @param mixed $input
-   *   The input data. Passed by reference to change its type.
-   * @param array $types
-   *   The possible types.
-   *
-   * @return bool
-   *   TRUE if casting was possible. FALSE otherwise.
-   */
-  private static function tryCastingNumber(&$input, array $types): bool {
-    $is_not_numeric_definition = !in_array('integer', $types, TRUE)
-      && !in_array('number', $types, TRUE);
-    if ($is_not_numeric_definition || !is_numeric($input)) {
-      return FALSE;
-    }
-    if (is_int($input) || is_float($input)) {
-      return TRUE;
-    }
-    if (is_string($input)) {
-      $number = (float) $input;
-      if (!is_finite($number)) {
-        return FALSE;
+  private static function enumMember(string|int $data, mixed $enum): mixed {
+    $members = [];
+    // A decoded map lists its members as properties.
+    foreach (is_array($enum) || is_object($enum) ? (array) $enum : [] as $member) {
+      if (!is_scalar($member) && $member !== NULL) {
+        continue;
       }
-      $cast_to_integer = strpos($input, '.') === FALSE;
-      if ($cast_to_integer) {
-        if ($number < PHP_INT_MIN || $number > PHP_INT_MAX) {
-          return FALSE;
-        }
-        // Float rounding can hide overflow at either integer boundary.
-        $at_boundary = $number === (float) PHP_INT_MIN || $number === (float) PHP_INT_MAX;
-        if ($at_boundary && filter_var($input, FILTER_VALIDATE_INT) === FALSE) {
-          return FALSE;
-        }
-      }
-      $input = $cast_to_integer
-        ? (int) $input
-        : $number;
-      return TRUE;
+      // Match rendering keys; the last member wins when keys collide.
+      $key = is_float($member) ? (string) $member : ($member ?? '');
+      $members[$key] = $member;
     }
-    return FALSE;
+    return array_key_exists($data, $members) ? $members[$data] : $data;
+  }
+
+  /**
+   * Finds the schema of a property: declared, pattern, then additional.
+   *
+   * @param object $schema
+   *   The object schema.
+   * @param string $name
+   *   The property name.
+   *
+   * @return object|null
+   *   The property schema, or NULL when the schema does not describe it.
+   */
+  private static function propertySchema(object $schema, string $name): ?object {
+    $declared = $schema->properties->{$name} ?? NULL;
+    if (is_object($declared)) {
+      return $declared;
+    }
+    // A scalar keyword value casts to a list of one non-object, which is
+    // skipped like any member that is not a schema.
+    foreach ((array) ($schema->patternProperties ?? []) as $pattern => $pattern_schema) {
+      if (is_object($pattern_schema) && self::matchesPattern((string) $pattern, $name)) {
+        return $pattern_schema;
+      }
+    }
+    $additional = $schema->additionalProperties ?? NULL;
+    return is_object($additional) ? $additional : NULL;
+  }
+
+  /**
+   * Matches a property name against a JSON Schema pattern.
+   *
+   * @param string $pattern
+   *   The pattern, without delimiters.
+   * @param string $name
+   *   The property name.
+   *
+   * @return bool
+   *   TRUE on a match. An invalid pattern matches nothing.
+   */
+  private static function matchesPattern(string $pattern, string $name): bool {
+    // Escape each "~" that no backslash escapes already, so the delimiter
+    // cannot end the pattern early. "\~" stays as it is.
+    $escaped = preg_replace('/(?<!\\\\)((?:\\\\\\\\)*)~/', '$1\\~', $pattern);
+    // preg_match() warns about an invalid pattern and returns FALSE. Keep the
+    // warning out of the host's error log; FALSE matches nothing.
+    set_error_handler(static fn (): bool => TRUE);
+    try {
+      $matched = $escaped === NULL ? FALSE : preg_match('~' . $escaped . '~u', $name);
+    }
+    finally {
+      restore_error_handler();
+    }
+    return $matched === 1;
   }
 
 }

@@ -7,6 +7,7 @@ namespace SchemaForms\Tests\Kernel\Form;
 use Drupal\Core\Form\FormInterface;
 use Drupal\Core\Form\FormStateInterface;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
 /**
@@ -39,6 +40,9 @@ final class GeneratedSchemaForm implements FormInterface {
    *   Previously saved values supplied to the generator.
    * @param bool $withSave
    *   Whether to include a real Save button for unchanged submissions.
+   * @param array|null $saveValidate
+   *   The Save button's own #validate handlers, which replace the form-level
+   *   ones, or NULL to use the form-level handlers.
    */
   public function __construct(
     private readonly object $schema,
@@ -47,6 +51,7 @@ final class GeneratedSchemaForm implements FormInterface {
     private readonly bool $tree = FALSE,
     private readonly array $currentInput = [],
     private readonly bool $withSave = FALSE,
+    private readonly ?array $saveValidate = NULL,
   ) {}
 
   /**
@@ -60,11 +65,12 @@ final class GeneratedSchemaForm implements FormInterface {
    * {@inheritdoc}
    */
   public function buildForm(array $form, FormStateInterface $form_state): array {
-    $context = new Context([
-      'form_state' => $form_state,
-      'ui_hints' => $this->uiHints,
-      'current_input' => $this->currentInput,
-    ]);
+    $options = new FormOptions(
+      formState: $form_state,
+      uiHints: $this->uiHints,
+      currentInput: $this->currentInput,
+    );
+    $context = new Context(['options' => $options]);
     $element = (new FormGeneratorDrupal())->transform($this->schema, $context);
     if ($this->parentKey === NULL) {
       $form = $element + $form;
@@ -75,6 +81,9 @@ final class GeneratedSchemaForm implements FormInterface {
     }
     if ($this->withSave) {
       $form['actions']['save'] = ['#type' => 'submit', '#value' => 'Save'];
+    }
+    if ($this->withSave && $this->saveValidate !== NULL) {
+      $form['actions']['save']['#validate'] = $this->saveValidate;
     }
     return $form;
   }

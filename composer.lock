@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "620acffeb6fd15df442f17f2d7d2c1f1",
+    "content-hash": "6b3e4da99b56cdba6f1a198ec81c53ce",
     "packages": [
         {
             "name": "e0ipso/shaper",
@@ -11572,7 +11572,7 @@
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {
-        "php": ">=8.3",
+        "php": "^8.3",
         "ext-json": "*"
     },
     "platform-dev": {},

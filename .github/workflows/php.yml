@@ -60,3 +60,209 @@ jobs:
         run: |
           php tests/coverage-checker.php
           php scripts/check-coverage.php
+
+  json-schema-5:
+    name: JSON Schema 5.3
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache-dir
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-composer-8.3-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-8.3-
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      # Runs the full GrumPHP suite with the JSON Schema 5 production runtime.
+      - name: Run test suite against JSON Schema 5.3
+        env:
+          SIMPLETEST_DB: 'sqlite://localhost/:memory:'
+        run: bash scripts/test-json-schema-5.sh
+
+  lowest-dependencies:
+    name: Lowest dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite
+          coverage: none
+
+      # Resolves every requirement, including dev tools, to its lowest
+      # allowed release. Composer skips releases with security advisories.
+      - name: Install the lowest dependencies
+        run: composer update --prefer-lowest --prefer-stable --no-interaction --no-progress
+
+      # Only PHPUnit: the lint and analysis tools are not what this job checks.
+      - name: Run PHPUnit
+        env:
+          SIMPLETEST_DB: 'sqlite://localhost/:memory:'
+        run: php vendor/bin/phpunit --no-coverage
+
+  drupal-11-2:
+    name: Drupal 11.2 on PHP ${{ matrix.php-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo_sqlite
+          coverage: none
+
+      # The build job tests the locked Drupal 11.3 release. Drupal 11.0 and
+      # 11.1 require sebastian/diff 4 or 5, which PHPUnit 11 cannot use, so
+      # 11.2 is the lowest minor this suite can run on. Its core-recommended
+      # pins Guzzle releases that have security advisories; this disposable
+      # install only runs the tests.
+      - name: Install Drupal 11.2
+        env:
+          COMPOSER_NO_SECURITY_BLOCKING: '1'
+        run: composer require --dev 'drupal/core-recommended:~11.2.0' --with-all-dependencies --no-interaction --no-progress
+
+      - name: Run PHPUnit
+        env:
+          SIMPLETEST_DB: 'sqlite://localhost/:memory:'
+        run: php vendor/bin/phpunit --no-coverage
+
+  drupal-11-4:
+    name: Drupal 11.4 on PHP ${{ matrix.php-version }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: pdo_sqlite
+          coverage: none
+
+      # The newest Drupal 11 minor after the locked 11.3 release, so a change
+      # in core shows here before the lock file moves to it. Updating all
+      # dependencies moves drupal/core-dev to the same minor.
+      - name: Install Drupal 11.4
+        run: composer require --dev 'drupal/core-recommended:~11.4.0' --with-all-dependencies --no-interaction --no-progress
+
+      - name: Run PHPUnit
+        env:
+          SIMPLETEST_DB: 'sqlite://localhost/:memory:'
+        run: php vendor/bin/phpunit --no-coverage
+
+  backward-compatibility:
+    name: Backward compatibility
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The check compares against the latest release tag.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          extensions: bcmath, intl
+          coverage: none
+
+      # Installed outside the project, so composer.json stays unchanged.
+      - name: Install Roave BackwardCompatibilityCheck
+        run: |
+          mkdir -p "$RUNNER_TEMP/bc-check"
+          composer require --working-dir="$RUNNER_TEMP/bc-check" --no-interaction --no-progress roave/backward-compatibility-check:8.19.0
+
+      # The tool skips classes, methods and properties marked @internal, so
+      # it compares the API the README lists under "Public API".
+      - name: Compare with the latest release
+        run: |
+          latest=$(git describe --tags --abbrev=0 --match 'v*')
+          "$RUNNER_TEMP/bc-check/vendor/bin/roave-backward-compatibility-check" --from="$latest" --format=console --format=github-actions
+
+  mutation:
+    name: Mutation testing
+    runs-on: ubuntu-latest
+    env:
+      INFECTION_VERSION: 0.35.9
+      INFECTION_SHA256: c9b332af194380b2043eb6e309b308653f221073f41825b54e862fbef606a094
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
+        with:
+          php-version: '8.3'
+          coverage: pcov
+
+      - name: Get Composer cache directory
+        id: composer-cache-dir
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.composer-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-composer-8.3-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-8.3-
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Download Infection
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/infection.phar" "https://github.com/infection/infection/releases/download/${INFECTION_VERSION}/infection.phar"
+          echo "${INFECTION_SHA256}  $RUNNER_TEMP/infection.phar" | sha256sum --check --strict
+
+      # infection.json5 selects the core classes and unit tests and sets the
+      # minimum score.
+      - name: Run Infection
+        run: php "$RUNNER_TEMP/infection.phar" --threads=max --no-progress --no-interaction

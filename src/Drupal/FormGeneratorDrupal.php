@@ -1,1080 +1,472 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SchemaForms\Drupal;
 
-use Drupal\Component\Utility\Html;
-use Drupal\Component\Utility\NestedArray;
-use Drupal\Component\Utility\Xss;
-use Drupal\Core\Field\FieldStorageDefinitionInterface;
-use Drupal\Core\Form\FormState;
+use Drupal\Core\Ajax\AjaxResponse;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Render\Element\Checkboxes;
-use Drupal\Core\Render\Element\Details;
-use Drupal\Core\Render\Markup;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
 use JsonSchema\Constraints\Constraint;
 use JsonSchema\Exception\ExceptionInterface;
-use JsonSchema\Validator;
+use SchemaForms\Exception\InvalidOptionException;
 use SchemaForms\FormGeneratorInterface;
+use SchemaForms\FormOptions;
 use SchemaForms\JsonSchemaFormValidator;
-use SchemaForms\RenderArrayValidator;
-use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\RestrictedSchemaRegistry;
+use SchemaForms\SchemaRegistryInterface;
 use Shaper\Transformation\TransformationBase;
 use Shaper\Util\Context;
+use Shaper\Validator\ValidateableInterface;
 
 /**
  * Generates Drupal Form API forms from JSON-Schema documents.
+ *
+ * The deprecated Form API callbacks here are named by forms cached before
+ * 3.2.0; each forwards to the static callback generated forms name now.
+ *
+ * @api
  */
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {
-
-  /**
-   * The Form API element types this generator produces on purpose.
-   *
-   * Any other value means a JSON-Schema type reached '#type' unchanged, and no
-   * JSON-Schema type is a Drupal element: ElementInfoManager::getInfo() returns
-   * an empty array for an unknown type, so the element renders as an empty
-   * string with no exception, no warning and no log entry. The property then
-   * looks exactly like one the schema never declared. Such an element is
-   * replaced by an explanation instead.
-   *
-   * @see \SchemaForms\Drupal\FormGeneratorDrupal::transformUnsupported()
-   */
-  private const SUPPORTED_ELEMENT_TYPES = [
-    'checkbox',
-    'checkboxes',
-    'details',
-    'email',
-    'number',
-    'radios',
-    'textfield',
-  ];
 
   /**
    * The input validator, kept so a rejection message can read its errors.
    *
    * Shaper asks for the input validator once to validate and again to build
    * the TypeError message. A new instance each time would print no errors.
-   *
-   * @var \SchemaForms\JsonSchemaFormValidator|null
    */
   private ?JsonSchemaFormValidator $inputValidator = NULL;
 
   /**
-   * Creates the Form API element based on the JSON-Schema input.
-   *
-   * {@inheritdoc}
+   * The schemas that passed the input validation.
    */
-  public function doTransform($data, ?Context $context = NULL) {
-    $context = $context ?: new Context();
-    $form_state = $context['form_state'] ?? new FormState();
+  private ?AcceptedSchemas $accepted = NULL;
+
+  /**
+   * The registry of the generated forms' schemas, or NULL for the default.
+   */
+  private ?SchemaRegistryInterface $registry = NULL;
+
+  /**
+   * The element mappers to ask before the generator's own.
+   *
+   * @var list<\SchemaForms\Drupal\ElementMapperInterface>
+   */
+  private array $elementMappers = [];
+
+  /**
+   * Creates the generator.
+   *
+   * The properties are not promoted and have defaults, so a generator that a
+   * form cached before they existed unserializes with the defaults.
+   *
+   * @param \SchemaForms\SchemaRegistryInterface|null $registry
+   *   Registers each schema; NULL for a RestrictedSchemaRegistry.
+   * @param array<mixed> $element_mappers
+   *   ElementMapperInterface objects to ask, in order, before the default one.
+   *
+   * @throws \SchemaForms\Exception\InvalidOptionException
+   *   When an element mapper does not implement ElementMapperInterface.
+   */
+  public function __construct(
+    ?SchemaRegistryInterface $registry = NULL,
+    array $element_mappers = [],
+  ) {
+    $mappers = array_values(array_filter(
+      $element_mappers,
+      static fn (mixed $mapper): bool => $mapper instanceof ElementMapperInterface
+    ));
+    if (count($mappers) !== count($element_mappers)) {
+      throw new InvalidOptionException('Every element mapper must implement ' . ElementMapperInterface::class . '.');
+    }
+    $this->registry = $registry;
+    $this->elementMappers = $mappers;
+  }
+
+  /**
+   * Builds the generated container; call transform() instead.
+   *
+   * Public since 3.1.1, although Shaper declares it protected; only
+   * transform() validates the schema and the result.
+   *
+   * @param mixed $data
+   *   The decoded schema.
+   * @param \Shaper\Util\Context|null $context
+   *   The context, whose "options" key holds a \SchemaForms\FormOptions.
+   *
+   * @return array<int|string, mixed>
+   *   The generated container.
+   */
+  public function doTransform($data, ?Context $context = NULL): array {
     try {
-      $schema = $this->getSchema($data);
+      $schema = $this->accepted()->register($data, new SchemaPreparer($this->registry()));
     }
     catch (ExceptionInterface $e) {
-      return $this->addValidationRules([
+      return $this->withValidation([
         '#type' => 'container',
         '#tree' => TRUE,
-        '#json_schema' => $data,
-        '#markup' => new TranslatableMarkup('The schema contains an unsupported reference. External schema retrieval is disabled.'),
+        RenderKeys::SCHEMA => $data,
+        '#markup' => ValidationMessages::unsupportedReference(),
       ]);
     }
-    $visited = [];
-    $this->rejectRenderPropertyNames($schema, [], $visited);
-    // A root object schema may omit 'properties'; that is an empty form.
-    $props = $schema->properties ?? new \stdClass();
-    // Store the schema for the validation callbacks to access.
-    $element = [
-      '#type' => 'container',
-      '#tree' => TRUE,
-      '#json_schema' => $schema,
-    ];
-    $ui_hints = $context['ui_hints'] ?? [];
-    // Normalize decoded objects once, before passing saved values to fields.
-    $current_input = $this->normalizeInput($context['current_input'] ?? []);
-    foreach ((array) $props as $key => $prop) {
-      // If there is UI context, grab it and pass it along.
-      $ui_schema_data = $ui_hints[$key] ?? [];
-      $element[$key] = $this->doTransformOneField($prop, $key, [$key], $ui_schema_data, $form_state, $current_input[$key] ?? NULL, TRUE, array_key_exists($key, $current_input));
+    $fields = new FieldBuilder(new MultivalueWidgetBuilder(), $this->elementMappers);
+    return $this->withValidation($fields->buildForm($schema, self::options($context ?? new Context())));
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * A schema this generator already accepted is not validated again.
+   */
+  public function conformsToExpectedInputShape($data, ?Context $context = NULL): bool {
+    if ($this->accepted()->contains($data)) {
+      return TRUE;
     }
-    return $this->addValidationRules($element, $context);
+    if (!$this->getInputValidator()->isValid($data)) {
+      return FALSE;
+    }
+    $this->accepted()->add($data);
+    return TRUE;
   }
 
   /**
    * {@inheritdoc}
    */
-  public function getInputValidator() {
-    // Validate the JSON-Schema input.
-    $this->inputValidator ??= new JsonSchemaFormValidator(new Validator(SchemaReferenceResolver::createFactory()), Constraint::CHECK_MODE_TYPE_CAST);
+  public function getInputValidator(): ValidateableInterface {
+    $this->inputValidator ??= new JsonSchemaFormValidator(Constraint::CHECK_MODE_TYPE_CAST);
     return $this->inputValidator;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getOutputValidator(): ValidateableInterface {
+    return new RenderArrayValidator();
   }
 
   /**
    * Keeps the input validator out of serialized forms.
    *
-   * Validation callbacks reference this generator, so a cached form serializes
-   * it. An unserialized JsonSchemaFormValidator would lose the restricted
-   * reference resolver; a fresh one is built on the next request instead.
+   * Forms cached before 3.2.0 reference the generator; getInputValidator()
+   * builds a new validator on demand.
    *
    * @return string[]
    *   The names of the properties to serialize.
    */
   public function __sleep(): array {
-    return [];
+    return ['accepted', 'registry', 'elementMappers'];
   }
 
-  /**
-   * {@inheritdoc}
-   */
-  public function getOutputValidator() {
-    return new RenderArrayValidator();
-  }
+  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat, Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
 
   /**
-   * Validation callback against the schema.
+   * Validates a generated container; its #element_validate callback.
    *
-   * @param array $element
-   *   The element.
+   * @param array<int|string, mixed> $element
+   *   The generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name SchemaValidationBridge::elementValidate() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
-    $schema = $element['#json_schema'] ?? [];
-    // If the schema is empty do not perform additional validation.
-    if (!empty($schema)) {
-      FormValidatorDrupal::typeCastRecursive($element, $form_state, $schema);
-      FormValidatorDrupal::validateWithSchema($element, $form_state, $schema);
-    }
+    @trigger_error('FormGeneratorDrupal::validateWithSchema() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name SchemaValidationBridge::elementValidate() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    SchemaValidationBridge::elementValidate($element, $form_state);
   }
 
   /**
-   * Form-level validation callback, for a container that is the form itself.
+   * Validates a generated container that is the form; its #validate handler.
    *
-   * The form's values also hold Drupal's own keys, such as form_build_id and
-   * form_id, and the values of elements the module added next to the
-   * generated ones. Only the schema's properties are validated, so those
-   * keys cannot fail a schema that forbids additional properties. The other
-   * values are put back afterwards.
-   *
-   * @param array $form
-   *   The form, which is the generated root container.
+   * @param array<int|string, mixed> $form
+   *   The form, which is the generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name SchemaValidationBridge::formValidate() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public function validateFormWithSchema(array &$form, FormStateInterface $form_state): void {
-    $schema = $form['#json_schema'] ?? NULL;
-    if (!is_object($schema)) {
-      return;
-    }
-    $values = $form_state->getValues();
-    $schema_keys = array_flip(array_keys((array) ($schema->properties ?? [])));
-    $form_state->setValues(array_intersect_key($values, $schema_keys));
-    try {
-      $this->validateWithSchema($form, $form_state);
-    }
-    finally {
-      $form_state->setValues($form_state->getValues() + array_diff_key($values, $schema_keys));
-    }
+    @trigger_error('FormGeneratorDrupal::validateFormWithSchema() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name SchemaValidationBridge::formValidate() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    SchemaValidationBridge::formValidate($form, $form_state);
   }
 
   /**
-   * Normalizes compound saved values and defaults for child field lookups.
+   * Limits Append validation; the #process callback of multivalue widgets.
    *
-   * @param mixed $value
-   *   The input value.
+   * @param array<int|string, mixed> $element
+   *   The widget, with its Form API parents assigned.
    *
-   * @return mixed
-   *   The value with decoded objects recursively converted to arrays.
-   */
-  private function normalizeInput($value) {
-    if (!is_array($value) && !$value instanceof \stdClass) {
-      return $value;
-    }
-    return array_map([$this, 'normalizeInput'], (array) $value);
-  }
-
-  /**
-   * Creates a Drupal form element from a property definition.
+   * @return array<int|string, mixed>
+   *   The widget.
    *
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param string $machine_name
-   *   The machine name for the form element. Used for fallback metadata.
-   * @param array $prop_parents
-   *   The parents.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   * @param mixed $current_input
-   *   The current input.
-   * @param bool $parent_enabled
-   *   FALSE when an ancestor element is disabled. A disabled ancestor disables
-   *   this element whatever its own 'ui:enabled' says.
-   * @param bool $has_current_input
-   *   Whether current input is available, including an explicit NULL.
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::process() instead.
    *
-   * @return array
-   *   The form element.
-   */
-  private function doTransformOneField($json_schema, string $machine_name, array $prop_parents, array $ui_schema_data, FormStateInterface $form_state, $current_input, bool $parent_enabled = TRUE, bool $has_current_input = FALSE): array {
-    $form_element = $this->scaffoldFormElement($json_schema, $machine_name, $ui_schema_data, $current_input, $has_current_input);
-    $enabled = $parent_enabled && (bool) ($ui_schema_data['ui:enabled'] ?? TRUE);
-    $form_element['#prop_parents'] = $prop_parents;
-    if (property_exists($json_schema, 'const')) {
-      unset($form_element['#type']);
-      $form_element['#plain_text'] = is_string($json_schema->const)
-        ? $json_schema->const
-        : json_encode($json_schema->const, JSON_THROW_ON_ERROR);
-      $form_element['#input'] = FALSE;
-      $form_element['#schema_fixed_value'] = $json_schema->const;
-      // Not much more to do with constants.
-      return $form_element;
-    }
-    $type = $this->guessSchemaType($json_schema, $ui_schema_data);
-    // Saved input wins over the default, including an explicit NULL.
-    if (!$has_current_input && in_array($type, ['array', 'object'], TRUE) && property_exists($json_schema, 'default')) {
-      $default_input = $this->normalizeInput($json_schema->default);
-      // A union may select a compound widget but supply a scalar default.
-      $current_input = is_array($default_input) ? $default_input : NULL;
-    }
-    if ($type === 'string' && !empty($json_schema->format) && $json_schema->format === 'email') {
-      $form_element = $this->transformEmail($form_element);
-    }
-    $label_mappings = $ui_schema_data['ui:enum']['labels']['mappings'] ?? [];
-    $label_mappings = (array) $label_mappings;
-    if (!empty($json_schema->enum)) {
-      $form_element = $this->transformRadios($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings);
-    }
-    if ($type === 'array') {
-      // Draft-04 makes 'items' optional and also allows a list of schemas.
-      // Neither gives one schema for every item, so no item control exists.
-      $form_element = match (TRUE) {
-        !is_object($json_schema->items ?? NULL) => $this->transformUnsupported($form_element, $type),
-        empty($json_schema->items->enum) => $this->transformMultivalue($prop_parents, $machine_name, $form_state, $current_input, $form_element, $json_schema, $ui_schema_data, $enabled),
-        default => $this->transformCheckboxes($ui_schema_data['ui:widget'] ?? NULL, $form_element, $json_schema, $label_mappings),
-      };
-    }
-    if ($type === 'object') {
-      $form_element = $this->transformNested($json_schema, $form_element, $prop_parents, $ui_schema_data, $form_state, $current_input, $enabled, $has_current_input);
-    }
-
-    $form_element['#disabled'] = !$enabled;
-    $visible = (bool) ($ui_schema_data['ui:visible'] ?? TRUE);
-    $form_element['#visible'] = $visible;
-    // A 'ui:widget' names a Form API element the caller picked deliberately, so
-    // it is taken at face value. Everything else has to be an element this
-    // generator built on purpose; see SUPPORTED_ELEMENT_TYPES.
-    $has_widget = !empty($ui_schema_data['ui:widget']);
-    if (!$has_widget && !in_array($form_element['#type'] ?? '', self::SUPPORTED_ELEMENT_TYPES, TRUE)) {
-      $form_element = $this->transformUnsupported($form_element, $type);
-      if ($has_current_input || property_exists($json_schema, 'default')) {
-        $form_element['#schema_fixed_value'] = $has_current_input ? $current_input : $json_schema->default;
-      }
-      return $form_element;
-    }
-    // An editable control cannot show NULL, so an untouched one would submit
-    // a blank value instead. Record the saved NULL to restore it on submit.
-    if ($has_current_input && $current_input === NULL && in_array('null', (array) ($json_schema->type ?? []), TRUE)) {
-      $form_element['#schema_saved_null'] = TRUE;
-    }
-    return $form_element;
-  }
-
-  /**
-   * Limits Append validation to the widget's final form value path.
-   *
-   * @param array $element
-   *   The multivalue element with its Form API parents assigned.
-   *
-   * @return array
-   *   The processed element.
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function multiValueProcess(array $element): array {
-    $element['add_more']['#limit_validation_errors'] = [$element['#parents']];
-    return $element;
+    @trigger_error('FormGeneratorDrupal::multiValueProcess() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::process() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    return MultivalueCallbacks::process($element);
   }
 
   /**
-   * After-build handler for field elements in a form.
+   * Cleans the widget value; the #after_build callback of multivalue widgets.
    *
-   * This stores the final location of the field within the form structure so
-   * that flagErrors() can assign validation errors to the right form element.
-   *
-   * @param array $element
-   *   The element.
+   * @param array<int|string, mixed> $element
+   *   The widget.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array
-   *   The form element.
+   * @return array<int|string, mixed>
+   *   The widget.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::afterBuild() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
-  public static function multiValueAfterBuild(array $element, FormStateInterface $form_state) {
-    if ($form_state->isProcessingInput()) {
-      $element_parents = $element['#parents'];
-      $data = $form_state->getValue($element_parents);
-      // Mark saved NULL items before cleaning compacts their deltas.
-      FormValidatorDrupal::markUntouchedSavedNulls($element, count($element_parents), $data);
-      $clean_data = UserInputCleaner::cleanUserInput($data);
-      $form_state->setValue($element_parents, $clean_data);
-    }
-
-    $prop_parents = $element['#prop_parents'];
-    $prop_name = $element['#prop_name'];
-
-    $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
-    $prop_state['array_parents'] = $element['#array_parents'];
-    static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
-
-    return $element;
+  public static function multiValueAfterBuild(array $element, FormStateInterface $form_state): array {
+    @trigger_error('FormGeneratorDrupal::multiValueAfterBuild() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::afterBuild() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    return MultivalueCallbacks::afterBuild($element, $form_state);
   }
 
   /**
-   * Submission handler for the "Remove item" button.
+   * Removes an item; the #submit callback of Remove buttons.
    *
-   * @param array $form
+   * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::removeSubmit() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function removeOneSubmit(array $form, FormStateInterface $form_state): void {
-    $button = $form_state->getTriggeringElement();
-    $delta = $button['#delta'] ?? NULL;
-    if (is_null($delta)) {
-      return;
-    }
-
-    // Go two levels up in the form, to the container.
-    $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -2));
-    $prop_name = $element['#prop_name'];
-    $form_parents = $button['#parents'];
-    // Pop the last element 'remove_one' to address the element container.
-    array_pop($form_parents);
-
-    // Decrement the items count.
-    $prop_state = static::getPropFormState($element['#prop_parents'] ?? [], $prop_name, $form_state);
-    // If the index is set, then remove it.
-    if (isset($prop_state['items_indices'][$delta])) {
-      unset($prop_state['items_indices'][$delta]);
-      static::setPropFormState(
-        $element['#prop_parents'] ?? [],
-        $prop_name,
-        $form_state,
-        $prop_state
-      );
-    }
-
-    $form_state->setRebuild();
+    @trigger_error('FormGeneratorDrupal::removeOneSubmit() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::removeSubmit() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    MultivalueCallbacks::removeSubmit($form, $form_state);
   }
 
   /**
-   * Ajax callback for the "Remove item" button.
+   * Replaces the widget after a removal; the #ajax callback of Remove buttons.
    *
-   * This returns the new page content to replace the page content made obsolete
-   * by the form submission.
-   *
-   * @param array $form
-   *   The form.
+   * @param array<int|string, mixed> $form
+   *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array|mixed|void
-   *   The element.
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response, which also announces the removal and moves focus. It is
+   *   empty when no Remove button triggered the request.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::removeAjax() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
-  public static function removeOneAjax(array $form, FormStateInterface $form_state) {
-    $button = $form_state->getTriggeringElement();
-    $delta = $button['#delta'] ?? NULL;
-    if (is_null($delta)) {
-      return NULL;
-    }
-    return [
-      '#prefix' => '<div class="ajax-new-content recently-deleted-element"><em>',
-      '#markup' => new translatableMarkup('- Deleted -'),
-      '#suffix' => '</em></div>',
-    ];
+  public static function removeOneAjax(array $form, FormStateInterface $form_state): AjaxResponse {
+    @trigger_error('FormGeneratorDrupal::removeOneAjax() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::removeAjax() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    return MultivalueCallbacks::removeAjax($form, $form_state);
   }
 
   /**
-   * Submission handler for the "Add another item" button.
+   * Appends an item; the #submit callback of Append buttons.
    *
-   * @param array $form
+   * @param array<int|string, mixed> $form
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::appendSubmit() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function addMoreSubmit(array $form, FormStateInterface $form_state): void {
-    $button = $form_state->getTriggeringElement();
-
-    // Go one level up in the form, to the widgets container.
-    $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -1));
-    $prop_name = $element['#prop_name'];
-    $prop_parents = $element['#prop_parents'];
-
-    // Increment the items count.
-    $prop_state = static::getPropFormState($prop_parents, $prop_name, $form_state);
-    $form_state->setRebuild();
-    if (static::isFull($element['#cardinality'] ?? FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED, $prop_state['items_indices'] ?? [])) {
-      return;
-    }
-    $next_index = empty($prop_state['items_indices'])
-      ? 0
-      : end($prop_state['items_indices']) + 1;
-    $prop_state['items_indices'][] = $next_index;
-    static::setPropFormState($prop_parents, $prop_name, $form_state, $prop_state);
+    @trigger_error('FormGeneratorDrupal::addMoreSubmit() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::appendSubmit() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    MultivalueCallbacks::appendSubmit($form, $form_state);
   }
 
   /**
-   * Gets the multivalue cardinality from the array schema.
+   * Replaces the widget after an append; the #ajax callback of Append buttons.
    *
-   * @param mixed $json_schema
-   *   The JSON Schema for the array.
-   *
-   * @return int
-   *   The integer maxItems when it is at least 1, otherwise unlimited.
-   */
-  private static function cardinality($json_schema): int {
-    $max_items = $json_schema->maxItems ?? NULL;
-    return is_int($max_items) && $max_items >= 1
-      ? $max_items
-      : FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED;
-  }
-
-  /**
-   * Decides whether a multivalue widget holds as many items as it may.
-   *
-   * @param int $cardinality
-   *   The widget cardinality.
-   * @param array $indices
-   *   The item deltas. Removals leave gaps, so they are counted.
-   *
-   * @return bool
-   *   TRUE when no further item may be appended.
-   */
-  private static function isFull(int $cardinality, array $indices): bool {
-    return $cardinality !== FieldStorageDefinitionInterface::CARDINALITY_UNLIMITED
-      && count($indices) >= $cardinality;
-  }
-
-  /**
-   * Ajax callback for the "Add another item" button.
-   *
-   * This returns the new page content to replace the page content made obsolete
-   * by the form submission.
-   *
-   * @param array $form
-   *   The form.
+   * @param array<int|string, mixed> $form
+   *   The rebuilt form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
    *
-   * @return array|mixed|void
-   *   The element.
+   * @return \Drupal\Core\Ajax\AjaxResponse
+   *   The response, which also announces the new item and moves focus to it.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::appendAjax() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
-  public static function addMoreAjax(array $form, FormStateInterface $form_state) {
-    $button = $form_state->getTriggeringElement();
-
-    // Go one level up in the form, to the widgets container.
-    $element = NestedArray::getValue($form, array_slice($button['#array_parents'], 0, -1));
-
-    // Finite widgets are replaced too, so a hidden Append button disappears.
-    // Add a DIV around the delta receiving the Ajax effect.
-    $delta = $element['#max_delta'] ?? NULL;
-    if ($delta === NULL || !isset($element[$delta])) {
-      return $element;
-    }
-    $element[$delta]['#prefix'] = '<div class="ajax-new-content">' . ($element[$delta]['#prefix'] ?? '');
-    $element[$delta]['#suffix'] = ($element[$delta]['#suffix'] ?? '') . '</div>';
-
-    return $element;
+  public static function addMoreAjax(array $form, FormStateInterface $form_state): AjaxResponse {
+    @trigger_error('FormGeneratorDrupal::addMoreAjax() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::appendAjax() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    return MultivalueCallbacks::appendAjax($form, $form_state);
   }
 
   /**
-   * Get the prop form state.
+   * Turns checked keys into a list; the #element_validate of checkboxes.
    *
-   * @param array $parents
-   *   The parents.
-   * @param string $prop_name
-   *   The prop name.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   *
-   * @return array|mixed|null
-   *   The state.
-   */
-  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state) {
-    return NestedArray::getValue($form_state->getStorage(), static::getWidgetStateParents($parents, $prop_name));
-  }
-
-  /**
-   * Sets the prop form state.
-   *
-   * @param array $parents
-   *   The parents.
-   * @param string $prop_name
-   *   The prop name.
-   * @param \Drupal\Core\Form\FormStateInterface $form_state
-   *   The form state.
-   * @param array $prop_state
-   *   The state to set.
-   */
-  public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state): void {
-    $parents_state = static::getWidgetStateParents($parents, $prop_name);
-    NestedArray::setValue($form_state->getStorage(), $parents_state, $prop_state);
-  }
-
-  /**
-   * Returns the location of processing information within $form_state.
-   *
-   * @param array $parents
-   *   The array of #parents where the widget lives in the form.
-   * @param string $prop_name
-   *   The field name.
-   *
-   * @return array
-   *   The location of processing information within $form_state.
-   */
-  protected static function getWidgetStateParents(array $parents, string $prop_name) {
-    // Prop processing data is placed at
-    // $form_state->get(['prop_storage', '#parents', ...$parents..., '#props',
-    // $prop_name]), to avoid clashes between prop names and $parents parts.
-    return array_merge(['prop_storage', '#parents'], $parents, [
-      '#props',
-      $prop_name,
-    ]);
-  }
-
-  /**
-   * Creates a scaffold for the form element.
-   *
-   * @param mixed $element
-   *   The parsed element from the schema.
-   * @param string $machine_name
-   *   The machine name for the form element. Used for fallback metadata.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   * @param mixed $current_input
-   *   The current input.
-   * @param bool $has_current_input
-   *   Whether current input is available, including an explicit NULL.
-   *
-   * @return array
-   *   The scaffolded form element.
-   */
-  private function scaffoldFormElement($element, string $machine_name, array $ui_schema_data, $current_input, bool $has_current_input): array {
-    $type = $this->guessSchemaType($element, $ui_schema_data);
-    $title = $ui_schema_data['ui:title'] ?? $element->title ?? $this->machineNameToHumanName($machine_name);
-    $form_element = [
-      '#title' => Markup::create(Xss::filter($title)),
-      '#type' => $type,
-      '#prop_name' => $machine_name,
-    ];
-    // Saved input wins over the default, and a saved NULL shows no value.
-    $default_value = $has_current_input ? $current_input : ($element->default ?? NULL);
-    if (!is_null($default_value)) {
-      $form_element['#default_value'] = $default_value;
-    }
-    $description = $ui_schema_data['ui:help'] ?? $element->description ?? NULL;
-    if (!empty($description)) {
-      $form_element['#description'] = $description;
-    }
-    $placeholder = $ui_schema_data['ui:placeholder'] ?? NULL;
-    if (!empty($placeholder)) {
-      $form_element['#placeholder'] = $placeholder;
-    }
-    // Basic transformations based on type.
-    if ($type === 'boolean') {
-      $form_element['#type'] = 'checkbox';
-    }
-    if ($type === 'string') {
-      $form_element['#type'] = 'textfield';
-    }
-    if ($type === 'integer') {
-      // Drupal has no 'integer' element. A number input whose step is one is
-      // the native spelling of the constraint: the browser rejects a fractional
-      // value before the form is submitted, and the value still arrives as an
-      // integer because RecursiveTypeCaster::tryCastingNumber() casts a numeric
-      // string with no decimal separator to int.
-      $form_element['#type'] = 'number';
-      $form_element['#step'] = 1;
-    }
-    return $form_element;
-  }
-
-  /**
-   * Guesses the JSON property type based on the schema element.
-   *
-   * @param mixed $element
-   *   The parsed element from the schema.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   *
-   * @return string
-   *   The JSON property type.
-   */
-  private function guessSchemaType($element, array $ui_schema_data): string {
-    if (!empty($ui_schema_data['ui:widget'])) {
-      return $ui_schema_data['ui:widget'];
-    }
-    if (!isset($element->type) && !empty($element->enum)) {
-      $members = $element->enum;
-      $count = count($members);
-      if (count(array_filter($members, 'is_int')) === $count) {
-        return 'integer';
-      }
-      if (count(array_filter($members, static fn($member) => is_int($member) || is_float($member))) === $count) {
-        return 'number';
-      }
-      if (count(array_filter($members, 'is_bool')) === $count) {
-        return 'boolean';
-      }
-      // String-only and mixed enums both use string controls.
-      return 'string';
-    }
-    $type = $element->type ?? 'unknown';
-    if (is_array($type)) {
-      // Use the first type other than 'null', or 'null' if none remains.
-      $type = current(array_filter($type, function ($item) {
-        return $item !== 'null';
-      })) ?: 'null';
-    }
-    return $type;
-  }
-
-  /**
-   * Turns a machine name into a human readable name.
-   *
-   * @param string $machine_name
-   *   The machine name.
-   *
-   * @return string
-   *   The human readable name.
-   */
-  private function machineNameToHumanName($machine_name) {
-    return ucwords(strtr($machine_name, ['_' => ' ', '-' => ' ']));
-  }
-
-  /**
-   * Adds the necessary validation rules to the form.
-   *
-   * @param array $element
-   *   The form element to alter.
-   *
-   * @return array
-   *   The modified form.
-   */
-  private function addValidationRules(array $element): array {
-    $required_prop_names = $element['#json_schema']->required ?? [];
-    // Add the required fields.
-    foreach (array_keys($element) as $key) {
-      if (($key[0] ?? '') === '#') {
-        continue;
-      }
-      if (($element[$key]['#input'] ?? NULL) === FALSE) {
-        continue;
-      }
-      $required = in_array($key, $required_prop_names);
-      // Schema required means presence, so unchecked values remain valid.
-      if (in_array($element[$key]['#type'] ?? '', ['checkbox', 'checkboxes'], TRUE)) {
-        $element[$key]['#required'] = FALSE;
-        if ($required) {
-          $element[$key]['#label_attributes']['class'][] = 'form-required';
-          // Composite checkboxes render their title inside a legend instead.
-          if ($element[$key]['#type'] === 'checkboxes') {
-            $element[$key]['#title'] = Markup::create('<span class="form-required">' . $element[$key]['#title'] . '</span>');
-          }
-        }
-        continue;
-      }
-      $element[$key]['#required'] = $required;
-    }
-    // Drupal runs #element_validate when the container sits under a key, but
-    // not on the form itself: there it runs only the form-level #validate
-    // handlers, and it ignores #validate on any other element. Each placement
-    // therefore runs the bridge exactly once. FormBuilder::prepareForm()
-    // appends the form's own ::validateForm after the #validate handler.
-    $element['#element_validate'] = [[$this, 'validateWithSchema']];
-    $element['#validate'] = [[$this, 'validateFormWithSchema']];
-    return $element;
-  }
-
-  /**
-   * Rejects schema property names that Drupal would read as render properties.
-   *
-   * Property names become render-array keys. A name such as '#process' or
-   * '#element_validate' would make Drupal call whatever the schema puts there,
-   * and '#type' or '#tree' would corrupt the form. The schema is checked as a
-   * whole before any element is built, so array items that are not rendered
-   * yet are covered too.
-   *
-   * @param mixed $schema
-   *   The registered schema, or one of its sub-schemas.
-   * @param string[] $path
-   *   The schema path of $schema, as keys from the root.
-   * @param bool[] $visited
-   *   The object IDs of the sub-schemas already checked, so that a schema
-   *   object graph with cycles cannot recurse forever.
-   *
-   * @throws \InvalidArgumentException
-   *   When a property name starts with '#'.
-   */
-  private function rejectRenderPropertyNames($schema, array $path, array &$visited): void {
-    if (!is_object($schema) || isset($visited[spl_object_id($schema)])) {
-      return;
-    }
-    $visited[spl_object_id($schema)] = TRUE;
-    foreach ((array) ($schema->properties ?? []) as $name => $sub_schema) {
-      $sub_path = [...$path, 'properties', (string) $name];
-      if (str_starts_with((string) $name, '#')) {
-        throw new \InvalidArgumentException(sprintf(
-          'Schema property "%s" starts with "#", which Drupal reserves for render properties.',
-          implode('.', $sub_path)
-        ));
-      }
-      $this->rejectRenderPropertyNames($sub_schema, $sub_path, $visited);
-    }
-    $this->rejectRenderPropertyNames($schema->items ?? NULL, [...$path, 'items'], $visited);
-  }
-
-  /**
-   * Gets the registered schema with normalized reference URIs.
-   *
-   * @param mixed $data
-   *   The schema containing references.
-   *
-   * @return mixed|object
-   *   The registered schema; referenced properties are not expanded.
-   */
-  private function getSchema($data) {
-    $storage = SchemaReferenceResolver::createFactory($data)->getSchemaStorage();
-    return $storage->getSchema(SchemaReferenceResolver::SCHEMA_URI);
-  }
-
-  /**
-   * Builds the form element for the email case.
-   *
-   * @param array $form_element
-   *   The form element.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformEmail(array $form_element): array {
-    $form_element['#type'] = 'email';
-    return $form_element;
-  }
-
-  /**
-   * Builds the form element for a type with no Form API counterpart.
-   *
-   * Emitting nothing is not an option: a property with no control and no
-   * message is indistinguishable from a property the schema never declared,
-   * which is how an unsupported type stays unnoticed until somebody compares
-   * the generated form against the schema by hand.
-   *
-   * @param array $form_element
-   *   The form element.
-   * @param string $type
-   *   The type that could not be turned into a control.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformUnsupported(array $form_element, string $type): array {
-    $form_element['#type'] = 'item';
-    // 'item' collects a value by default, and the only value it could collect
-    // here is the empty string. That string is then type-cast and validated
-    // against the property's schema like any other submission, so a property
-    // that cannot be rendered would make the whole form unsavable. It has to
-    // stay out of the browser's submitted values. Any saved value or schema
-    // default is supplied separately before schema validation.
-    $form_element['#input'] = FALSE;
-    $form_element['#markup'] = new TranslatableMarkup(
-      'This property cannot be edited: there is no form element for the %type type.',
-      ['%type' => $type]
-    );
-    $form_element['#disabled'] = TRUE;
-    unset($form_element['#default_value'], $form_element['#placeholder']);
-    return $form_element;
-  }
-
-  /**
-   * Builds the form element for the radios case.
-   *
-   * @param string|null $uiwidget
-   *   The type of widget to use.
-   * @param array $form_element
-   *   The form element.
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $label_mappings
-   *   Mappings for the labels.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformRadios(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
-    $form_element['#type'] = $uiwidget ?? 'radios';
-    $form_element['#options'] = $this->enumOptions($json_schema->enum, $label_mappings);
-    return $form_element;
-  }
-
-  /**
-   * Builds the form element for the checkboxes case.
-   *
-   * @param string|null $uiwidget
-   *   The type of widget to use.
-   * @param array $form_element
-   *   The form element.
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $label_mappings
-   *   An associative array to map options to human-readable labels.
-   *
-   * @return array
-   *   The form element.
-   */
-  private function transformCheckboxes(?string $uiwidget, array $form_element, $json_schema, array $label_mappings): array {
-    $form_element['#type'] = $uiwidget ?? 'checkboxes';
-    $form_element['#options'] = $this->enumOptions($json_schema->items->enum, $label_mappings);
-    $form_element['#element_validate'][] = [static::class, 'validateCheckboxes'];
-    return $form_element;
-  }
-
-  /**
-   * Normalizes selected checkbox keys before schema type casting.
-   *
-   * @param array $element
+   * @param array<int|string, mixed> $element
    *   The checkboxes element.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name EnumElements::validateCheckboxes() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function validateCheckboxes(array &$element, FormStateInterface $form_state): void {
-    // Integer 0 marks an unchecked option; the string '0' is a checked key.
-    $checked = array_fill_keys(Checkboxes::getCheckedCheckboxes($element['#value']), TRUE);
-    // Follow the schema's option order, regardless of submission order.
-    $values = array_keys(array_intersect_key($element['#options'], $checked));
-    $form_state->setValueForElement($element, $values);
+    @trigger_error('FormGeneratorDrupal::validateCheckboxes() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name EnumElements::validateCheckboxes() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    EnumElements::validateCheckboxes($element, $form_state);
   }
 
   /**
-   * Builds an '#options' array out of the members of an enum.
+   * Gets the stored state of a multivalue widget.
    *
-   * Shared by the radios and the checkboxes cases, which differ only in where
-   * they read the enum from. Both used to inline an array_reduce() whose
-   * closure declared `string $opt` and merged single-element arrays, and each
-   * of those two details was a separate defect:
-   *
-   * 1. `null` is a legal enum member -- it is how a JSON Schema spells "no
-   *    choice made", and it is what `type: ["string", "null"]` props use. The
-   *    `string` declaration turned it into a TypeError that took down the
-   *    whole form rather than one option.
-   * 2. array_merge() RENUMBERS integer keys. PHP coerces the numeric-string
-   *    key '10' to int 10 on the way into the array, array_merge() then
-   *    reassigns it sequentially, and an enum of ["10", "12", "15"] ends up
-   *    offering the keys 0, 1, 2 while still displaying the original labels.
-   *    Every such value failed validation on submission, because the key is
-   *    what the browser sends back and 0 is not in the enumeration. Assigning
-   *    the key directly preserves it: int 10 renders as value="10".
-   *
-   * @param array $members
-   *   The enum members, as decoded from the schema.
-   * @param array $label_mappings
-   *   An associative array to map options to human-readable labels.
-   *
-   * @return array
-   *   The options, keyed by the value Form API will submit.
-   */
-  private function enumOptions(array $members, array $label_mappings): array {
-    $options = [];
-    foreach ($members as $member) {
-      // PHP coerces a NULL array key to the empty string. Form API also submits
-      // '' for an unselected control. An enum containing both NULL and ''
-      // therefore shares one option key for those members.
-      // String keys preserve fractional values instead of truncating to int.
-      $key = is_float($member) ? (string) $member : ($member ?? '');
-      $label = $label_mappings[$key] ?? $this->machineNameToHumanName((string) $member);
-      $options[$key] = Markup::create(Xss::filter($label));
-    }
-    return $options;
-  }
-
-  /**
-   * Builds the form element for the multi-value case.
-   *
-   * @param array $prop_parents
-   *   The prop parents array.
-   * @param string $machine_name
-   *   The machine name.
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   * @param array|null $current_input
-   *   The current input.
-   * @param array $form_element
-   *   The form element.
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
-   * @param bool $enabled
-   *   Whether the multivalue element is enabled. Items of a disabled element
-   *   are disabled too.
+   * @param string|null $namespace
+   *   The 'namespace' context key the container was built with, if any.
    *
-   * @return array
-   *   The form element.
+   * @return mixed
+   *   The stored array, with 'items_indices' and 'array_parents', or NULL.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Use WidgetItems::read() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
-  private function transformMultivalue(array $prop_parents, string $machine_name, FormStateInterface $form_state, ?array $current_input, array $form_element, $json_schema, array $ui_schema_data, bool $enabled): array {
-    // Store field information in $form_state.
-    if (!static::getPropFormState($prop_parents, $machine_name, $form_state)) {
-      $count = count($current_input ?: []);
-      $prop_state = [
-        'items_indices' => $count ? range(0, $count - 1) : [],
-        'array_parents' => [],
-      ];
-      static::setPropFormState($prop_parents, $machine_name, $form_state, $prop_state);
-    }
-
-    $cardinality = static::cardinality($json_schema);
-    // Determine the widgets to display and the last real delta. Saved items
-    // beyond maxItems stay, so that validation reports them.
-    $indices = static::getPropFormState($prop_parents, $machine_name, $form_state)['items_indices'] ?? [0];
-    $max = $indices ? end($indices) : NULL;
-    $id_prefix = implode('-', $prop_parents);
-    $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
-    $form_element['#type'] = 'details';
-    $form_element['#open'] = TRUE;
-    // Keep the details element's default processing before setting the path.
-    $form_element['#process'] = [
-      [Details::class, 'processGroup'],
-      [Details::class, 'processAjaxForm'],
-      [static::class, 'multiValueProcess'],
-    ];
-    $form_element['#after_build'][] = [static::class, 'multiValueAfterBuild'];
-    $form_element['#cardinality'] = $cardinality;
-    $form_element['#max_delta'] = $max;
-    $form_element['#prefix'] = '<div id="' . $wrapper_id . '">';
-    $form_element['#suffix'] = '</div>';
-    $title = $form_element['#title'] ?? '';
-    foreach ($indices as $delta) {
-      // The wrapping details element shows the title and description, even
-      // when maxItems is 1; each item gets an invisible numbered title.
-      $element = [
-        '#title' => new TranslatableMarkup('@title (value @number)', [
-          '@title' => $title,
-          '@number' => $delta + 1,
-        ]),
-        '#title_display' => 'invisible',
-        '#description' => '',
-      ];
-      // Add a new empty item if it doesn't exist yet at this delta.
-      $new_prop_parents = [...$prop_parents, $delta];
-      $element += $this->doTransformOneField(
-        $json_schema->items,
-        (string) $delta,
-        $new_prop_parents,
-        $ui_schema_data,
-        $form_state,
-        $current_input[$delta] ?? NULL,
-        $enabled,
-        array_key_exists($delta, $current_input ?? [])
-      );
-
-      $container_id = Html::getUniqueId(sprintf('%s-%d-container', $id_prefix, $delta));
-      $remove_name = sprintf('%s-%d-remove', $id_prefix, $delta);
-      $form_element[$delta] = [
-        '#type' => 'container',
-        '#prefix' => '<div id="' . $container_id . '">',
-        '#wrapper_id' => $container_id,
-        '#suffix' => '</div>',
-        '#attributes' => [
-          'style' => 'position: relative;',
-        ],
-        'removable_element' => $element,
-        'remove_one' => [
-          '#delta' => $delta,
-          '#type' => 'submit',
-          '#name' => $remove_name,
-          '#value' => new TranslatableMarkup('⨯'),
-          '#validate' => [],
-          '#prop_parents' => $new_prop_parents,
-          '#attributes' => [
-            'class' => ['field-remove-one-submit'],
-            'style' => 'opacity: 0.9;display: block;position: absolute;top: -10px;left: -10px;margin: 0;overflow: hidden;width: 20px;height: 20px;padding: 0;border-radius: 15px;',
-            'title' => new TranslatableMarkup('Remove item'),
-          ],
-          '#limit_validation_errors' => [],
-          '#submit' => [[static::class, 'removeOneSubmit']],
-          '#ajax' => [
-            'callback' => [static::class, 'removeOneAjax'],
-            'wrapper' => $container_id,
-            'effect' => 'fade',
-          ],
-          '#weight' => 101,
-        ],
-      ];
-    }
-
-    $form_element['add_more'] = [
-      '#type' => 'submit',
-      '#name' => strtr($id_prefix, '-', '_') . '_add_more',
-      '#value' => new TranslatableMarkup('Append an item'),
-      '#attributes' => ['class' => ['field-add-more-submit']],
-      '#submit' => [[static::class, 'addMoreSubmit']],
-      '#ajax' => [
-        'callback' => [static::class, 'addMoreAjax'],
-        'wrapper' => $wrapper_id,
-        'effect' => 'fade',
-      ],
-    ];
-    if (static::isFull($cardinality, $indices)) {
-      // An inaccessible button cannot trigger a submission either.
-      $form_element['add_more']['#access'] = FALSE;
-    }
-    return $form_element;
+  public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, ?string $namespace = NULL): mixed {
+    @trigger_error('FormGeneratorDrupal::getPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use WidgetItems::read() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    return WidgetState::stored($form_state, WidgetState::keys($parents, $prop_name, $namespace));
   }
 
   /**
-   * Builds the form element for the nested case.
+   * Stores the state of a multivalue widget.
    *
-   * @param mixed $json_schema
-   *   The JSON Schema for the element.
-   * @param array $form_element
-   *   The form element.
-   * @param array $parents
-   *   The parents.
-   * @param array $ui_schema_data
-   *   The schema for the UI refinements.
+   * @param array<mixed> $parents
+   *   The schema path of the widget.
+   * @param string $prop_name
+   *   The widget's property name.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
-   * @param array|null $current_input
-   *   The current input.
-   * @param bool $enabled
-   *   Whether the nested element is enabled. Sub-properties of a disabled
-   *   element are disabled too.
-   * @param bool $has_current_input
-   *   Whether current input is available, including an explicit NULL.
+   * @param array<mixed> $prop_state
+   *   The state to store.
+   * @param string|null $namespace
+   *   The namespace the container was built with, if any.
    *
-   * @return array
-   *   The form element.
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   The Append and Remove buttons keep the widget state; read it with
+   *   WidgetItems::read().
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
-  private function transformNested($json_schema, array $form_element, array $parents, array $ui_schema_data, FormStateInterface $form_state, ?array $current_input, bool $enabled, bool $has_current_input): array {
-    // Inside a saved NULL, every sub-property is saved NULL too.
-    $saved_null = $has_current_input && $current_input === NULL;
-    $properties = $json_schema->properties ?? [];
-    if (!empty($properties)) {
-      $form_element['#type'] = 'details';
-      $form_element['#open'] = TRUE;
-      foreach ($properties as $sub_machine_name => $sub_json_schema) {
-        $form_element[$sub_machine_name] = $this->doTransformOneField(
-          $sub_json_schema,
-          $sub_machine_name,
-          [...$parents, $sub_machine_name],
-          $ui_schema_data[$sub_machine_name] ?? [],
-          $form_state,
-          $current_input[$sub_machine_name] ?? NULL,
-          $enabled,
-          $saved_null || array_key_exists($sub_machine_name, $current_input ?? [])
-        );
-      }
+  public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
+    @trigger_error('FormGeneratorDrupal::setPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. The Append and Remove buttons keep the widget state; read it with WidgetItems::read(). See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    WidgetState::store($form_state, WidgetState::keys($parents, $prop_name, $namespace), $prop_state);
+  }
+
+  // phpcs:enable
+
+  /**
+   * Reads the options from the "options" context key.
+   *
+   * The four context keys of releases before 3.2.0 are still read, with a
+   * deprecation notice; drop them in 4.0.0.
+   *
+   * @param \Shaper\Util\Context $context
+   *   The context of the transform() call.
+   *
+   * @return \SchemaForms\FormOptions
+   *   The options. A deprecated key of the wrong type reads as absent.
+   *
+   * @throws \SchemaForms\Exception\InvalidOptionException
+   *   When the deprecated "namespace" key is not a non-empty string.
+   */
+  private static function options(Context $context): FormOptions {
+    $options = $context['options'] ?? NULL;
+    if ($options instanceof FormOptions) {
+      return $options;
     }
-    return $form_element;
+    $legacy_keys = ['ui_hints', 'form_state', 'current_input', 'namespace'];
+    $legacy = array_intersect_key($context->getArrayCopy(), array_flip($legacy_keys));
+    if ($legacy === []) {
+      return new FormOptions();
+    }
+    // phpcs:ignore Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
+    @trigger_error('Passing the "ui_hints", "form_state", "current_input" or "namespace" context key to FormGeneratorDrupal::transform() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Pass a SchemaForms\FormOptions as the "options" context key instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    $namespace = $legacy['namespace'] ?? NULL;
+    if ($namespace !== NULL && (!is_string($namespace) || $namespace === '')) {
+      throw new InvalidOptionException('The "namespace" context key must be a non-empty string.');
+    }
+    $hints = $legacy['ui_hints'] ?? NULL;
+    $form_state = $legacy['form_state'] ?? NULL;
+    $input = $legacy['current_input'] ?? NULL;
+    return new FormOptions(
+      uiHints: is_array($hints) ? $hints : [],
+      formState: is_object($form_state) ? $form_state : NULL,
+      currentInput: is_array($input) || is_object($input) ? $input : [],
+      namespace: $namespace,
+    );
+  }
+
+  /**
+   * Gets the schema registry.
+   *
+   * @return \SchemaForms\SchemaRegistryInterface
+   *   The registry the caller gave, or a RestrictedSchemaRegistry.
+   */
+  private function registry(): SchemaRegistryInterface {
+    return $this->registry ?? new RestrictedSchemaRegistry();
+  }
+
+  /**
+   * Gets the memory of accepted schemas.
+   *
+   * @return \SchemaForms\Drupal\AcceptedSchemas
+   *   The memory.
+   */
+  private function accepted(): AcceptedSchemas {
+    $this->accepted ??= new AcceptedSchemas();
+    return $this->accepted;
+  }
+
+  /**
+   * Adds the schema validation callbacks to a generated container.
+   *
+   * Drupal runs #element_validate when the container sits under a key, and
+   * only the form-level #validate handlers when it is the form itself, so
+   * each placement runs the bridge exactly once. A registry the caller gave
+   * goes along, so validation registers the schema the same way.
+   *
+   * @param array<int|string, mixed> $element
+   *   The generated container.
+   *
+   * @return array<int|string, mixed>
+   *   The container.
+   */
+  private function withValidation(array $element): array {
+    $element['#element_validate'] = [[SchemaValidationBridge::class, 'elementValidate']];
+    $element['#validate'] = [[SchemaValidationBridge::class, 'formValidate']];
+    if ($this->registry !== NULL) {
+      $element[RenderKeys::REGISTRY] = $this->registry;
+    }
+    return $element;
   }
 
 }
