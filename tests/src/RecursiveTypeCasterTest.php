@@ -260,6 +260,7 @@ class RecursiveTypeCasterTest extends TestCase {
       return TRUE;
     };
     set_error_handler($handler);
+    error_clear_last();
     try {
       $actual = (new SubmissionRefiner())->refine(['x' => '3'], $schema);
     }
@@ -270,6 +271,8 @@ class RecursiveTypeCasterTest extends TestCase {
       restore_error_handler();
     }
     $this->assertSame([], $warnings);
+    // PHP's own handler, which records the last error, did not run either.
+    $this->assertNull(error_get_last());
     $this->assertSame($handler, $current);
     $this->assertSame(['x' => '3'], $actual);
   }
