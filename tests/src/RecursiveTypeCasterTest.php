@@ -14,6 +14,7 @@ use SchemaForms\PropertySchemaResolver;
 use SchemaForms\RecursiveTypeCaster;
 use SchemaForms\ScalarCaster;
 use SchemaForms\SchemaReferenceResolver;
+use SchemaForms\SchemaType;
 
 /**
  * Unit tests for the \SchemaForms\RecursiveTypeCaster class.
@@ -25,6 +26,7 @@ use SchemaForms\SchemaReferenceResolver;
 #[CoversClass(ScalarCaster::class)]
 #[CoversClass(EnumMemberMatcher::class)]
 #[CoversClass(PropertySchemaResolver::class)]
+#[CoversClass(SchemaType::class)]
 class RecursiveTypeCasterTest extends TestCase {
 
   /**

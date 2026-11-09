@@ -77,7 +77,7 @@ final class RecursiveTypeCaster {
     if (!isset($schema->type) && !empty($enum) && (is_string($data) || is_int($data))) {
       return EnumMemberMatcher::match($data, $enum);
     }
-    $types = self::types($schema);
+    $types = SchemaType::listOf($schema);
     if (is_array($data) && array_is_list($data) && in_array('array', $types, TRUE)) {
       return $this->refineItems($data, $schema);
     }
@@ -85,20 +85,6 @@ final class RecursiveTypeCaster {
       return $this->refineProperties($data, $schema);
     }
     return ScalarCaster::cast($data, $types, $schema);
-  }
-
-  /**
-   * Lists the types a schema declares.
-   *
-   * @param object $schema
-   *   The schema.
-   *
-   * @return array<mixed>
-   *   The declared types; empty when the schema declares none.
-   */
-  private static function types(object $schema): array {
-    $types = $schema->type ?? [];
-    return is_array($types) ? $types : [$types];
   }
 
   /**
