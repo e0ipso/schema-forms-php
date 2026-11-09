@@ -84,8 +84,7 @@ final class MultivalueCallbacks {
     if ($delta === NULL) {
       return;
     }
-    // The widget is two levels up from the button: widget, item, button.
-    $location = WidgetLocation::ofWidget(self::widget($form, $button, 2));
+    $location = WidgetLocation::ofWidget(self::widget($form, $button));
     $storage = new WidgetStateStorage($form_state);
     $state = $storage->load($location);
     if (in_array($delta, $state->deltas(), TRUE)) {
@@ -114,7 +113,7 @@ final class MultivalueCallbacks {
     if ($delta === NULL) {
       return new AjaxResponse();
     }
-    return WidgetAjaxResponse::removed(self::widget($form, $button, 2), $delta);
+    return WidgetAjaxResponse::removed(self::widget($form, $button), $delta);
   }
 
   /**
@@ -126,7 +125,7 @@ final class MultivalueCallbacks {
    *   The form state.
    */
   public static function appendSubmit(array $form, FormStateInterface $form_state): void {
-    $widget = self::widget($form, self::triggeringButton($form_state), 1);
+    $widget = self::widget($form, self::triggeringButton($form_state));
     $form_state->setRebuild();
     // Without its widget, the item would go to a state no widget reads.
     if (!MultivalueWidget::is($widget)) {
@@ -172,7 +171,7 @@ final class MultivalueCallbacks {
    *   The widget, with the new item wrapped for the AJAX effect.
    */
   public static function appendedWidget(array $form, FormStateInterface $form_state): array {
-    $widget = self::widget($form, self::triggeringButton($form_state), 1);
+    $widget = self::widget($form, self::triggeringButton($form_state));
     $delta = $widget[RenderKeys::MAX_DELTA] ?? NULL;
     if (!is_int($delta) || !is_array($widget[$delta] ?? NULL)) {
       return $widget;
@@ -214,19 +213,26 @@ final class MultivalueCallbacks {
   /**
    * Finds the widget a button belongs to.
    *
+   * The button's nearest ancestor that is a multivalue widget owns it. Asking
+   * the widget structure, instead of counting levels, keeps this right
+   * wherever the builder places the buttons inside the widget.
+   *
    * @param array<int|string, mixed> $form
    *   The form.
    * @param array<int|string, mixed> $button
    *   The button that submitted the form.
-   * @param int $levels
-   *   How many levels the widget sits above the button.
    *
    * @return array<int|string, mixed>
-   *   The widget, or an empty array when the form holds none there.
+   *   The widget, or an empty array when no ancestor of the button is one.
    */
-  private static function widget(array $form, array $button, int $levels): array {
-    $array_parents = $button['#array_parents'] ?? [];
-    $widget = NestedArray::getValue($form, array_slice(is_array($array_parents) ? $array_parents : [], 0, -$levels));
+  private static function widget(array $form, array $button): array {
+    $array_parents = is_array($button['#array_parents'] ?? NULL) ? array_values($button['#array_parents']) : [];
+    $lengths = count($array_parents) > 1 ? range(count($array_parents) - 1, 1) : [];
+    $widgets = array_filter(
+      array_map(static fn (int $length): mixed => NestedArray::getValue($form, array_slice($array_parents, 0, $length)), $lengths),
+      static fn (mixed $ancestor): bool => is_array($ancestor) && MultivalueWidget::is($ancestor)
+    );
+    $widget = reset($widgets);
     return is_array($widget) ? $widget : [];
   }
 

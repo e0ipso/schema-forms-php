@@ -115,6 +115,35 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   }
 
   /**
+   * A button finds its widget wherever host code nests it inside the widget.
+   *
+   * Host code may wrap the buttons in containers through a form alter, so
+   * the callbacks cannot count the levels between a button and its widget.
+   */
+  public function testButtonsNestedDeeperFindTheirWidget(): void {
+    $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
+    $state = new FormState();
+    $context = new Context(['form_state' => $state, 'current_input' => ['items' => ['a', 'b']]]);
+    $widget = (new FormGeneratorDrupal())->transform($schema, $context)['items'];
+    $widget[1]['actions'] = ['#type' => 'container', 'remove_one' => $widget[1]['remove_one']];
+    $widget['actions'] = ['#type' => 'container', 'add_more' => $widget['add_more']];
+    unset($widget[1]['remove_one'], $widget['add_more']);
+    $form = ['host' => ['wrapper' => ['items' => $widget]]];
+
+    $state->setTriggeringElement($widget[1]['actions']['remove_one'] + [
+      '#array_parents' => ['host', 'wrapper', 'items', 1, 'actions', 'remove_one'],
+    ]);
+    FormGeneratorDrupal::removeOneSubmit($form, $state);
+    $this->assertSame([0], array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
+
+    $state->setTriggeringElement($widget['actions']['add_more'] + [
+      '#array_parents' => ['host', 'wrapper', 'items', 'actions', 'add_more'],
+    ]);
+    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    $this->assertSame([0, 2], array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
+  }
+
+  /**
    * Items are numbered by position, and each Remove button names its item.
    */
   public function testItemNumbersFollowPositions(): void {
