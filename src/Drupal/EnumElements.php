@@ -34,7 +34,8 @@ final class EnumElements {
    * @param \stdClass $schema
    *   The schema.
    * @param array<mixed> $hints
-   *   The UI hints; 'ui:widget' replaces the radios.
+   *   The UI hints; a 'ui:widget' that SchemaTypes::widget() accepts
+   *   replaces the radios.
    *
    * @return array<int|string, mixed>
    *   The element.
@@ -44,7 +45,7 @@ final class EnumElements {
     if (empty($members) || !is_array($members)) {
       return $element;
     }
-    $element['#type'] = $hints['ui:widget'] ?? self::RADIOS;
+    $element['#type'] = SchemaTypes::widget($hints) ?? self::RADIOS;
     $element['#options'] = self::options($members, $hints);
     return $element;
   }
