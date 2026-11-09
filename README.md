@@ -66,8 +66,6 @@ $context = new Context(['options' => new FormOptions(uiHints: $ui_schema_data)])
 $form = $generator->transform($schema_data, $context);
 ```
 
-Code that only builds forms should type-hint `FormTransformationInterface`, which `FormGeneratorDrupal` implements through `FormGeneratorInterface`. The symbols semantic versioning covers are listed under [Public API](#public-api).
-
 `$form` is this render array. The root container also carries `#json_schema` (the decoded schema), `#element_validate` and `#validate`, left out here:
 
 ```php
@@ -165,8 +163,7 @@ Semantic versioning covers these symbols, with Shaper's `Context` carrying a `Fo
 - `SchemaForms\Drupal\ElementMapperInterface`: picks the element of a scalar schema. See [Mapping more types to elements](#mapping-more-types-to-elements).
 - `SchemaForms\Drupal\WidgetItems`: the items an array widget holds after its buttons rebuilt the form. See [Options](#options).
 - `SchemaForms\FormOptions`: the options of one `transform()` call. See [Options](#options).
-- `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
-- `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
+- `SchemaForms\FormGeneratorInterface`: `transform()` plus Shaper's input and output validation methods.
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
 - `SchemaForms\Exception\InvalidOptionException`: a context value or constructor option the library does not accept.
 - `SchemaForms\Exception\InvalidSchemaException`: a valid schema the generator cannot represent, such as a property name that starts with `#`.
@@ -176,58 +173,8 @@ Semantic versioning covers these symbols, with Shaper's `Context` carrying a `Fo
 - `SchemaForms\RestrictedSchemaRegistry`: the default `SchemaRegistryInterface`. It allows references inside the schema and to the bundled draft-04 meta-schema, and fetches nothing.
 - `SchemaForms\SchemaRegistryInterface`: registers a schema so its references resolve. Implement it to change which documents a schema may reference.
 - `SchemaForms\SubmissionRefiner`: casts submitted values to the types of a schema, without Drupal. See [Refining submissions without Drupal](#refining-submissions-without-drupal).
-- `SchemaForms\Testing\FormTransformationContractTestCase`: a PHPUnit test case that checks your own `FormTransformationInterface` implementation. See [Wrapping or replacing the generator](#wrapping-or-replacing-the-generator).
 
 `tests/src/PublicApiTest.php` fails when this list and the `@api` tags in `src/` disagree, or when a class in `src/` has neither `@api` nor `@internal`.
-
-### Wrapping or replacing the generator
-
-`FormTransformationInterface` is the extension point. Code that builds forms should type-hint it, so you can hand that code a decorator or a different generator instead of `FormGeneratorDrupal`. `FormGeneratorDrupal` is `final`; wrap it rather than extending it.
-
-This decorator adds context defaults. Values the caller passes still win, and whatever the wrapped generator returns or throws reaches the caller unchanged:
-
-```php
-use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\FormOptions;
-use SchemaForms\FormTransformationInterface;
-use Shaper\Util\Context;
-
-final class ContextDefaults implements FormTransformationInterface {
-
-  public function __construct(
-    private readonly FormTransformationInterface $inner,
-    private readonly array $defaults,
-  ) {}
-
-  public function transform($data, ?Context $context = NULL) {
-    $values = $context?->getArrayCopy() ?? [];
-    return $this->inner->transform($data, new Context($values + $this->defaults));
-  }
-
-}
-
-$generator = new ContextDefaults(new FormGeneratorDrupal(), ['options' => new FormOptions(namespace: 'settings')]);
-```
-
-The decorator implements only `FormTransformationInterface`. A Shaper pipeline that calls the validation methods of `FormGeneratorInterface` needs the generator itself.
-
-To check a decorator or a generator of your own against the interface's contract, extend `SchemaForms\Testing\FormTransformationContractTestCase` in your PHPUnit suite. It needs `phpunit/phpunit`, which this package suggests but does not require; the library's own tests run it with PHPUnit 11.5.
-
-```php
-use SchemaForms\FormOptions;
-use SchemaForms\FormTransformationInterface;
-use SchemaForms\Testing\FormTransformationContractTestCase;
-
-final class ContextDefaultsContractTest extends FormTransformationContractTestCase {
-
-  protected function createTransformation(): FormTransformationInterface {
-    return new ContextDefaults(new MyGenerator(), ['options' => new FormOptions(namespace: 'settings')]);
-  }
-
-}
-```
-
-The case checks that a decoded draft-04 object schema builds a form with and without a context, that an empty context builds the same form as no context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. By default it only requires a result other than `NULL`; override `assertForm()` to check the type and shape your implementation returns. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
 
 ### Options
 
@@ -379,11 +326,6 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - `FormGeneratorDrupal::validateWithSchema()`, `validateFormWithSchema()`, `multiValueProcess()`, `multiValueAfterBuild()`, `removeOneSubmit()`, `removeOneAjax()`, `addMoreSubmit()`, `addMoreAjax()` and `validateCheckboxes()` are deprecated and are removed in 4.0.0. Forms cached by earlier releases still name them, so each one triggers an `E_USER_DEPRECATED` notice and forwards to the callback generated forms name now. Rebuild cached forms before 4.0.0.
 - `FormGeneratorDrupal::getPropFormState()` and `::setPropFormState()` exposed the raw form state storage of array widgets. They are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. Read a widget's items with `SchemaForms\Drupal\WidgetItems::read()`; the Append and Remove buttons change them.
 
-### Contract test case
-
-- `FormTransformationContractTestCase` has a new test, `testEmptyContextMeansNoOptions()`: an empty `Context` must build the same form as no context. An implementation that treats the two differently now fails it.
-- Override the new `assertForm()` to check the forms your implementation builds. Its default asserts what the case asserted before, a result other than `NULL`.
-
 ### Labels and markup
 
 - Enum options for `true`, `false` and `null` are labelled "True", "False" and "None". They used to be labelled "1" and two empty strings.
@@ -444,7 +386,7 @@ Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` 
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
 - Drupal 11.4: requires `drupal/core-recommended:~11.4.0`, the newest Drupal 11 minor after the locked 11.3 release, then runs PHPUnit.
 - Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks the symbols listed under [Public API](#public-api).
-- Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal` or the test case in `src/Testing`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
+- Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
 
 ### JSON Schema compatibility
 
