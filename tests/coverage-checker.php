@@ -10,10 +10,10 @@ declare(strict_types=1);
 $metrics = static fn (string $total, string $covered): string => sprintf('<metrics statements="%s" coveredstatements="%s"/>', $total, $covered);
 $clover = static fn (string $body): string => '<coverage><project>' . $body . '</project></coverage>';
 $fixtures = [
-  'below floor' => [$clover($metrics('100', '44')), FALSE, '44.00%'],
-  'at floor' => [$clover($metrics('100', '45')), TRUE, '45.00%'],
-  'above floor' => [$clover($metrics('100', '80')), TRUE, '80.00%'],
-  'unrounded below floor' => [$clover($metrics('100000', '44999')), FALSE, '45.00%'],
+  'below floor' => [$clover($metrics('100', '97')), FALSE, '97.00%'],
+  'at floor' => [$clover($metrics('100', '98')), TRUE, '98.00%'],
+  'above floor' => [$clover($metrics('100', '99')), TRUE, '99.00%'],
+  'unrounded below floor' => [$clover($metrics('100000', '97999')), FALSE, '98.00%'],
   'zero covered lines' => [$clover($metrics('100', '0')), FALSE, '0.00%'],
   'project totals only' => [
     $clover('<file>' . $metrics('100', '100') . '</file>' . $metrics('100', '44')),
