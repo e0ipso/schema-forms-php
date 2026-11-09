@@ -30,6 +30,7 @@ use SchemaForms\Drupal\WidgetButtons;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
+use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
@@ -69,7 +70,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $state = new FormState();
-    $context = new Context(['form_state' => $state, 'current_input' => ['items' => $saved]]);
+    $context = new Context(['options' => new FormOptions(formState: $state, currentInput: ['items' => $saved])]);
     $form = ['host' => $generator->transform($schema, $context)];
     $this->assertFalse($state->isRebuilding());
     $state->setTriggeringElement($form['host']['items']['add_more'] + [
@@ -123,7 +124,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   public function testButtonsNestedDeeperFindTheirWidget(): void {
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $state = new FormState();
-    $context = new Context(['form_state' => $state, 'current_input' => ['items' => ['a', 'b']]]);
+    $context = new Context(['options' => new FormOptions(formState: $state, currentInput: ['items' => ['a', 'b']])]);
     $widget = (new FormGeneratorDrupal())->transform($schema, $context)['items'];
     $widget[1]['actions'] = ['#type' => 'container', 'remove_one' => $widget[1]['remove_one']];
     $widget['actions'] = ['#type' => 'container', 'add_more' => $widget['add_more']];
@@ -154,7 +155,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
       'items_indices' => [0 => 0, 2 => 2, 3 => 5],
       'next_delta' => 6,
     ]);
-    $widget = $generator->transform($schema, new Context(['form_state' => $state]))['items'];
+    $widget = $generator->transform($schema, new Context(['options' => new FormOptions(formState: $state)]))['items'];
     $titles = array_map(static fn (int $delta): string => (string) $widget[$delta]['removable_element']['#title'], [
       0,
       2,
@@ -178,7 +179,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $state = (new FormState())->setProcessInput($processing);
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
-    $widget = $generator->transform($schema, new Context(['form_state' => $state]))['items'];
+    $widget = $generator->transform($schema, new Context(['options' => new FormOptions(formState: $state)]))['items'];
     $widget['#parents'] = ['host', 'items'];
     $widget['#array_parents'] = ['host', 'items'];
     $raw = [
@@ -226,7 +227,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $state = new FormState();
-    $context = new Context(['form_state' => $state, 'current_input' => ['items' => ['a', 'b']]]);
+    $context = new Context(['options' => new FormOptions(formState: $state, currentInput: ['items' => ['a', 'b']])]);
     $form = $generator->transform($schema, $context);
     $state->setTriggeringElement($form['items'][1]['remove_one'] + [
       '#array_parents' => ['items', 1, 'remove_one'],
@@ -236,7 +237,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     // The form cache serializes the state between requests.
     // phpcs:ignore DrupalPractice.FunctionCalls.InsecureUnserialize -- Drupal's form cache restores every class, as this does.
     $state = unserialize(serialize($state));
-    $context['form_state'] = $state;
+    $context['options'] = new FormOptions(formState: $state, currentInput: ['items' => ['a', 'b']]);
     $form = $generator->transform($schema, $context);
     $state->setTriggeringElement($form['items']['add_more'] + ['#array_parents' => ['items', 'add_more']]);
     FormGeneratorDrupal::addMoreSubmit($form, $state);
@@ -255,13 +256,9 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   public function testNamespacedWidgetState(): void {
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","items":{"type":"string"}}}}');
     $state = new FormState();
-    $plain = (new FormGeneratorDrupal())->transform($schema, new Context(['form_state' => $state]));
-    $form = [
-      'host' => (new FormGeneratorDrupal())->transform($schema, new Context([
-        'form_state' => $state,
-        'namespace' => 'host',
-      ])),
-    ];
+    $plain = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => new FormOptions(formState: $state)]));
+    $options = new FormOptions(formState: $state, namespace: 'host');
+    $form = ['host' => (new FormGeneratorDrupal())->transform($schema, new Context(['options' => $options]))];
     $this->assertArrayNotHasKey('#schema_namespace', $plain['items']);
     $this->assertSame('host', $form['host']['items']['#schema_namespace']);
     $state->setTriggeringElement($form['host']['items']['add_more'] + [
@@ -274,10 +271,11 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertSame([], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
     $this->assertArrayHasKey('host', $state->getStorage()['prop_storage']['#namespaces']);
     FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => [3]], 'host');
-    $rebuilt = (new FormGeneratorDrupal())->transform($schema, new Context([
-      'form_state' => $state,
-      'namespace' => 'host',
-    ]));
+    $options = new FormOptions(
+      formState: $state,
+      namespace: 'host',
+    );
+    $rebuilt = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => $options]));
     $this->assertArrayHasKey(3, $rebuilt['items']);
   }
 
@@ -340,7 +338,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"a":{"type":"array","maxItems":2,"items":{"type":"string"}},"b":{"type":"array","maxItems":1,"items":{"type":"string"}}}}');
     $state = new FormState();
-    $context = new Context(['form_state' => $state, 'current_input' => ['a' => ['first', 'second']]]);
+    $context = new Context(['options' => new FormOptions(formState: $state, currentInput: ['a' => ['first', 'second']])]);
     $form = $generator->transform($schema, $context);
     $this->assertFalse($form['a']['add_more']['#access']);
     $this->assertTrue($form['b']['add_more']['#access'] ?? TRUE);

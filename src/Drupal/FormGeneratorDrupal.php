@@ -86,8 +86,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @param mixed $data
    *   The decoded schema.
    * @param \Shaper\Util\Context|null $context
-   *   The options: 'ui_hints', 'form_state', 'current_input' and
-   *   'namespace'.
+   *   The context, whose "options" key holds a \SchemaForms\FormOptions.
    *
    * @return array<int|string, mixed>
    *   The generated container.
@@ -104,7 +103,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
         '#markup' => ValidationMessages::unsupportedReference(),
       ]);
     }
-    return $this->withValidation($this->tree->build($schema, $context ?? new Context()));
+    return $this->withValidation($this->tree->build($schema, ContextOptions::read($context ?? new Context())));
   }
 
   /**

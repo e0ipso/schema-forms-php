@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\EnumElements;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\Labels;
+use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
@@ -45,7 +46,7 @@ final class EnumElementsTest extends TestCase {
   #[DataProvider('widgetProvider')]
   public function testWidgetHint(mixed $widget, string $expected): void {
     $schema = json_decode('{"type":"object","properties":{"plan":{"type":"string","enum":["free","pro"]}}}');
-    $context = new Context(['ui_hints' => ['plan' => ['ui:widget' => $widget]]]);
+    $context = new Context(['options' => new FormOptions(uiHints: ['plan' => ['ui:widget' => $widget]])]);
 
     $form = (new FormGeneratorDrupal())->transform($schema, $context);
 

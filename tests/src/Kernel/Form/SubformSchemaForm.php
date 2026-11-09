@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformState;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
 /**
@@ -53,7 +54,7 @@ final class SubformSchemaForm implements FormInterface {
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $form['#tree'] = TRUE;
     $form['settings'] = ['#type' => 'container'];
-    $form['settings']['schema'] = $this->generator->transform($this->schema, new Context(['form_state' => $form_state]));
+    $form['settings']['schema'] = $this->generator->transform($this->schema, new Context(['options' => new FormOptions(formState: $form_state)]));
     $form['actions']['save'] = ['#type' => 'submit', '#value' => 'Save'];
     return $form;
   }

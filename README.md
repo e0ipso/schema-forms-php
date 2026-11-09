@@ -186,6 +186,7 @@ This decorator adds context defaults. Values the caller passes still win, and wh
 
 ```php
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use SchemaForms\FormTransformationInterface;
 use Shaper\Util\Context;
 
@@ -203,7 +204,7 @@ final class ContextDefaults implements FormTransformationInterface {
 
 }
 
-$generator = new ContextDefaults(new FormGeneratorDrupal(), ['namespace' => 'settings']);
+$generator = new ContextDefaults(new FormGeneratorDrupal(), ['options' => new FormOptions(namespace: 'settings')]);
 ```
 
 The decorator implements only `FormTransformationInterface`. A Shaper pipeline that calls the validation methods of `FormGeneratorInterface` needs the generator itself.
@@ -211,13 +212,14 @@ The decorator implements only `FormTransformationInterface`. A Shaper pipeline t
 To check a decorator or a generator of your own against the interface's contract, extend `SchemaForms\Testing\FormTransformationContractTestCase` in your PHPUnit suite. It needs `phpunit/phpunit`, which this package suggests but does not require; the library's own tests run it with PHPUnit 11.5.
 
 ```php
+use SchemaForms\FormOptions;
 use SchemaForms\FormTransformationInterface;
 use SchemaForms\Testing\FormTransformationContractTestCase;
 
 final class ContextDefaultsContractTest extends FormTransformationContractTestCase {
 
   protected function createTransformation(): FormTransformationInterface {
-    return new ContextDefaults(new MyGenerator(), ['namespace' => 'settings']);
+    return new ContextDefaults(new MyGenerator(), ['options' => new FormOptions(namespace: 'settings')]);
   }
 
 }
@@ -243,7 +245,7 @@ $context = new Context(['options' => new FormOptions(
 - `currentInput`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
 - `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes. `FormOptions` throws `InvalidOptionException` for an empty string.
 
-The separate context keys `ui_hints`, `form_state`, `current_input` and `namespace` still work and mean the same as the arguments above. They are deprecated in 3.2.0 and are removed in 4.0.0.
+The separate context keys `ui_hints`, `form_state`, `current_input` and `namespace` still work and mean the same as the arguments above, unless the context also holds `options`, which wins. They are deprecated in 3.2.0, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0.
 
 ### How schema types become elements
 
@@ -346,7 +348,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 ### Options
 
-- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, are deprecated, and are removed in 4.0.0.
+- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. `FormOptions` rejects an empty namespace with the message `The "namespace" option must be a non-empty string.`; the old key keeps its own message.
 
 ### Contract test case
 

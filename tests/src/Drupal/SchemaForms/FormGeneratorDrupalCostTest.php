@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormState;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use SchemaForms\Tests\Fixture\TranslationContainer;
 use Shaper\Util\Context;
 
@@ -135,10 +136,11 @@ final class FormGeneratorDrupalCostTest extends TestCase {
     $form_state = new FormState();
     $saved = ['list_0' => array_fill(0, 3, ['name' => 'x', 'deep' => []])];
 
-    $form = (new FormGeneratorDrupal())->doTransform(self::largeSchema(), new Context([
-      'form_state' => $form_state,
-      'current_input' => $saved,
-    ]));
+    $options = new FormOptions(
+      formState: $form_state,
+      currentInput: $saved,
+    );
+    $form = (new FormGeneratorDrupal())->doTransform(self::largeSchema(), new Context(['options' => $options]));
 
     $this->assertCount(self::WIDTH, array_filter(array_keys($form), static fn (int|string $key): bool => !str_starts_with((string) $key, '#')));
     $deepest = $form['deep_0'];
@@ -166,7 +168,7 @@ final class FormGeneratorDrupalCostTest extends TestCase {
     }}}}', flags: JSON_THROW_ON_ERROR);
     $saved = ['outer' => ['kind' => 'fixed', 'rows' => [['cell' => 'x']], 'empty' => []]];
 
-    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['current_input' => $saved]));
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['options' => new FormOptions(currentInput: $saved)]));
 
     $holders = self::defaultValueHolders($form);
     $this->assertSame(['textfield'], array_values(array_unique($holders)));
