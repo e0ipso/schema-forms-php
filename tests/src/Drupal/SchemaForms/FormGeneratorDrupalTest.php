@@ -381,7 +381,6 @@ class FormGeneratorDrupalTest extends TestCase {
       '#title' => Markup::create('Labels'),
       '#type' => 'details',
       '#prop_name' => 'tag_labels',
-      '#default_value' => ['first', 'second'],
       // phpcs:ignore DrupalPractice.General.DescriptionT -- The generator passes schema text through untranslated.
       '#description' => 'Add useful labels',
       '#placeholder' => 'A label',
@@ -483,7 +482,6 @@ class FormGeneratorDrupalTest extends TestCase {
           'address' => [
             '#title' => Markup::create('Postal address'),
             '#type' => 'details',
-            '#default_value' => (object) ['street' => 'schema street'],
             '#prop_name' => 'address',
             '#prop_parents' => ['address'],
             '#open' => TRUE,

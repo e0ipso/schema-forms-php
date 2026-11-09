@@ -222,7 +222,7 @@ The `Context` accepts four keys, all optional:
 
 - `ui_hints`: the UI schema, as an array keyed by property name.
 - `form_state`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
-- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the element's `#default_value` and wins over the schema's `default`, and so does `null`. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
+- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
 - `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes.
 
 ### How schema types become elements
@@ -315,6 +315,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
 - Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
 - Controls that show the required marker without `#required` carry `aria-required="true"`, and such a radio group's fieldset also gets `role="radiogroup"`. They used to carry no required state for assistive technology.
+- The `details` elements of objects and arrays, and `const` items, no longer carry `#default_value`. Drupal never read it there, but a cached form stored the saved subtree once more for each level of nesting. Read saved values from the inputs inside them.
 - The status messages of the Append and Remove AJAX responses go into the rebuilt widget. They used to target the wrapper ID from before the rebuild, which no longer exists after the response replaces it, so they were not shown.
 
 ### Schemas and dependencies

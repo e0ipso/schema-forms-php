@@ -36,6 +36,14 @@ final class RenderKeys {
   public const SAVED_NULL = '#schema_saved_null';
 
   /**
+   * Marks an empty multivalue widget that showed a saved value or a default.
+   *
+   * Such a widget stores its empty list. Without the mark, an empty list item
+   * is one that was appended and never filled, and it is not stored.
+   */
+  public const SHOWED_VALUE = '#schema_showed_value';
+
+  /**
    * The exact JSON value of a control that collects no input.
    */
   public const FIXED_VALUE = '#schema_fixed_value';
