@@ -14,13 +14,18 @@ final class ElementScaffold {
   /**
    * Form API elements for scalar schema types, keyed by type or type:format.
    *
+   * To map another type or format, add one entry here; a 'type:format' key
+   * wins over the plain type. FieldBuilder::supportedElementTypes() derives
+   * its list from these entries, so the new element is not replaced by the
+   * "cannot be edited" item, and ElementMappingTest checks every entry.
+   *
    * Drupal has no 'integer' element. A number input whose step is one is the
    * native spelling of the constraint: the browser rejects a fractional value
    * before the form is submitted, and the value still arrives as an integer
    * because ScalarCaster::tryCastingNumber() casts a whole numeric string
    * with no decimal separator to int.
    */
-  private const SCALAR_ELEMENTS = [
+  public const SCALAR_ELEMENTS = [
     'boolean' => ['#type' => 'checkbox'],
     'integer' => ['#type' => 'number', '#step' => 1],
     'number' => ['#type' => 'number'],
