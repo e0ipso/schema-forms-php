@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 8.3 or later. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or later. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
@@ -222,7 +222,7 @@ The `Context` accepts four keys, all optional:
 
 - `ui_hints`: the UI schema, as an array keyed by property name.
 - `form_state`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
-- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the element's `#default_value` and wins over the schema's `default`, and so does `null`. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
+- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
 - `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes.
 
 ### How schema types become elements
@@ -315,6 +315,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - The Append and Remove AJAX callbacks, `addMoreAjax()` and `removeOneAjax()`, return an `AjaxResponse` instead of a render array. It replaces the same wrapper as before and adds an announcement and a focus command.
 - Required checkboxes at the root no longer wrap their title in `<span class="form-required">`; the legend gets Drupal's own marker classes. Required properties inside nested objects now show the marker too.
 - Controls that show the required marker without `#required` carry `aria-required="true"`, and such a radio group's fieldset also gets `role="radiogroup"`. They used to carry no required state for assistive technology.
+- The `details` elements of objects and arrays, and `const` items, no longer carry `#default_value`. Drupal never read it there, but a cached form stored the saved subtree once more for each level of nesting. Read saved values from the inputs inside them.
 - The status messages of the Append and Remove AJAX responses go into the rebuilt widget. They used to target the wrapper ID from before the rebuild, which no longer exists after the response replaces it, so they were not shown.
 
 ### Schemas and dependencies
@@ -337,7 +338,7 @@ Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes. Do no
 - `phpmnd`: checks for magic numbers in `php` and `module` files.
 - `phplint`: checks PHP syntax in `php`, `module`, `inc`, `install`, `profile` and `theme` files.
 - `phpparser`: checks PHP files for parser rules: no `else`, no `exit`, and no `var_dump` or `kint` calls.
-- `phpstan`: runs PHPStan at level `max` over `src/` and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. The Drupal adapter in `src/Drupal` is not analysed yet.
+- `phpstan`: runs PHPStan at level `max` over `src/`, including the Drupal adapter, and `scripts/`, configured in `phpstan.neon.dist`, with no baseline. The extension installer loads `mglaman/phpstan-drupal`, `phpstan/phpstan-deprecation-rules` and `phpstan/phpstan-phpunit`, which `drupal/core-dev` installs, so the run also reports deprecated Drupal APIs.
 - `yamllint` and `jsonlint`: check YAML and JSON files.
 - `composer`: runs strict Composer validation, `composer validate --strict`, when `composer.json` or `composer.lock` is present.
 - `composer_normalize`: runs `composer normalize --dry-run` when `composer.json` is present.
@@ -357,6 +358,7 @@ Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` 
 
 - Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
+- Drupal 11.4: requires `drupal/core-recommended:~11.4.0`, the newest Drupal 11 minor after the locked 11.3 release, then runs PHPUnit.
 - Backward compatibility: Roave BackwardCompatibilityCheck compares `HEAD` with the latest release tag. It skips symbols marked `@internal`, so it checks the symbols listed under [Public API](#public-api).
 - Mutation testing: Infection, downloaded as a PHAR whose SHA-256 checksum the job verifies, mutates the core classes in `src/` (not `src/Drupal` or the test case in `src/Testing`) and runs the core unit tests against each mutant. `infection.json5` sets the minimum score. To run it locally, download the PHAR named in the job and run `php infection.phar --threads=2` with a coverage driver enabled.
 

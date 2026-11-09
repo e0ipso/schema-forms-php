@@ -60,6 +60,10 @@ final class MultivalueWidgetBuilder {
     $id_prefix = implode('-', $context->parents);
     $wrapper_id = Html::getUniqueId($id_prefix . '-add-more-wrapper');
     $after_build = is_array($element['#after_build'] ?? NULL) ? $element['#after_build'] : [];
+    // Core reads #default_value only on inputs. The items show the saved
+    // list, and a copy on the widget would only grow the cached form.
+    $showed_value = array_key_exists('#default_value', $element);
+    unset($element['#default_value']);
     $element = [
       '#type' => 'details',
       '#open' => TRUE,
@@ -77,6 +81,11 @@ final class MultivalueWidgetBuilder {
       '#prefix' => '<div id="' . $wrapper_id . '">',
       '#suffix' => '</div>',
     ] + $element;
+    if ($showed_value && $state->lastDelta() === NULL) {
+      // A widget with items stores them anyway; only an empty one needs to
+      // tell a saved empty list from an appended item never filled.
+      $element[RenderKeys::SHOWED_VALUE] = TRUE;
+    }
     if ($context->namespace !== NULL) {
       // The callbacks find the widget state through it.
       $element[RenderKeys::NAMESPACE] = $context->namespace;
@@ -136,12 +145,8 @@ final class MultivalueWidgetBuilder {
     // The wrapping details element shows the title and description, even
     // when maxItems is 1; each item gets an invisible numbered title.
     $title = $widget['#title'] ?? '';
-    $arguments = [
-      '@title' => is_scalar($title) || $title instanceof \Stringable ? $title : '',
-      '@number' => $number,
-    ];
     $control = [
-      '#title' => new TranslatableMarkup('@title (value @number)', $arguments),
+      '#title' => Labels::itemTitle($title, $number),
       '#title_display' => 'invisible',
       '#description' => '',
     ] + $build_item($context);
@@ -155,7 +160,7 @@ final class MultivalueWidgetBuilder {
       '#suffix' => '</div>',
       '#attributes' => ['style' => 'position: relative;'],
       RenderKeys::ITEM => $control,
-      RenderKeys::REMOVE_BUTTON => $this->removeButton($context, $wrapper_id, new TranslatableMarkup('Remove @title (value @number)', $arguments)),
+      RenderKeys::REMOVE_BUTTON => $this->removeButton($context, $wrapper_id, Labels::removeButtonName($title, $number)),
     ];
   }
 

@@ -222,19 +222,22 @@ final class UserInputCleanerTest extends TestCase {
     ];
     return [
       'an appended item that was never filled is dropped' => [
-        [0 => self::emptyListItem(), 2 => self::emptyListItem(['#default_value' => ['kept']])],
+        [0 => self::emptyListItem(), 2 => self::emptyListItem(['#schema_showed_value' => TRUE])],
         $submitted,
         [['kept']],
       ],
       'a saved empty item is kept in place' => [
-        [0 => self::emptyListItem(['#default_value' => []]), 2 => self::emptyListItem(['#default_value' => ['kept']])],
+        [
+          0 => self::emptyListItem(['#schema_showed_value' => TRUE]),
+          2 => self::emptyListItem(['#schema_showed_value' => TRUE]),
+        ],
         $submitted,
         [[], ['kept']],
       ],
       'a saved NULL item is kept in place' => [
         [
           0 => self::emptyListItem(['#schema_saved_null' => TRUE]),
-          2 => self::emptyListItem(['#default_value' => ['kept']]),
+          2 => self::emptyListItem(['#schema_showed_value' => TRUE]),
         ],
         $submitted,
         [[], ['kept']],
@@ -258,7 +261,7 @@ final class UserInputCleanerTest extends TestCase {
    */
   public function testNestedWidgetValueIsNotCleanedAgain(): void {
     $element = [
-      'grid' => self::listWidget([0 => self::emptyListItem(['#default_value' => []])]),
+      'grid' => self::listWidget([0 => self::emptyListItem(['#schema_showed_value' => TRUE])]),
       'choice' => ['#type' => 'radios'],
       'picked' => ['#type' => 'select'],
     ];

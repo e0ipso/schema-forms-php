@@ -26,6 +26,12 @@ use Shaper\Validator\ValidateableInterface;
  * and signatures because cached forms built by earlier releases still name
  * them; host code does not call the callbacks.
  *
+ * The static callbacks are the only place that creates collaborators with
+ * `new`. Form API calls them with nothing but the form and its state, and a
+ * library has no service container to ask. What they create is stateless,
+ * or a view of the form state they receive, such as WidgetStateStorage, so
+ * the form state is their one dependency and tests pass in their own.
+ *
  * @api
  */
 final class FormGeneratorDrupal extends TransformationBase implements FormGeneratorInterface {

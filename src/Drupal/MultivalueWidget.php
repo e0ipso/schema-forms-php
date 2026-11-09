@@ -102,7 +102,7 @@ final class MultivalueWidget {
   public static function isNeverFilled(array $item): bool {
     return self::is($item)
       && $item[RenderKeys::MAX_DELTA] === NULL
-      && !array_key_exists('#default_value', $item)
+      && empty($item[RenderKeys::SHOWED_VALUE])
       && empty($item[RenderKeys::SAVED_NULL]);
   }
 

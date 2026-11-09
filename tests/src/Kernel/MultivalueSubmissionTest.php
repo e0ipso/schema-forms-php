@@ -152,4 +152,32 @@ final class MultivalueSubmissionTest extends SchemaFormsKernelTestBase {
     $this->assertSame([['a']], $result->values['grid']);
   }
 
+  /**
+   * A saved item whose own items were all removed is saved as empty.
+   *
+   * The emptied item showed a saved value, so it is not taken for an item
+   * that was appended and never filled.
+   */
+  public function testItemEmptiedByRemovalIsSaved(): void {
+    $schema = json_decode('{"type":"object","properties":{"grid":{"type":"array","items":{"type":"array","items":{"type":"string"}}}}}', flags: JSON_THROW_ON_ERROR);
+    $form = new GeneratedSchemaForm($schema, currentInput: ['grid' => [['a'], ['b']]], withSave: TRUE);
+    $removed = $this->browserSubmit($form, [], NULL, 'grid-0-0-remove', '⨯');
+    $this->assertTrue($removed->formState->isRebuilding());
+    $result = $this->browserSubmit($form, storage: $removed->formState->getStorage());
+    $this->assertSame([], $result->errors);
+    $this->assertSame([[], ['b']], $result->values['grid']);
+  }
+
+  /**
+   * An appended item that shows an empty default is saved as empty.
+   */
+  public function testAppendedItemWithEmptyDefaultIsSaved(): void {
+    $schema = json_decode('{"type":"object","properties":{"grid":{"type":"array","items":{"type":"array","default":[],"items":{"type":"string"}}}}}', flags: JSON_THROW_ON_ERROR);
+    $form = new GeneratedSchemaForm($schema, currentInput: ['grid' => [['a']]], withSave: TRUE);
+    $appended = $this->browserSubmit($form, [], NULL, 'grid_add_more', 'Append an item');
+    $result = $this->browserSubmit($form, storage: $appended->formState->getStorage());
+    $this->assertSame([], $result->errors);
+    $this->assertSame([['a'], []], $result->values['grid']);
+  }
+
 }

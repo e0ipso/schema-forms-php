@@ -113,6 +113,7 @@ final class FieldBuilder {
    *   The element, which collects no input.
    */
   private function constant(array $element, mixed $value): array {
+    $element = self::withoutDefault($element);
     $element['#type'] = 'item';
     $element['#plain_text'] = is_string($value) ? $value : json_encode($value, JSON_THROW_ON_ERROR);
     $element['#input'] = FALSE;
@@ -208,6 +209,7 @@ final class FieldBuilder {
     if (empty($properties) || !is_object($properties)) {
       return $element;
     }
+    $element = self::withoutDefault($element);
     $element['#type'] = self::DETAILS;
     $element['#open'] = TRUE;
     $schemas = array_filter((array) $properties, static fn (mixed $schema): bool => $schema instanceof \stdClass);
@@ -224,6 +226,24 @@ final class FieldBuilder {
       $names
     );
     return $element + array_combine($names, $children);
+  }
+
+  /**
+   * Drops the default value of an element that collects no input.
+   *
+   * Core reads #default_value only on inputs. The controls inside an object
+   * show its saved value, and a constant keeps its own; a copy here would
+   * store the whole subtree in the cached form once more for each level.
+   *
+   * @param array<int|string, mixed> $element
+   *   The element.
+   *
+   * @return array<int|string, mixed>
+   *   The element.
+   */
+  private static function withoutDefault(array $element): array {
+    unset($element['#default_value']);
+    return $element;
   }
 
   /**

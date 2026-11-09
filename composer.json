@@ -42,7 +42,7 @@
         "marc-mabe/php-enum": "<4.4"
     },
     "suggest": {
-        "drupal/core": "Required for the SchemaForms\\Drupal classes; tested with Drupal 11.2 and 11.3.",
+        "drupal/core": "Required for the SchemaForms\\Drupal classes; tested with Drupal 11.2, 11.3 and 11.4.",
         "phpunit/phpunit": "Required for SchemaForms\\Testing\\FormTransformationContractTestCase; tested with PHPUnit 11.5."
     },
     "autoload": {

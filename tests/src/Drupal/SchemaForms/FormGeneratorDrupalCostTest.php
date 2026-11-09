@@ -32,16 +32,16 @@ final class FormGeneratorDrupalCostTest extends TestCase {
   /**
    * The largest serialized form state storage the large schema may need.
    *
-   * About twice the 20,400 bytes it took when the bound was set.
+   * About 3% above the 20,400 bytes it took when the bound was set.
    */
-  private const STORAGE_BYTES = 40000;
+  private const STORAGE_BYTES = 21000;
 
   /**
    * The largest serialized form the large schema may produce.
    *
-   * About twice the 510,719 bytes it took when the bound was set.
+   * About 2% above the 510,529 bytes it took when the bound was set.
    */
-  private const FORM_BYTES = 1000000;
+  private const FORM_BYTES = 520000;
 
   /**
    * A schema the generator accepted is not validated again.
@@ -150,6 +150,46 @@ final class FormGeneratorDrupalCostTest extends TestCase {
     $this->assertCount(3, array_filter(array_keys($form['list_0']), 'is_int'));
     $this->assertLessThan(self::STORAGE_BYTES, strlen(serialize($form_state->getStorage())));
     $this->assertLessThan(self::FORM_BYTES, strlen(serialize($form)));
+  }
+
+  /**
+   * Elements that collect no input hold no copy of the saved values.
+   *
+   * Core reads #default_value only on inputs, and a cached form stores every
+   * copy, so a copy on each container would grow the form with the depth.
+   */
+  public function testOnlyInputsHoldSavedValues(): void {
+    $schema = json_decode('{"type":"object","properties":{"outer":{"type":"object","properties":{
+      "kind":{"const":"fixed","default":"fixed"},
+      "rows":{"type":"array","items":{"type":"object","properties":{"cell":{"type":"string"}}}},
+      "empty":{"type":"array","items":{"type":"string"}}
+    }}}}', flags: JSON_THROW_ON_ERROR);
+    $saved = ['outer' => ['kind' => 'fixed', 'rows' => [['cell' => 'x']], 'empty' => []]];
+
+    $form = (new FormGeneratorDrupal())->transform($schema, new Context(['current_input' => $saved]));
+
+    $holders = self::defaultValueHolders($form);
+    $this->assertSame(['textfield'], array_values(array_unique($holders)));
+    $this->assertSame('x', $form['outer']['rows'][0]['removable_element']['cell']['#default_value']);
+  }
+
+  /**
+   * Lists the types of the elements that hold a default value.
+   *
+   * @param array<int|string, mixed> $element
+   *   The element.
+   *
+   * @return list<string>
+   *   The types, in form order.
+   */
+  private static function defaultValueHolders(array $element): array {
+    $own = array_key_exists('#default_value', $element) ? [(string) ($element['#type'] ?? '')] : [];
+    $children = array_filter(
+      $element,
+      static fn (mixed $child, int|string $key): bool => is_array($child) && !str_starts_with((string) $key, '#'),
+      ARRAY_FILTER_USE_BOTH
+    );
+    return [...$own, ...array_merge(...array_values(array_map([self::class, 'defaultValueHolders'], $children)))];
   }
 
   /**

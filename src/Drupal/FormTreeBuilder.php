@@ -45,15 +45,14 @@ final class FormTreeBuilder {
     $form_state = $context['form_state'] ?? NULL;
     $input = SavedInput::normalize($context['current_input'] ?? []);
     $root = new FieldContext(
-      $schema,
-      '',
-      [],
-      $hints,
-      new WidgetStateStorage($form_state instanceof FormStateInterface ? $form_state : new FormState()),
-      is_array($input) ? $input : [],
-      FALSE,
-      TRUE,
-      self::namespace($context),
+      schema: $schema,
+      name: '',
+      parents: [],
+      hints: $hints,
+      widgetStates: new WidgetStateStorage($form_state instanceof FormStateInterface ? $form_state : new FormState()),
+      currentInput: is_array($input) ? $input : [],
+      hasCurrentInput: FALSE,
+      namespace: self::namespace($context),
     );
     $element = [
       '#type' => 'container',

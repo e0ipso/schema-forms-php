@@ -7,7 +7,6 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\FormGeneratorDrupal;
-use SchemaForms\Drupal\FormValidatorDrupal;
 use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\SubmissionPreparer;
@@ -20,7 +19,6 @@ use SchemaForms\Tests\Fixture\TranslationContainer;
  * Generation and submission keep retrieval inside registered schemas.
  */
 #[CoversClass(FormGeneratorDrupal::class)]
-#[CoversClass(FormValidatorDrupal::class)]
 #[CoversClass(SchemaReferenceResolver::class)]
 #[CoversClass(SchemaPreparer::class)]
 #[CoversClass(SubmissionPreparer::class)]
@@ -58,10 +56,10 @@ final class SchemaReferenceRetrievalTest extends TestCase {
         $form = ['#parents' => ['schema'], '#array_parents' => ['schema']];
         $state = (new FormState())->setUserInput([])->setValues(['schema' => ['field' => 'valid']]);
         if ($entry === 'casting') {
-          FormValidatorDrupal::typeCastRecursive($form, $state, $schema);
+          (new SubmissionPreparer())->prepare($form, $state, $schema);
         }
         if ($entry === 'submission') {
-          FormValidatorDrupal::validateWithSchema($form, $state, $schema);
+          (new SubmissionValidator())->validate($form, $state, $schema);
         }
         $this->assertSame(['schema'], array_keys($state->getErrors()));
         $error = $state->getErrors()['schema'];
