@@ -22,7 +22,6 @@ use SchemaForms\Drupal\FieldBuilder;
 use SchemaForms\Drupal\FieldContext;
 use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\FormTreeBuilder;
-use SchemaForms\Drupal\FormValidatorDrupal;
 use SchemaForms\Drupal\JsonShape;
 use SchemaForms\Drupal\Labels;
 use SchemaForms\Drupal\MultivalueCallbacks;
@@ -47,7 +46,7 @@ use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 
 /**
- * Unit tests for the \SchemaForms\Drupal\FormValidatorDrupal class.
+ * Unit tests for submission preparation and schema validation.
  *
  * The form state is a real \Drupal\Core\Form\FormState. Errors are rendered
  * with a translator that returns each string untranslated, so assertions
@@ -55,7 +54,6 @@ use SchemaForms\Drupal\WidgetStateStorage;
  *
  * @package SchemaForms
  */
-#[CoversClass(FormValidatorDrupal::class)]
 #[CoversClass(FormGeneratorDrupal::class)]
 #[CoversClass(SubmissionPreparer::class)]
 #[CoversClass(SchemaValidationBridge::class)]
@@ -87,7 +85,7 @@ use SchemaForms\Drupal\WidgetStateStorage;
 #[CoversClass(WidgetState::class)]
 #[CoversClass(WidgetStateStorage::class)]
 #[CoversClass(WidgetLocation::class)]
-final class FormValidatorDrupalTest extends TestCase {
+final class SubmissionPipelineTest extends TestCase {
 
   /**
    * {@inheritdoc}
@@ -230,7 +228,7 @@ final class FormValidatorDrupalTest extends TestCase {
   public function testTypeCastRecursive(string $schema, array $submitted, array $expected): void {
     $element = self::element(['wrapper', 'data'], 'Data');
     $form_state = self::formState(['wrapper' => ['data' => $submitted], 'other' => 'untouched']);
-    FormValidatorDrupal::typeCastRecursive($element, $form_state, json_decode($schema));
+    (new SubmissionPreparer())->prepare($element, $form_state, json_decode($schema));
     $this->assertSame($expected, $form_state->getValue(['wrapper', 'data']));
     $this->assertSame('untouched', $form_state->getValue('other'));
   }
@@ -263,7 +261,7 @@ final class FormValidatorDrupalTest extends TestCase {
   public function testValidData(string $schema, $submitted): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
-    FormValidatorDrupal::validateWithSchema($element, $form_state, json_decode($schema));
+    (new SubmissionValidator())->validate($element, $form_state, json_decode($schema));
     $this->assertSame([], $form_state->getErrors());
   }
 
@@ -305,7 +303,7 @@ final class FormValidatorDrupalTest extends TestCase {
   public function testEmptyDataCast(string $schema, ?array $submitted, string $message): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => $submitted]);
-    FormValidatorDrupal::validateWithSchema($element, $form_state, json_decode($schema));
+    (new SubmissionValidator())->validate($element, $form_state, json_decode($schema));
     // Library releases differ in whether minItems reports the actual count.
     $messages = [$message, str_replace(', 0 found', '', $message)];
     $this->assertContains(
@@ -327,7 +325,7 @@ final class FormValidatorDrupalTest extends TestCase {
       'foo' => self::element(['data', 'foo'], 'Foo'),
     ]);
     $form_state = self::formState($values, $input);
-    FormValidatorDrupal::validateWithSchema($element, $form_state, $schema);
+    (new SubmissionValidator())->validate($element, $form_state, $schema);
     // The json-schema majors place a "required" error differently.
     $errors = implode(' ', self::renderedErrors($form_state));
     $this->assertSame($expected === '', $errors === '');
@@ -378,7 +376,7 @@ final class FormValidatorDrupalTest extends TestCase {
       ]),
     ]);
     $form_state = self::formState(['wrapper' => ['data' => ['foo' => 'abc', 'list' => ['ab']]]]);
-    FormValidatorDrupal::validateWithSchema($element, $form_state, $schema);
+    (new SubmissionValidator())->validate($element, $form_state, $schema);
     $errors = $form_state->getErrors();
     $this->assertSame(['wrapper][data][foo', 'wrapper][data][list][0][removable_element'], array_keys($errors));
     $this->assertSame('%element: @message', $errors['wrapper][data][foo']->getUntranslatedString());
@@ -503,7 +501,7 @@ final class FormValidatorDrupalTest extends TestCase {
     $element = self::element(['schema'], '');
     $state = self::formState(['schema' => []]);
     $schema = json_decode('{"type":"object","required":["first","a&b"]}');
-    FormValidatorDrupal::validateWithSchema($element, $state, $schema);
+    (new SubmissionValidator())->validate($element, $state, $schema);
     $errors = $state->getErrors();
     $this->assertSame(['schema'], array_keys($errors));
     $this->assertStringNotContainsString('errors errors', $errors['schema']->getUntranslatedString());
@@ -522,7 +520,7 @@ final class FormValidatorDrupalTest extends TestCase {
   public function testUnencodableSubmission(mixed $value): void {
     $element = self::element(['schema'], 'Data');
     $state = self::formState(['schema' => ['value' => $value]]);
-    FormValidatorDrupal::validateWithSchema($element, $state, (object) ['type' => 'object']);
+    (new SubmissionValidator())->validate($element, $state, (object) ['type' => 'object']);
     $this->assertSame(['schema'], array_keys($state->getErrors()));
     $this->assertSame('The submitted data could not be encoded as JSON. Please check the submitted values.', $state->getErrors()['schema']->getUntranslatedString());
   }
