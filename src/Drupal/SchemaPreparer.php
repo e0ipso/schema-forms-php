@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use SchemaForms\Exception\InvalidSchemaException;
 use SchemaForms\SchemaReferenceResolver;
 
 /**
@@ -33,11 +34,11 @@ final class SchemaPreparer {
    */
   public function prepare(mixed $data): \stdClass {
     if (!is_object($data)) {
-      throw new \InvalidArgumentException('The schema must be a decoded JSON object.');
+      throw new InvalidSchemaException('The schema must be a decoded JSON object.');
     }
     $schema = SchemaReferenceResolver::registeredSchema(SchemaReferenceResolver::createFactory($data));
     if (!$schema instanceof \stdClass) {
-      throw new \InvalidArgumentException('The schema must be a decoded JSON object.');
+      throw new InvalidSchemaException('The schema must be a decoded JSON object.');
     }
     $visited = [];
     $this->rejectRenderPropertyNames($schema, [], $visited);
@@ -73,7 +74,7 @@ final class SchemaPreparer {
     foreach (is_object($properties) || is_array($properties) ? (array) $properties : [] as $name => $sub_schema) {
       $sub_path = [...$path, 'properties', (string) $name];
       if (str_starts_with((string) $name, '#')) {
-        throw new \InvalidArgumentException(sprintf(
+        throw new InvalidSchemaException(sprintf(
           'Schema property "%s" starts with "#", which Drupal reserves for render properties.',
           implode('.', $sub_path)
         ));

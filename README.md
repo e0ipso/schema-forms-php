@@ -154,7 +154,7 @@ Code that only builds forms should type-hint `FormTransformationInterface`, whic
 ]
 ```
 
-The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`, decoded to objects. Anything else, including an associative array, makes `transform()` throw a `TypeError` whose message lists the validation errors. A property name that starts with `#`, at any depth, makes `transform()` throw an `\InvalidArgumentException` naming the property path, because Drupal would read the name as a render property.
+The input schema must be a valid draft-04 JSON Schema whose root `type` is `object`, decoded to objects. Anything else, including an associative array, makes `transform()` throw a `TypeError` whose message lists the validation errors. A property name that starts with `#`, at any depth, makes `transform()` throw a `SchemaForms\Exception\InvalidSchemaException` naming the property path, because Drupal would read the name as a render property. A context value the generator does not accept, such as an empty `namespace`, makes it throw a `SchemaForms\Exception\InvalidOptionException`. Both extend `\InvalidArgumentException`. A schema reference outside the registered documents does not throw: the generator renders the container with an error message instead.
 
 ### Public API
 
@@ -164,6 +164,8 @@ Semantic versioning covers these symbols, with Shaper's `Context` as the options
 - `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
+- `SchemaForms\Exception\InvalidOptionException`: a context value or constructor option the library does not accept.
+- `SchemaForms\Exception\InvalidSchemaException`: a valid schema the generator cannot represent, such as a property name that starts with `#`.
 - `SchemaForms\Exception\UnsupportedReferenceException`: a schema reference outside the registered documents.
 - `SchemaForms\Exception\UnreadableMetaSchemaException`: the bundled draft-04 meta-schema file is missing or broken. Reinstall the package.
 - `SchemaForms\Testing\FormTransformationContractTestCase`: a PHPUnit test case that checks your own `FormTransformationInterface` implementation. See [Wrapping or replacing the generator](#wrapping-or-replacing-the-generator).
@@ -297,6 +299,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - Every exception the library throws implements `SchemaForms\Exception\ExceptionInterface`. Catch it to handle any failure from the library at once.
 - A schema reference outside the registered documents throws `SchemaForms\Exception\UnsupportedReferenceException`. It extends `JsonSchema\Exception\UnresolvableJsonPointerException`, the exception thrown before, so existing `catch` blocks still match. `transform()` still catches it and renders the container with the unsupported-reference message.
 - An `extends` value without a URI scheme is refused with the same exception before any filesystem check. Before, the resolver probed it as a local path first.
+- A property name that starts with `#` throws `SchemaForms\Exception\InvalidSchemaException`, and an empty `namespace` throws `SchemaForms\Exception\InvalidOptionException`. Both used to be a plain `\InvalidArgumentException`, which they extend, so existing `catch` blocks still match.
 - When the bundled `meta-schema-draft4.json` is missing, unreadable or not a JSON object, the library throws `SchemaForms\Exception\UnreadableMetaSchemaException`. It used to throw a `\JsonException`, which the marker interface did not cover.
 
 ### Submission values

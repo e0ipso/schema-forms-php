@@ -36,9 +36,15 @@ interface FormTransformationInterface extends TransformationInterface {
    * @throws \TypeError
    *   When the schema is not a decoded draft-04 object schema, or the built
    *   form fails the output validator. The message lists the input errors.
-   * @throws \InvalidArgumentException
+   * @throws \SchemaForms\Exception\InvalidSchemaException
    *   When the implementation cannot represent the schema, such as a
    *   property name that FormGeneratorDrupal would read as a render property.
+   *   It extends \InvalidArgumentException.
+   * @throws \SchemaForms\Exception\InvalidOptionException
+   *   When a context value has a value the implementation does not accept,
+   *   such as an empty namespace. It extends \InvalidArgumentException.
+   * @throws \SchemaForms\Exception\UnreadableMetaSchemaException
+   *   When the bundled draft-04 meta-schema cannot be read.
    */
   #[\Override]
   public function transform($data, ?Context $context = NULL);

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace SchemaForms\Drupal;
 
+use SchemaForms\Exception\InvalidOptionException;
+
 /**
  * Remembers the schemas a generator accepted, and their registered copies.
  *
@@ -47,7 +49,7 @@ final class AcceptedSchemas {
     private readonly int $limit = self::DEFAULT_LIMIT,
   ) {
     if ($limit < 1) {
-      throw new \InvalidArgumentException('An accepted schema memory must hold at least one schema.');
+      throw new InvalidOptionException('An accepted schema memory must hold at least one schema.');
     }
   }
 
