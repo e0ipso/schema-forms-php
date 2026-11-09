@@ -55,13 +55,14 @@ Pass both to the generator. Decode the schema to objects and the UI schema to ar
 
 ```php
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
 $schema_data = json_decode($schema_json);
 $ui_schema_data = json_decode($ui_schema_json, TRUE);
 
 $generator = new FormGeneratorDrupal();
-$context = new Context(['ui_hints' => $ui_schema_data]);
+$context = new Context(['options' => new FormOptions(uiHints: $ui_schema_data)]);
 $form = $generator->transform($schema_data, $context);
 ```
 
@@ -158,9 +159,10 @@ The input schema must be a valid draft-04 JSON Schema whose root `type` is `obje
 
 ### Public API
 
-Semantic versioning covers these symbols, with Shaper's `Context` as the options input. Every other class in `src/` is marked `@internal` and can change in any release.
+Semantic versioning covers these symbols, with Shaper's `Context` carrying a `FormOptions` as the options input. Every other class in `src/` is marked `@internal` and can change in any release.
 
 - `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator.
+- `SchemaForms\FormOptions`: the options of one `transform()` call. See [Options](#options).
 - `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
 - `SchemaForms\Exception\ExceptionInterface`: implemented by every exception the library throws.
@@ -223,14 +225,25 @@ final class ContextDefaultsContractTest extends FormTransformationContractTestCa
 
 The case checks that a decoded draft-04 object schema builds a form with and without a context, that an empty context builds the same form as no context, and that anything else (an associative array, JSON text, `NULL`, a schema whose root is not an object, or an invalid draft-04 schema) throws a `TypeError` with a message. By default it only requires a result other than `NULL`; override `assertForm()` to check the type and shape your implementation returns. Override `supportedSchemaProvider()` or `invalidSchemaProvider()` to add your own cases. In this repository, `tests/src/ContextDefaultsTest.php` runs the decorator above through it.
 
-### Context keys
+### Options
 
-The `Context` accepts four keys, all optional:
+Pass a `SchemaForms\FormOptions` as the `options` key of the `Context`. Every argument is optional:
 
-- `ui_hints`: the UI schema, as an array keyed by property name.
-- `form_state`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
-- `current_input`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
-- `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes.
+```php
+$context = new Context(['options' => new FormOptions(
+  uiHints: $ui_schema_data,
+  formState: $form_state,
+  currentInput: $saved_values,
+  namespace: 'settings',
+)]);
+```
+
+- `uiHints`: the UI schema, as an array keyed by property name.
+- `formState`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
+- `currentInput`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
+- `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes. `FormOptions` throws `InvalidOptionException` for an empty string.
+
+The separate context keys `ui_hints`, `form_state`, `current_input` and `namespace` still work and mean the same as the arguments above. They are deprecated in 3.2.0 and are removed in 4.0.0.
 
 ### How schema types become elements
 
@@ -328,6 +341,10 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 - A list or object submitted for a `string` property is left as it is, and validation reports the wrong type. It used to become `"Array"` with a warning, or raise an `Error`.
 - A property missing from `properties` is cast by the first matching `patternProperties` schema, then by an `additionalProperties` schema. Any other property is left as submitted. It used to be cast against the object's `items` keyword, or against a schema that turned an empty string into `NULL`.
 - In multivalue (array) widgets, constants and saved values of unsupported types follow their item when another item is removed, and validation checks the value Drupal stores instead of the raw input. Errors for properties named `add_more`, `remove_one` or `removable_element` land on their element.
+
+### Options
+
+- `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, are deprecated, and are removed in 4.0.0.
 
 ### Contract test case
 
