@@ -127,9 +127,13 @@ jobs:
         run: php vendor/bin/phpunit --no-coverage
 
   drupal-11-2:
-    name: Drupal 11.2
+    name: Drupal 11.2 on PHP ${{ matrix.php-version }}
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -138,7 +142,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php-version }}
           extensions: pdo_sqlite
           coverage: none
 
@@ -158,9 +162,13 @@ jobs:
         run: php vendor/bin/phpunit --no-coverage
 
   drupal-11-4:
-    name: Drupal 11.4
+    name: Drupal 11.4 on PHP ${{ matrix.php-version }}
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -169,7 +177,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2.40.0
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php-version }}
           extensions: pdo_sqlite
           coverage: none
 

@@ -12,7 +12,7 @@ A Drupal project that uses this library usually requires it already. To require 
 composer require e0ipso/schema-forms
 ```
 
-The package requires PHP 8.3 or a later 8.x release (`^8.3`); Composer refuses PHP 9 until CI tests it. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, and on PHP 8.3 with Drupal 11.2, with Drupal 11.4 and with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
+The package requires PHP 8.3 or a later 8.x release (`^8.3`); Composer refuses PHP 9 until CI tests it. CI runs the tests on PHP 8.3, 8.4 and 8.5 with the locked Drupal 11.3 release, with Drupal 11.2 and with Drupal 11.4, and on PHP 8.3 with the lowest dependency releases `composer.json` allows. Drupal 11.0 and 11.1 are not tested. The Drupal generator uses Drupal core classes, and Drupal core is only a dev dependency here, so run the generator inside a Drupal site.
 
 ## Usage
 
@@ -438,7 +438,7 @@ Kernel tests under `tests/src/Kernel` boot Drupal and submit generated forms thr
 
 ### CI-only checks
 
-Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` runs these jobs on PHP 8.3. None of their tools is in `composer.json`.
+Besides the main suite and the JSON Schema 5.3 run, `.github/workflows/php.yml` runs these jobs. The Drupal 11.2 and 11.4 jobs run on PHP 8.3, 8.4 and 8.5, the others on PHP 8.3. None of their tools is in `composer.json`.
 
 - Lowest dependencies: `composer update --prefer-lowest --prefer-stable`, then PHPUnit.
 - Drupal 11.2: requires `drupal/core-recommended:~11.2.0`, then runs PHPUnit. Drupal 11.0 and 11.1 need `sebastian/diff` 4 or 5, which PHPUnit 11 cannot use.
