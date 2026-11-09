@@ -20,18 +20,11 @@ use Shaper\Validator\ValidateableInterface;
 /**
  * Generates Drupal Form API forms from JSON-Schema documents.
  *
- * Call transform() to build a form. The public methods other than
- * transform(), getInputValidator() and getOutputValidator() are Form API
- * callbacks that the generated render arrays name, plus the widget state
- * accessors. Each delegates to one internal class. They keep their names
- * and signatures because cached forms built by earlier releases still name
- * them; host code does not call the callbacks.
- *
- * The static callbacks are the only place that creates collaborators with
- * `new`. Form API calls them with nothing but the form and its state, and a
- * library has no service container to ask. What they create is stateless,
- * or a view of the form state they receive, such as WidgetStateStorage, so
- * the form state is their one dependency and tests pass in their own.
+ * Call transform() to build a form. The generated render arrays name static
+ * callbacks on the classes that do the work, so a cached form stores no
+ * generator. The Form API callbacks still declared here are what forms
+ * cached by releases before 3.2.0 name; each one is deprecated and forwards
+ * to the callback generated forms name now.
  *
  * @api
  */
@@ -70,8 +63,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @param \SchemaForms\SchemaRegistryInterface|null $registry
    *   Registers each schema, so its references resolve; NULL for a
-   *   RestrictedSchemaRegistry. Validation registers the schema again with
-   *   the same registry.
+   *   RestrictedSchemaRegistry. Generated forms keep it, so validation
+   *   registers the schema with it again, and a cached form serializes it.
    * @param array<mixed> $element_mappers
    *   ElementMapperInterface objects to ask, in order, before the generator's
    *   own mapper, for the element of a schema with no compound control.
@@ -159,9 +152,10 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
   /**
    * Keeps the input validator out of serialized forms.
    *
-   * Validation callbacks reference this generator, so a cached form serializes
-   * it. The input validator only matters while a schema is being accepted,
-   * and getInputValidator() builds a new one on demand.
+   * Forms cached by releases before 3.2.0 reference the generator, and a host
+   * may keep one in its form object. The input validator only matters while
+   * a schema is being accepted, and getInputValidator() builds a new one on
+   * demand.
    *
    * @return string[]
    *   The names of the properties to serialize.
@@ -170,6 +164,8 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     return ['accepted', 'registry', 'elementMappers'];
   }
 
+  // phpcs:disable Drupal.Commenting.Deprecated.DeprecatedWrongSeeUrlFormat, Drupal.Semantics.FunctionTriggerError.TriggerErrorSeeUrlFormat -- The project is not on drupal.org.
+
   /**
    * Validates a generated container; its #element_validate callback.
    *
@@ -177,9 +173,15 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name SchemaValidationBridge::elementValidate() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public function validateWithSchema(array &$element, FormStateInterface $form_state): void {
-    $this->bridge()->validateElement($element, $form_state);
+    @trigger_error('FormGeneratorDrupal::validateWithSchema() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name SchemaValidationBridge::elementValidate() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    SchemaValidationBridge::elementValidate($element, $form_state);
   }
 
   /**
@@ -189,9 +191,15 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form, which is the generated container.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name SchemaValidationBridge::formValidate() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public function validateFormWithSchema(array &$form, FormStateInterface $form_state): void {
-    $this->bridge()->validateForm($form, $form_state);
+    @trigger_error('FormGeneratorDrupal::validateFormWithSchema() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name SchemaValidationBridge::formValidate() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
+    SchemaValidationBridge::formValidate($form, $form_state);
   }
 
   /**
@@ -202,8 +210,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>
    *   The widget.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::process() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function multiValueProcess(array $element): array {
+    @trigger_error('FormGeneratorDrupal::multiValueProcess() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::process() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     return MultivalueCallbacks::process($element);
   }
 
@@ -217,8 +231,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return array<int|string, mixed>
    *   The widget.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::afterBuild() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function multiValueAfterBuild(array $element, FormStateInterface $form_state): array {
+    @trigger_error('FormGeneratorDrupal::multiValueAfterBuild() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::afterBuild() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     return MultivalueCallbacks::afterBuild($element, $form_state);
   }
 
@@ -229,8 +249,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::removeSubmit() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function removeOneSubmit(array $form, FormStateInterface $form_state): void {
+    @trigger_error('FormGeneratorDrupal::removeOneSubmit() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::removeSubmit() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     MultivalueCallbacks::removeSubmit($form, $form_state);
   }
 
@@ -245,8 +271,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * @return \Drupal\Core\Ajax\AjaxResponse
    *   The response, which also announces the removal and moves focus. It is
    *   empty when no Remove button triggered the request.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::removeAjax() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function removeOneAjax(array $form, FormStateInterface $form_state): AjaxResponse {
+    @trigger_error('FormGeneratorDrupal::removeOneAjax() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::removeAjax() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     return MultivalueCallbacks::removeAjax($form, $form_state);
   }
 
@@ -257,8 +289,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The form.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::appendSubmit() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function addMoreSubmit(array $form, FormStateInterface $form_state): void {
+    @trigger_error('FormGeneratorDrupal::addMoreSubmit() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::appendSubmit() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     MultivalueCallbacks::appendSubmit($form, $form_state);
   }
 
@@ -272,8 +310,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return \Drupal\Core\Ajax\AjaxResponse
    *   The response, which also announces the new item and moves focus to it.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name MultivalueCallbacks::appendAjax() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function addMoreAjax(array $form, FormStateInterface $form_state): AjaxResponse {
+    @trigger_error('FormGeneratorDrupal::addMoreAjax() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name MultivalueCallbacks::appendAjax() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     return MultivalueCallbacks::appendAjax($form, $form_state);
   }
 
@@ -284,8 +328,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The checkboxes element.
    * @param \Drupal\Core\Form\FormStateInterface $form_state
    *   The form state.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Generated forms name EnumElements::validateCheckboxes() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function validateCheckboxes(array &$element, FormStateInterface $form_state): void {
+    @trigger_error('FormGeneratorDrupal::validateCheckboxes() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Generated forms name EnumElements::validateCheckboxes() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     EnumElements::validateCheckboxes($element, $form_state);
   }
 
@@ -326,18 +376,7 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
     (new WidgetStateStorage($form_state))->set(new WidgetLocation($parents, $prop_name, $namespace), $prop_state);
   }
 
-  /**
-   * Builds the bridge the validation callbacks delegate to.
-   *
-   * It is built on demand, so a generator that a form cached before the
-   * bridge existed still validates.
-   *
-   * @return \SchemaForms\Drupal\SchemaValidationBridge
-   *   The bridge.
-   */
-  private function bridge(): SchemaValidationBridge {
-    return new SchemaValidationBridge(registry: $this->registry());
-  }
+  // phpcs:enable
 
   /**
    * Gets the schema registry.
@@ -367,7 +406,9 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    * not on the form itself: there it runs only the form-level #validate
    * handlers, and it ignores #validate on any other element. Each placement
    * therefore runs the bridge exactly once. FormBuilder::prepareForm()
-   * appends the form's own ::validateForm after the #validate handler.
+   * appends the form's own ::validateForm after the #validate handler. A
+   * registry the caller gave goes along, so validation registers the schema
+   * the same way.
    *
    * @param array<int|string, mixed> $element
    *   The generated container.
@@ -376,8 +417,11 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The container.
    */
   private function withValidation(array $element): array {
-    $element['#element_validate'] = [[$this, 'validateWithSchema']];
-    $element['#validate'] = [[$this, 'validateFormWithSchema']];
+    $element['#element_validate'] = [[SchemaValidationBridge::class, 'elementValidate']];
+    $element['#validate'] = [[SchemaValidationBridge::class, 'formValidate']];
+    if ($this->registry !== NULL) {
+      $element[RenderKeys::REGISTRY] = $this->registry;
+    }
     return $element;
   }
 

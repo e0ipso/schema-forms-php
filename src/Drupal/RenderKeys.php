@@ -21,6 +21,15 @@ final class RenderKeys {
   public const SCHEMA = '#json_schema';
 
   /**
+   * The schema registry the caller gave the generator, on the root container.
+   *
+   * Only a generator built with a registry sets it, so that validation
+   * registers the schema the same way. Without it, validation uses a
+   * RestrictedSchemaRegistry.
+   */
+  public const REGISTRY = '#schema_registry';
+
+  /**
    * The property name of an element, or the delta of an item.
    */
   public const PROP_NAME = '#prop_name';

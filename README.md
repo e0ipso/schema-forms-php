@@ -372,6 +372,11 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 - `SchemaForms\FormOptions` replaces the `ui_hints`, `form_state`, `current_input` and `namespace` context keys. Pass it as `new Context(['options' => new FormOptions(...)])`. The old keys still work, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. `FormOptions` rejects an empty namespace with the message `The "namespace" option must be a non-empty string.`; the old key keeps its own message.
 
+### Form API callbacks
+
+- Generated render arrays name static callbacks on the classes that do the work: `SchemaValidationBridge::elementValidate()` and `::formValidate()` validate the container, `MultivalueCallbacks` runs the array widgets and `EnumElements::validateCheckboxes()` turns checked keys into a list. They used to name the generator itself and its static methods, so a cached form stored a serialized generator. Update any code that compares or rewrites these callbacks.
+- `FormGeneratorDrupal::validateWithSchema()`, `validateFormWithSchema()`, `multiValueProcess()`, `multiValueAfterBuild()`, `removeOneSubmit()`, `removeOneAjax()`, `addMoreSubmit()`, `addMoreAjax()` and `validateCheckboxes()` are deprecated and are removed in 4.0.0. Forms cached by earlier releases still name them, so each one triggers an `E_USER_DEPRECATED` notice and forwards to the callback generated forms name now. Rebuild cached forms before 4.0.0.
+
 ### Contract test case
 
 - `FormTransformationContractTestCase` has a new test, `testEmptyContextMeansNoOptions()`: an empty `Context` must build the same form as no context. An implementation that treats the two differently now fails it.

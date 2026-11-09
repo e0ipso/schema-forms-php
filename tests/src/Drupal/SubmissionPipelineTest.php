@@ -448,7 +448,7 @@ final class SubmissionPipelineTest extends TestCase {
       'label' => self::element(['data', 'label'], 'Label'),
     ]) + ['#json_schema' => $schema];
     $form_state = self::formState(['data' => ['count' => '3', 'label' => 'ab']]);
-    (new FormGeneratorDrupal())->validateWithSchema($element, $form_state);
+    SchemaValidationBridge::elementValidate($element, $form_state);
     // The type cast wrote the integer back.
     $this->assertSame(['count' => 3, 'label' => 'ab'], $form_state->getValue('data'));
     // The validation set the error on the element.
@@ -505,7 +505,7 @@ final class SubmissionPipelineTest extends TestCase {
   public function testFormGeneratorValidateWithoutSchema(): void {
     $element = self::element(['data'], 'Data');
     $form_state = self::formState(['data' => ['count' => '3']]);
-    (new FormGeneratorDrupal())->validateWithSchema($element, $form_state);
+    SchemaValidationBridge::elementValidate($element, $form_state);
     $this->assertSame(['count' => '3'], $form_state->getValue('data'));
     $this->assertSame([], $form_state->getErrors());
   }

@@ -14,7 +14,9 @@ use SchemaForms\SchemaRegistryInterface;
  *
  * Drupal runs #element_validate when the container sits under a key, but on
  * the form itself it runs only the form-level #validate handlers. The
- * generator registers one callback for each placement, and both end here.
+ * generated container names elementValidate() and formValidate() for the two
+ * placements. They are static, so a cached form stores only their names,
+ * and they build the bridge from the container on each request.
  *
  * @internal
  */
@@ -35,6 +37,30 @@ final class SchemaValidationBridge {
     private readonly SubmissionValidator $validator = new SubmissionValidator(),
     private readonly SchemaRegistryInterface $registry = new RestrictedSchemaRegistry(),
   ) {}
+
+  /**
+   * Validates a generated container; its #element_validate callback.
+   *
+   * @param array<int|string, mixed> $element
+   *   The generated container.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public static function elementValidate(array &$element, FormStateInterface $form_state): void {
+    self::forContainer($element)->validateElement($element, $form_state);
+  }
+
+  /**
+   * Validates a generated container that is the form; its #validate handler.
+   *
+   * @param array<int|string, mixed> $form
+   *   The form, which is the generated container.
+   * @param \Drupal\Core\Form\FormStateInterface $form_state
+   *   The form state.
+   */
+  public static function formValidate(array &$form, FormStateInterface $form_state): void {
+    self::forContainer($form)->validateForm($form, $form_state);
+  }
 
   /**
    * Prepares and validates the value of a generated container.
@@ -93,6 +119,20 @@ final class SchemaValidationBridge {
     finally {
       $form_state->setValues($form_state->getValues() + array_diff_key($values, $schema_keys));
     }
+  }
+
+  /**
+   * Builds the bridge for a generated container.
+   *
+   * @param array<int|string, mixed> $container
+   *   The generated container.
+   *
+   * @return self
+   *   A bridge with the registry the generator was given, if any.
+   */
+  private static function forContainer(array $container): self {
+    $registry = $container[RenderKeys::REGISTRY] ?? NULL;
+    return new self(registry: $registry instanceof SchemaRegistryInterface ? $registry : new RestrictedSchemaRegistry());
   }
 
 }

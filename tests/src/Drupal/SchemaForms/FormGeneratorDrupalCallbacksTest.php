@@ -77,7 +77,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
       '#array_parents' => ['host', 'items', 'add_more'],
     ]);
 
-    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    MultivalueCallbacks::appendSubmit($form, $state);
 
     $appended = count($saved);
     $this->assertSame(range(0, $appended), FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
@@ -92,7 +92,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
       '#array_parents' => ['host', 'items', $removed, 'remove_one'],
       '#parents' => ['host', 'items', $removed, 'remove_one'],
     ]);
-    FormGeneratorDrupal::removeOneSubmit($form, $state);
+    MultivalueCallbacks::removeSubmit($form, $state);
 
     $expected = array_values(array_diff(range(0, $appended), [$removed]));
     $this->assertSame($expected, array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
@@ -134,13 +134,13 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $state->setTriggeringElement($widget[1]['actions']['remove_one'] + [
       '#array_parents' => ['host', 'wrapper', 'items', 1, 'actions', 'remove_one'],
     ]);
-    FormGeneratorDrupal::removeOneSubmit($form, $state);
+    MultivalueCallbacks::removeSubmit($form, $state);
     $this->assertSame([0], array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
 
     $state->setTriggeringElement($widget['actions']['add_more'] + [
       '#array_parents' => ['host', 'wrapper', 'items', 'actions', 'add_more'],
     ]);
-    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    MultivalueCallbacks::appendSubmit($form, $state);
     $this->assertSame([0, 2], array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
   }
 
@@ -190,7 +190,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     ];
     $state->setValues(['host' => ['items' => $raw], 'unrelated' => 'keep']);
 
-    $result = FormGeneratorDrupal::multiValueAfterBuild($widget, $state);
+    $result = MultivalueCallbacks::afterBuild($widget, $state);
 
     $this->assertSame($processing ? ['first', '0'] : $raw, $state->getValue(['host', 'items']));
     $this->assertSame('keep', $state->getValue('unrelated'));
@@ -214,7 +214,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
   public function testRemoveAjaxWithoutRemoveButton(): void {
     $state = new FormState();
     $state->setTriggeringElement([]);
-    $this->assertSame([], FormGeneratorDrupal::removeOneAjax([], $state)->getCommands());
+    $this->assertSame([], MultivalueCallbacks::removeAjax([], $state)->getCommands());
   }
 
   /**
@@ -233,14 +233,14 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
       '#array_parents' => ['items', 1, 'remove_one'],
       '#parents' => ['items', 1, 'remove_one'],
     ]);
-    FormGeneratorDrupal::removeOneSubmit($form, $state);
+    MultivalueCallbacks::removeSubmit($form, $state);
     // The form cache serializes the state between requests.
     // phpcs:ignore DrupalPractice.FunctionCalls.InsecureUnserialize -- Drupal's form cache restores every class, as this does.
     $state = unserialize(serialize($state));
     $context['options'] = new FormOptions(formState: $state, currentInput: ['items' => ['a', 'b']]);
     $form = $generator->transform($schema, $context);
     $state->setTriggeringElement($form['items']['add_more'] + ['#array_parents' => ['items', 'add_more']]);
-    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    MultivalueCallbacks::appendSubmit($form, $state);
 
     $items = $generator->transform($schema, $context)['items'];
     $deltas = array_values(array_filter(array_keys($items), 'is_int'));
@@ -265,7 +265,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
       '#array_parents' => ['host', 'items', 'add_more'],
     ]);
 
-    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    MultivalueCallbacks::appendSubmit($form, $state);
 
     $this->assertSame([0], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state, 'host')['items_indices']);
     $this->assertSame([], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
@@ -343,20 +343,20 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertFalse($form['a']['add_more']['#access']);
     $this->assertTrue($form['b']['add_more']['#access'] ?? TRUE);
     $state->setTriggeringElement($form['a']['add_more'] + ['#array_parents' => ['a', 'add_more']]);
-    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    MultivalueCallbacks::appendSubmit($form, $state);
     $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']);
     $this->assertTrue($state->isRebuilding());
     $state->setTriggeringElement($form['a'][0]['remove_one'] + [
       '#array_parents' => ['a', 0, 'remove_one'],
       '#parents' => ['a', 0, 'remove_one'],
     ]);
-    FormGeneratorDrupal::removeOneSubmit($form, $state);
+    MultivalueCallbacks::removeSubmit($form, $state);
     $form = $generator->transform($schema, $context);
     $this->assertTrue($form['a']['add_more']['#access'] ?? TRUE);
     $this->assertArrayNotHasKey(0, $form['a']);
     $this->assertSame('second', $form['a'][1]['removable_element']['#default_value']);
     $state->setTriggeringElement($form['a']['add_more'] + ['#array_parents' => ['a', 'add_more']]);
-    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    MultivalueCallbacks::appendSubmit($form, $state);
     $form = $generator->transform($schema, $context);
     $this->assertSame([1, 2], array_values(FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']));
     $this->assertFalse($form['a']['add_more']['#access']);
@@ -374,7 +374,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $empty = MultivalueCallbacks::appendedWidget($form, $state);
     $this->assertNull($empty['#max_delta']);
     $this->assertArrayNotHasKey(0, $empty);
-    FormGeneratorDrupal::addMoreSubmit($form, $state);
+    MultivalueCallbacks::appendSubmit($form, $state);
     $form = $generator->transform($schema, $context);
     $this->assertFalse($form['b']['add_more']['#access']);
     $this->assertSame([1, 2], array_values(FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']));

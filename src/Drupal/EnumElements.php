@@ -70,7 +70,7 @@ final class EnumElements {
     $element['#type'] = self::CHECKBOXES;
     $element['#options'] = self::options($members, $hints);
     $validators = is_array($element['#element_validate'] ?? NULL) ? $element['#element_validate'] : [];
-    $element['#element_validate'] = [...$validators, [FormGeneratorDrupal::class, 'validateCheckboxes']];
+    $element['#element_validate'] = [...$validators, [self::class, 'validateCheckboxes']];
     return $element;
   }
 
@@ -97,7 +97,7 @@ final class EnumElements {
   }
 
   /**
-   * Turns the checked keys of a checkboxes element into a list.
+   * Turns the checked keys into a list; the #element_validate of checkboxes.
    *
    * @param array<int|string, mixed> $element
    *   The checkboxes element.

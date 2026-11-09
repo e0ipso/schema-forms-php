@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormInterface;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Form\SubformState;
 use SchemaForms\Drupal\FormGeneratorDrupal;
+use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\FormOptions;
 use Shaper\Util\Context;
 
@@ -27,19 +28,12 @@ final class SubformSchemaForm implements FormInterface {
   public const VALIDATE_FORM_VALUES = 'schema_forms_test_subform_values';
 
   /**
-   * The generator, kept so validation uses the instance that built the form.
-   */
-  private FormGeneratorDrupal $generator;
-
-  /**
    * Creates the form.
    *
    * @param object $schema
    *   The decoded JSON Schema.
    */
-  public function __construct(private readonly object $schema) {
-    $this->generator = new FormGeneratorDrupal();
-  }
+  public function __construct(private readonly object $schema) {}
 
   /**
    * {@inheritdoc}
@@ -54,7 +48,7 @@ final class SubformSchemaForm implements FormInterface {
   public function buildForm(array $form, FormStateInterface $form_state): array {
     $form['#tree'] = TRUE;
     $form['settings'] = ['#type' => 'container'];
-    $form['settings']['schema'] = $this->generator->transform($this->schema, new Context(['options' => new FormOptions(formState: $form_state)]));
+    $form['settings']['schema'] = (new FormGeneratorDrupal())->transform($this->schema, new Context(['options' => new FormOptions(formState: $form_state)]));
     $form['actions']['save'] = ['#type' => 'submit', '#value' => 'Save'];
     return $form;
   }
@@ -64,7 +58,7 @@ final class SubformSchemaForm implements FormInterface {
    */
   public function validateForm(array &$form, FormStateInterface $form_state): void {
     $subform_state = SubformState::createForSubform($form['settings'], $form, $form_state);
-    $this->generator->validateWithSchema($form['settings']['schema'], $subform_state);
+    SchemaValidationBridge::elementValidate($form['settings']['schema'], $subform_state);
     $form_state->set(self::VALIDATE_FORM_VALUES, $form_state->getValues());
   }
 

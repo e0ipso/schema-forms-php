@@ -25,6 +25,7 @@ use SchemaForms\Drupal\RequiredMarker;
 use SchemaForms\Drupal\SavedInput;
 use SchemaForms\Drupal\SchemaPreparer;
 use SchemaForms\Drupal\SchemaTypes;
+use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetState;
@@ -89,9 +90,9 @@ class FormGeneratorDrupalTest extends TestCase {
    */
   #[DataProvider('dataProviderFormGeneration')]
   public function testFormGeneration(string $schema, array $expected_form) {
-    $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#element_validate'] = [[SchemaValidationBridge::class, 'elementValidate']];
     $expected_form['#tree'] = TRUE;
-    $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
+    $expected_form['#validate'] = [[SchemaValidationBridge::class, 'formValidate']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
     $actual_form = $this->sut->transform($data);
@@ -243,7 +244,7 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
-            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
+            '#element_validate' => [[EnumElements::class, 'validateCheckboxes']],
             '#options' => ['lor-em' => Markup::create('Lor Em'), 'ipsum' => Markup::create('Ipsum')],
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -326,7 +327,7 @@ class FormGeneratorDrupalTest extends TestCase {
           'foo' => [
             '#title' => Markup::create('Foo'),
             '#type' => 'checkboxes',
-            '#element_validate' => [[FormGeneratorDrupal::class, 'validateCheckboxes']],
+            '#element_validate' => [[EnumElements::class, 'validateCheckboxes']],
             '#options' => ['' => new TranslatableMarkup('None'), 'lor-em' => Markup::create('Lor Em')],
             '#required' => FALSE,
             '#disabled' => FALSE,
@@ -355,9 +356,9 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('dataProviderFormGenerationWithUi')]
   public function testFormGenerationWithUi(string $schema, array $ui_schema, array $expected_form, array $current_input = []) {
     Html::resetSeenIds();
-    $expected_form['#element_validate'] = [[$this->sut, 'validateWithSchema']];
+    $expected_form['#element_validate'] = [[SchemaValidationBridge::class, 'elementValidate']];
     $expected_form['#tree'] = TRUE;
-    $expected_form['#validate'] = [[$this->sut, 'validateFormWithSchema']];
+    $expected_form['#validate'] = [[SchemaValidationBridge::class, 'formValidate']];
     $data = json_decode($schema);
     $expected_form['#json_schema'] = $data;
     $options = new FormOptions(
@@ -391,9 +392,9 @@ class FormGeneratorDrupalTest extends TestCase {
       '#process' => [
         [Details::class, 'processGroup'],
         [Details::class, 'processAjaxForm'],
-        [FormGeneratorDrupal::class, 'multiValueProcess'],
+        [MultivalueCallbacks::class, 'process'],
       ],
-      '#after_build' => [[FormGeneratorDrupal::class, 'multiValueAfterBuild']],
+      '#after_build' => [[MultivalueCallbacks::class, 'afterBuild']],
       '#cardinality' => -1,
       '#max_delta' => 1,
       '#prefix' => '<div id="tag-labels-add-more-wrapper">',
@@ -444,9 +445,9 @@ class FormGeneratorDrupalTest extends TestCase {
             ]),
           ],
           '#limit_validation_errors' => [],
-          '#submit' => [[FormGeneratorDrupal::class, 'removeOneSubmit']],
+          '#submit' => [[MultivalueCallbacks::class, 'removeSubmit']],
           '#ajax' => [
-            'callback' => [FormGeneratorDrupal::class, 'removeOneAjax'],
+            'callback' => [MultivalueCallbacks::class, 'removeAjax'],
             'wrapper' => 'tag-labels-add-more-wrapper',
             'effect' => 'fade',
           ],
@@ -464,9 +465,9 @@ class FormGeneratorDrupalTest extends TestCase {
           '@title' => Markup::create('Labels'),
         ]),
       ],
-      '#submit' => [[FormGeneratorDrupal::class, 'addMoreSubmit']],
+      '#submit' => [[MultivalueCallbacks::class, 'appendSubmit']],
       '#ajax' => [
-        'callback' => [FormGeneratorDrupal::class, 'addMoreAjax'],
+        'callback' => [MultivalueCallbacks::class, 'appendAjax'],
         'wrapper' => 'tag-labels-add-more-wrapper',
         'effect' => 'fade',
       ],
@@ -669,8 +670,8 @@ class FormGeneratorDrupalTest extends TestCase {
         '#type' => 'container',
         '#tree' => TRUE,
         '#json_schema' => $data,
-        '#element_validate' => [[$this->sut, 'validateWithSchema']],
-        '#validate' => [[$this->sut, 'validateFormWithSchema']],
+        '#element_validate' => [[SchemaValidationBridge::class, 'elementValidate']],
+        '#validate' => [[SchemaValidationBridge::class, 'formValidate']],
       ],
       $actual_form
     );

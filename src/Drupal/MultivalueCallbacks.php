@@ -12,8 +12,9 @@ use Drupal\Core\Form\FormStateInterface;
 /**
  * Runs the Form API callbacks of multivalue widgets.
  *
- * The generated render arrays name the static methods of
- * FormGeneratorDrupal, which delegate here.
+ * The generated render arrays name these static methods, so a cached form
+ * stores only their names. Forms cached by releases before 3.2.0 name the
+ * deprecated forwarders on FormGeneratorDrupal instead.
  *
  * @internal
  *

@@ -53,8 +53,8 @@ final class AdapterDependencyTest extends TestCase {
    * No adapter class depends on itself through other adapter classes.
    *
    * A "::class" constant is a name, not a dependency: the render arrays name
-   * the Form API callbacks of FormGeneratorDrupal that way, and cached forms
-   * keep those names, so the builders must spell them.
+   * their Form API callbacks that way, and cached forms keep those names, so
+   * the builders must spell them.
    */
   public function testNoCycles(): void {
     $files = self::adapterFiles();
