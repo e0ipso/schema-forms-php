@@ -353,8 +353,14 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *
    * @return mixed
    *   The stored array, with 'items_indices' and 'array_parents', or NULL.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   Use WidgetItems::read() instead.
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function getPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, ?string $namespace = NULL): mixed {
+    @trigger_error('FormGeneratorDrupal::getPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use WidgetItems::read() instead. See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     return (new WidgetStateStorage($form_state))->get(new WidgetLocation($parents, $prop_name, $namespace));
   }
 
@@ -371,8 +377,15 @@ final class FormGeneratorDrupal extends TransformationBase implements FormGenera
    *   The state to store.
    * @param string|null $namespace
    *   The 'namespace' context key the container was built with, if any.
+   *
+   * @deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0.
+   *   The Append and Remove buttons keep the widget state; read it with
+   *   WidgetItems::read().
+   *
+   * @see https://github.com/e0ipso/schema-forms-php#upgrading
    */
   public static function setPropFormState(array $parents, string $prop_name, FormStateInterface $form_state, array $prop_state, ?string $namespace = NULL): void {
+    @trigger_error('FormGeneratorDrupal::setPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. The Append and Remove buttons keep the widget state; read it with WidgetItems::read(). See https://github.com/e0ipso/schema-forms-php#upgrading', E_USER_DEPRECATED);
     (new WidgetStateStorage($form_state))->set(new WidgetLocation($parents, $prop_name, $namespace), $prop_state);
   }
 

@@ -8,6 +8,7 @@ use Drupal\Core\Form\FormState;
 use Drupal\Core\Render\Markup;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\IgnoreDeprecations;
 use PHPUnit\Framework\TestCase;
 use SchemaForms\Drupal\ButtonNames;
 use SchemaForms\Drupal\ElementScaffold;
@@ -27,6 +28,7 @@ use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
 use SchemaForms\Drupal\WidgetButtons;
+use SchemaForms\Drupal\WidgetItems;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
@@ -80,7 +82,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     MultivalueCallbacks::appendSubmit($form, $state);
 
     $appended = count($saved);
-    $this->assertSame(range(0, $appended), FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
+    $this->assertSame(range(0, $appended), WidgetItems::read($state, ['items'])->deltas);
     $this->assertTrue($state->isRebuilding());
     $form = ['host' => $generator->transform($schema, $context)];
     $this->assertArrayHasKey($appended, $form['host']['items']);
@@ -95,7 +97,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     MultivalueCallbacks::removeSubmit($form, $state);
 
     $expected = array_values(array_diff(range(0, $appended), [$removed]));
-    $this->assertSame($expected, array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
+    $this->assertSame($expected, array_values(WidgetItems::read($state, ['items'])->deltas));
     $this->assertTrue($state->isRebuilding());
     $rebuilt = $generator->transform($schema, $context)['items'];
     $this->assertArrayNotHasKey($removed, $rebuilt);
@@ -135,13 +137,13 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
       '#array_parents' => ['host', 'wrapper', 'items', 1, 'actions', 'remove_one'],
     ]);
     MultivalueCallbacks::removeSubmit($form, $state);
-    $this->assertSame([0], array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
+    $this->assertSame([0], array_values(WidgetItems::read($state, ['items'])->deltas));
 
     $state->setTriggeringElement($widget['actions']['add_more'] + [
       '#array_parents' => ['host', 'wrapper', 'items', 'actions', 'add_more'],
     ]);
     MultivalueCallbacks::appendSubmit($form, $state);
-    $this->assertSame([0, 2], array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
+    $this->assertSame([0, 2], array_values(WidgetItems::read($state, ['items'])->deltas));
   }
 
   /**
@@ -151,7 +153,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $generator = new FormGeneratorDrupal();
     $schema = json_decode('{"type":"object","properties":{"items":{"type":"array","title":"Tags","items":{"type":"string"}}}}');
     $state = new FormState();
-    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, [
+    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items'), [
       'items_indices' => [0 => 0, 2 => 2, 3 => 5],
       'next_delta' => 6,
     ]);
@@ -194,7 +196,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
 
     $this->assertSame($processing ? ['first', '0'] : $raw, $state->getValue(['host', 'items']));
     $this->assertSame('keep', $state->getValue('unrelated'));
-    $this->assertSame(['host', 'items'], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['array_parents']);
+    $this->assertSame(['host', 'items'], WidgetItems::read($state, ['items'])->arrayParents);
     $this->assertSame($widget, $result);
   }
 
@@ -247,7 +249,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertCount(2, $deltas);
     $this->assertSame('a', $items[$deltas[0]]['removable_element']['#default_value']);
     $this->assertArrayNotHasKey('#default_value', $items[$deltas[1]]['removable_element']);
-    $this->assertSame($deltas, array_values(FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']));
+    $this->assertSame($deltas, array_values(WidgetItems::read($state, ['items'])->deltas));
   }
 
   /**
@@ -267,10 +269,10 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
 
     MultivalueCallbacks::appendSubmit($form, $state);
 
-    $this->assertSame([0], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state, 'host')['items_indices']);
-    $this->assertSame([], FormGeneratorDrupal::getPropFormState(['items'], 'items', $state)['items_indices']);
+    $this->assertSame([0], WidgetItems::read($state, ['items'], 'host')->deltas);
+    $this->assertSame([], WidgetItems::read($state, ['items'])->deltas);
     $this->assertArrayHasKey('host', $state->getStorage()['prop_storage']['#namespaces']);
-    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, ['items_indices' => [3]], 'host');
+    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items', 'host'), ['items_indices' => [3]]);
     $options = new FormOptions(
       formState: $state,
       namespace: 'host',
@@ -281,8 +283,14 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
 
   /**
    * Widgets with matching names in different parents keep separate state.
+   *
+   * It runs through the deprecated accessors, which host code may still
+   * call.
    */
+  #[IgnoreDeprecations]
   public function testWidgetStateIsIsolated(): void {
+    $this->expectUserDeprecationMessage('FormGeneratorDrupal::getPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. Use WidgetItems::read() instead. See https://github.com/e0ipso/schema-forms-php#upgrading');
+    $this->expectUserDeprecationMessage('FormGeneratorDrupal::setPropFormState() is deprecated in schema_forms:3.2.0 and is removed from schema_forms:4.0.0. The Append and Remove buttons keep the widget state; read it with WidgetItems::read(). See https://github.com/e0ipso/schema-forms-php#upgrading');
     $state = new FormState();
     $left = ['items_indices' => [0, 2], 'array_parents' => ['left', 'items']];
     $right = ['items_indices' => [0], 'array_parents' => ['right', 'items']];
@@ -344,7 +352,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $this->assertTrue($form['b']['add_more']['#access'] ?? TRUE);
     $state->setTriggeringElement($form['a']['add_more'] + ['#array_parents' => ['a', 'add_more']]);
     MultivalueCallbacks::appendSubmit($form, $state);
-    $this->assertSame([0, 1], FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']);
+    $this->assertSame([0, 1], WidgetItems::read($state, ['a'])->deltas);
     $this->assertTrue($state->isRebuilding());
     $state->setTriggeringElement($form['a'][0]['remove_one'] + [
       '#array_parents' => ['a', 0, 'remove_one'],
@@ -358,7 +366,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     $state->setTriggeringElement($form['a']['add_more'] + ['#array_parents' => ['a', 'add_more']]);
     MultivalueCallbacks::appendSubmit($form, $state);
     $form = $generator->transform($schema, $context);
-    $this->assertSame([1, 2], array_values(FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']));
+    $this->assertSame([1, 2], array_values(WidgetItems::read($state, ['a'])->deltas));
     $this->assertFalse($form['a']['add_more']['#access']);
     $this->assertArrayNotHasKey(0, $form['b']);
     $this->assertSame(2, $form['a']['#max_delta']);
@@ -377,7 +385,7 @@ final class FormGeneratorDrupalCallbacksTest extends TestCase {
     MultivalueCallbacks::appendSubmit($form, $state);
     $form = $generator->transform($schema, $context);
     $this->assertFalse($form['b']['add_more']['#access']);
-    $this->assertSame([1, 2], array_values(FormGeneratorDrupal::getPropFormState(['a'], 'a', $state)['items_indices']));
+    $this->assertSame([1, 2], array_values(WidgetItems::read($state, ['a'])->deltas));
     $this->assertSame('invisible', $form['b'][0]['removable_element']['#title_display']);
     $this->assertSame('fade', $form['b']['add_more']['#ajax']['effect']);
   }

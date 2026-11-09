@@ -13,6 +13,7 @@ use SchemaForms\Drupal\FormGeneratorDrupal;
 use SchemaForms\Drupal\MultivalueCallbacks;
 use SchemaForms\Drupal\MultivalueWidget;
 use SchemaForms\Drupal\SchemaValidationBridge;
+use SchemaForms\Drupal\WidgetItems;
 use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\Tests\Fixture\TranslationContainer;
@@ -116,13 +117,13 @@ final class FormGeneratorDrupalFailurePathTest extends TestCase {
    */
   public function testRemoveUnknownDelta(): void {
     $form_state = new FormState();
-    FormGeneratorDrupal::setPropFormState(['items'], 'items', $form_state, ['items_indices' => [0, 1]]);
+    (new WidgetStateStorage($form_state))->set(new WidgetLocation(['items'], 'items'), ['items_indices' => [0, 1]]);
     $widget = ['#max_delta' => 1, '#prop_parents' => ['items'], '#prop_name' => 'items'];
     $form_state->setTriggeringElement(['#delta' => 7, '#array_parents' => ['items', 7, 'remove_one']]);
 
     MultivalueCallbacks::removeSubmit(['items' => $widget], $form_state);
 
-    $this->assertSame(['items_indices' => [0, 1]], FormGeneratorDrupal::getPropFormState(['items'], 'items', $form_state));
+    $this->assertSame(['items_indices' => [0, 1]], (new WidgetStateStorage($form_state))->get(new WidgetLocation(['items'], 'items')));
     $this->assertTrue($form_state->isRebuilding());
   }
 
@@ -157,7 +158,7 @@ final class FormGeneratorDrupalFailurePathTest extends TestCase {
    * A widget nobody stored state for reads as nothing.
    */
   public function testMissingWidgetState(): void {
-    $this->assertNull(FormGeneratorDrupal::getPropFormState(['items'], 'items', new FormState(), 'host'));
+    $this->assertNull(WidgetItems::read(new FormState(), ['items'], 'host'));
   }
 
 }

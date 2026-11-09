@@ -163,6 +163,7 @@ Semantic versioning covers these symbols, with Shaper's `Context` carrying a `Fo
 
 - `SchemaForms\Drupal\FormGeneratorDrupal`: the Drupal generator. Its constructor takes an optional `SchemaRegistryInterface` and a list of element mappers.
 - `SchemaForms\Drupal\ElementMapperInterface`: picks the element of a scalar schema. See [Mapping more types to elements](#mapping-more-types-to-elements).
+- `SchemaForms\Drupal\WidgetItems`: the items an array widget holds after its buttons rebuilt the form. See [Options](#options).
 - `SchemaForms\FormOptions`: the options of one `transform()` call. See [Options](#options).
 - `SchemaForms\FormTransformationInterface`: `transform()` alone. Type-hint it in code that only builds forms; a replacement generator implements only this method.
 - `SchemaForms\FormGeneratorInterface`: `FormTransformationInterface` plus Shaper's input and output validation methods.
@@ -242,7 +243,7 @@ $context = new Context(['options' => new FormOptions(
 ```
 
 - `uiHints`: the UI schema, as an array keyed by property name.
-- `formState`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild.
+- `formState`: the form's `FormStateInterface`. Array properties keep their item list in the form state storage, so pass the real form state when the schema has arrays. Without it the generator uses a fresh `FormState`, and appended items are lost on rebuild. To read the items a widget holds, call `WidgetItems::read($form_state, ['address', 'lines'])` with the schema path of the array property, and the namespace as a third argument if you set one. Its `deltas` list the item keys in the widget's render array, with gaps where items were removed, and `arrayParents` is where the widget was last built in the form.
 - `currentInput`: previously saved values, keyed like the schema, as decoded objects or associative arrays. Nested objects and arrays are accepted. A value here becomes the `#default_value` of the input that shows it and wins over the schema's `default`, and so does `null`. Elements that collect no input, such as the `details` of an object or an array and a `const` item, carry no `#default_value`; the inputs inside them carry the saved values. A saved `null` on a nullable property renders an empty control, and submitting it unchanged keeps `null`. An unchecked checkbox, an empty input or selection, and an array or object whose controls are all empty count as unchanged.
 - `namespace`: a non-empty string that keeps this container apart from other generated containers in the same form. Array widget state and button names are keyed by the schema path, so two containers whose schemas share a property path would share item lists and buttons. With a namespace, each container keeps its item lists under `['prop_storage', '#namespaces', <namespace>]` in the form state storage, and its button names start with the namespace. Without it, nothing changes. `FormOptions` throws `InvalidOptionException` for an empty string.
 
@@ -376,6 +377,7 @@ Semantic versioning covers the symbols listed under [Public API](#public-api). T
 
 - Generated render arrays name static callbacks on the classes that do the work: `SchemaValidationBridge::elementValidate()` and `::formValidate()` validate the container, `MultivalueCallbacks` runs the array widgets and `EnumElements::validateCheckboxes()` turns checked keys into a list. They used to name the generator itself and its static methods, so a cached form stored a serialized generator. Update any code that compares or rewrites these callbacks.
 - `FormGeneratorDrupal::validateWithSchema()`, `validateFormWithSchema()`, `multiValueProcess()`, `multiValueAfterBuild()`, `removeOneSubmit()`, `removeOneAjax()`, `addMoreSubmit()`, `addMoreAjax()` and `validateCheckboxes()` are deprecated and are removed in 4.0.0. Forms cached by earlier releases still name them, so each one triggers an `E_USER_DEPRECATED` notice and forwards to the callback generated forms name now. Rebuild cached forms before 4.0.0.
+- `FormGeneratorDrupal::getPropFormState()` and `::setPropFormState()` exposed the raw form state storage of array widgets. They are deprecated, trigger an `E_USER_DEPRECATED` notice, and are removed in 4.0.0. Read a widget's items with `SchemaForms\Drupal\WidgetItems::read()`; the Append and Remove buttons change them.
 
 ### Contract test case
 

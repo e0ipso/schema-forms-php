@@ -28,6 +28,7 @@ use SchemaForms\Drupal\SchemaTypes;
 use SchemaForms\Drupal\SchemaValidationBridge;
 use SchemaForms\Drupal\UnsupportedElement;
 use SchemaForms\Drupal\WidgetButton;
+use SchemaForms\Drupal\WidgetLocation;
 use SchemaForms\Drupal\WidgetState;
 use SchemaForms\Drupal\WidgetStateStorage;
 use SchemaForms\FormOptions;
@@ -1021,7 +1022,7 @@ class FormGeneratorDrupalTest extends TestCase {
   #[DataProvider('ajaxDeltaProvider')]
   public function testAppendAjaxUsesRealDelta(array $indices): void {
     $state = new FormState();
-    FormGeneratorDrupal::setPropFormState(['items'], 'items', $state, [
+    (new WidgetStateStorage($state))->set(new WidgetLocation(['items'], 'items'), [
       'items_indices' => $indices,
       'array_parents' => [],
     ]);
